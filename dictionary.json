@@ -1,0 +1,16 @@
+{
+    "components": {
+        "1": "Supervisor",
+        "10": "TelemHub",
+        "11": "CmdHub",
+        "12": "EventHub",
+        "20": "RadioLink",
+        "30": "BlackBox",
+        "100": "StarTracker",
+        "200": "BatterySystem"
+    },
+    "commands": {
+        "RESET_BATTERY": {"target_id": 200, "opcode": 1},
+        "SET_DRAIN_RATE": {"target_id": 200, "opcode": 2}
+    }
+}

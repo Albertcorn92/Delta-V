@@ -4,6 +4,7 @@
 #include "Serializer.hpp"
 #include "Types.hpp"
 #include "ParamDb.hpp"
+#include "TimeService.hpp"
 #include <cmath>
 
 namespace deltav {
@@ -26,10 +27,10 @@ public:
         angle += 0.1f;
         float reading = std::sin(angle) * amplitude;
 
-        static uint32_t simulated_ms = 0;
-        simulated_ms += 1000;
+        // 🚀 UPGRADE: Fetch globally synchronized Mission Elapsed Time (MET)
+        uint32_t current_met = TimeService::getMET();
 
-        TelemetryPacket p = { simulated_ms, getId(), reading };
+        TelemetryPacket p = { current_met, getId(), reading };
         telemetry_out_ground.send(Serializer::pack(p));
     }
 

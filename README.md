@@ -1,16 +1,251 @@
-DELTA-V Autonomy Framework
-DELTA-V is a modern, zero-copy, C++20 aerospace flight software framework designed for edge computing and dynamic autonomy. It was built from the ground up to eliminate the technical debt, dynamic memory overhead, and clunky Python autocoders associated with legacy architectures like NASA's F´ (F Prime) and cFS. DELTA-V provides a highly deterministic, statically allocated “building block” architecture that relies purely on modern C++ compiler mathematics for safety and routing.
+# 🛰️ DELTA-V Autonomy Framework
 
-The core philosophy of DELTA-V centers on a pure C++20 topology. By utilizing advanced constexpr and template metaprogramming, the framework mathematically verifies component wiring at compile time. This eliminates the need for XML dictionaries and external autocoders; if the spacecraft wiring is incorrect, the code simply refuses to build. Furthermore, the framework employs a zero-copy port architecture. Instead of copying messages across a software bus, DELTA-V passes physical memory addresses between components via strongly typed InputPort and OutputPort structures. This enables instant communication with minimal latency and no message duplication, which is critical for real-time flight systems.
+DELTA-V is a high-performance, zero-copy **C++20 aerospace flight software executive** designed to provide the reliability of NASA’s **F´ (F Prime)** without the overhead of heavy message queues, XML dictionaries, or complex Python autocoders.
 
-Memory management in DELTA-V is strictly static. The framework forbids dynamic memory allocation after the boot sequence, meaning there is no use of malloc or new during flight operations. This prevents out-of-memory failures and kernel panics, ensuring mission reliability. The system execution is driven by a deterministic heartbeat provided by a precision scheduler. This scheduler enforces strict execution frequencies, measures raw compute time, and manages sleep cycles to eliminate clock drift and maintain consistent system behavior.
+The framework focuses on **determinism, compile-time safety, and minimal runtime overhead**, making it suitable for embedded aerospace systems and edge-computing flight hardware.
 
-The framework architecture is organized into several key modules. The nervous system of the project is defined in Port.hpp, which manages the direct memory links between modules. The Serialization Engine, located in Serializer.hpp, uses C++20 bit-cast logic to transform complex data structures into raw binary arrays for radio transmission without overhead. For system-wide data management, ParamDb.hpp provides a thread-safe registry that allows ground operators to tune mission constants, such as battery drain rates or sensor gains, without needing to re-flash the flight software.
+---
 
-Data flow is managed by centralized hubs. TelemHub.hpp multiplexes telemetry from various components, while CommandHub.hpp routes incoming ground instructions to their specific targets based on unique component IDs. EventHub.hpp serves as an asynchronous logger, capturing system-wide status messages and alerts. These hubs connect to the TelemetryBridge.hpp, which simulates a radio link using UDP sockets to communicate with the Ground Data System.
+# 🚀 Philosophy: Compile-Time Mission Safety
 
-The Ground Data System (GDS) is a high-performance Streamlit dashboard that serves as mission control. It provides live telemetry charts, a scrolling event console for real-time logs, and an interactive command interface. This allows for Software-in-the-Loop (SITL) testing on desktop environments before deploying to embedded hardware like the ESP32-S3.
+Traditional aerospace software frameworks rely heavily on **runtime validation**, where wiring errors or incorrect data routing are only detected during execution.
 
-To compile and run the DELTA-V framework, a C++20 compliant compiler and CMake 3.10 or newer are required. The compilation sequence involves creating a build directory, running cmake to generate configuration files, and building the binary with the command cmake --build . -j followed by the number of CPU cores. Once compiled, the mission is launched by running the flight_software binary in one terminal and the streamlit gds_dash.py script in another.
+DELTA-V takes a different approach.
 
-Creating a new component in DELTA-V is designed to be streamlined. A developer simply inherits from the Base Component class, defines the necessary Input or Output ports, and implements the init and step functions. For example, a basic "Heater" component would define an InputPort for power commands and an OutputPort for status telemetry. Once instantiated in the main entry point, the component is connected to the hubs using the .connect() method and registered with the scheduler to join the execution loop. This modular approach ensures that DELTA-V remains scalable and adaptable for a wide variety of aerospace missions.
+Using **C++20 Concepts and Template Metaprogramming**, the framework moves system validation to the **compiler**. Component wiring and data types are mathematically verified during compilation.
+
+If the spacecraft’s internal software architecture is incorrect, **the program will not compile**.
+
+This approach dramatically reduces runtime failure risk and increases mission reliability.
+
+---
+
+# 🧱 Key Architectural Pillars
+
+### Broadcast Data Bus
+DELTA-V uses a centralized telemetry distribution hub built on a **subscriber-listener pattern**.
+
+A single telemetry source can broadcast to multiple destinations simultaneously, such as:
+
+- Radio Downlink
+- BlackBox Storage
+- FDIR Systems (Fault Detection, Isolation, and Recovery)
+
+This architecture prevents pointer conflicts while allowing efficient multi-destination streaming.
+
+---
+
+### Zero-Copy Memory Path
+All data movement occurs through `InputPort` and `OutputPort` structures that pass **direct memory references**.
+
+Benefits include:
+
+- Zero data duplication
+- Lower CPU overhead
+- Reduced latency
+- Deterministic communication timing
+
+---
+
+### Static Execution Model
+DELTA-V enforces strict static memory usage.
+
+After the boot sequence:
+
+- `malloc` is prohibited  
+- `new` is prohibited  
+
+This prevents:
+
+- heap fragmentation  
+- runtime allocation failures  
+- unpredictable memory behavior during flight
+
+---
+
+### Bit-Cast Serialization
+Telemetry packets are packed using **`std::bit_cast` binary serialization**.
+
+Advantages include:
+
+- extremely fast binary packing
+- hardware-level data formatting
+- zero transformation overhead before radio transmission
+
+---
+
+# 🛠️ System Architecture
+
+DELTA-V is composed of two major layers:
+
+1. **Flight Software (C++20)**
+2. **Ground Data System (Python)**
+
+---
+
+# Flight Software (C++20)
+
+### Scheduler.hpp — System Heartbeat
+
+Manages deterministic execution cycles and enforces strict timing across all registered flight components.
+
+Each component executes within a predictable scheduler tick.
+
+---
+
+### TelemHub.hpp — Telemetry Bus
+
+Acts as the **central nervous system** for the spacecraft.
+
+Responsibilities include:
+
+- multiplexing sensor data
+- broadcasting telemetry to listeners
+- distributing system status information
+
+---
+
+### CommandHub.hpp — Command Router
+
+Receives uplink commands from ground control and routes them to the appropriate component ID within the flight software.
+
+---
+
+### ParamDb.hpp — Parameter Database
+
+Persistent storage for mission configuration values such as:
+
+- PID controller gains
+- battery drain constants
+- system calibration values
+
+The database persists across system reboots.
+
+---
+
+### TelemetryBridge.hpp — Ground Link
+
+Handles **UDP-based communication** between the flight software and the Ground Data System during Software-in-the-Loop (SITL) testing.
+
+---
+
+# 🖥️ Ground Data System (Python 3.x)
+
+The Ground Data System (GDS) provides a modern **Streamlit-based mission dashboard**.
+
+Capabilities include:
+
+### Real-Time Analytics
+Live plotting of telemetry streams including sensor data, battery voltage, and subsystem metrics.
+
+### Mission Clock
+Maintains synchronized millisecond-level timing between flight software and ground control.
+
+### Event Console
+A color-coded system log displaying alerts, warnings, and heartbeat messages from onboard components.
+
+### Uplink Control
+Allows operators to issue commands and tune parameters in real time during testing.
+
+---
+
+# 🏗️ Building and Launching
+
+## Prerequisites
+
+- C++20 compatible compiler  
+  - Clang 12+  
+  - GCC 11+  
+
+- CMake **3.15 or newer**
+
+- Python **3.9+** (for Ground Data System)
+
+---
+
+# Compilation
+
+Run the following commands from the project root directory:
+
+```bash
+mkdir build
+cd build
+cmake ..
+cmake --build .
+```
+
+---
+
+# Launching Mission Control
+
+## Start the Flight Software
+
+```bash
+./flight_software
+```
+
+---
+
+## Start the Ground Data System Dashboard
+
+```bash
+streamlit run gds_dash.py
+```
+
+---
+
+# 📝 Creating a New Component
+
+DELTA-V is designed for **rapid subsystem development**.
+
+To add a new flight subsystem such as a **Thruster Controller** or **Star Tracker**:
+
+### 1. Inherit from `deltav::Component`
+
+Create a new class that derives from the base framework component.
+
+### 2. Define Ports
+
+Add communication endpoints:
+
+- `InputPort` for commands
+- `OutputPort` for telemetry
+
+### 3. Implement `step()`
+
+This function executes once per scheduler tick.
+
+### 4. Wire the Component in `main.cpp`
+
+Use the telemetry hub to connect the subsystem to the system bus.
+
+---
+
+# Example Component
+
+```cpp
+// Minimal Power System Example
+
+class Battery : public deltav::Component {
+public:
+    void step() override {
+        float voltage = read_sensor();
+
+        TelemetryPacket p = {
+            timestamp,
+            getId(),
+            voltage
+        };
+
+        telemetry_out.send(Serializer::pack(p));
+    }
+
+    OutputPort<Serializer::ByteArray> telemetry_out;
+};
+```
+
+---
+
+# Author
+
+**Albert Cornelius**

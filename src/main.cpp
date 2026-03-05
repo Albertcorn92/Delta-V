@@ -8,10 +8,14 @@
 #include "SensorComponent.hpp" 
 #include "PowerComponent.hpp"  
 #include "ParamDb.hpp"
+#include "TimeService.hpp"
 
 using namespace deltav;
 
 int main() {
+    // 🚀 UPGRADE: Establish Mission Epoch (T-0)
+    TimeService::initEpoch();
+
     ParamDb::getInstance().load();
 
     TelemHub telem_hub("TelemHub", 10);

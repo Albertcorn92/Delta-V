@@ -2,10 +2,14 @@
 #include "Component.hpp"
 #include "Port.hpp"
 #include "Serializer.hpp"
-#include <vector>
-#include <memory>
+#include <array>
+#include <iostream>
 
 namespace deltav {
+
+// Define strict, compile-time memory boundaries
+constexpr size_t MAX_TELEM_INPUTS = 32;
+constexpr size_t MAX_TELEM_LISTENERS = 8;
 
 class TelemHub : public Component {
 public:
@@ -14,32 +18,45 @@ public:
     void init() override {}
 
     void step() override {
-        for (auto& port : internal_inputs) {
-            if (port->hasNew()) {
-                auto data = port->consume();
-                // Push data to every registered listener's InputPort
-                for (auto* listener : listeners) {
-                    listener->receive(data);
+        // Iterate only over the active, registered ports
+        for (size_t i = 0; i < input_count; ++i) {
+            if (internal_inputs[i].hasNew()) {
+                auto data = internal_inputs[i].consume();
+                
+                // Broadcast to all registered listeners (Radio, Logger, etc.)
+                for (size_t j = 0; j < listener_count; ++j) {
+                    listeners[j]->receive(data);
                 }
             }
         }
     }
 
-    // Connects a sensor to the Hub using stable heap memory
+    // Connects a sensor to the Hub using pre-allocated contiguous memory
     void connectInput(OutputPort<Serializer::ByteArray>& source) {
-        auto new_port = std::make_unique<InputPort<Serializer::ByteArray>>();
-        source.connect(new_port.get());
-        internal_inputs.push_back(std::move(new_port));
+        if (input_count < MAX_TELEM_INPUTS) {
+            source.connect(&internal_inputs[input_count]);
+            input_count++;
+        } else {
+            std::cerr << "[FATAL] " << getName() << " exceeded MAX_TELEM_INPUTS boundary. Refusing connection." << std::endl;
+        }
     }
 
-    // Registers external components (Radio, Logger) to receive the stream
+    // Registers external components to receive the stream
     void registerListener(InputPort<Serializer::ByteArray>* dest) {
-        listeners.push_back(dest);
+        if (listener_count < MAX_TELEM_LISTENERS) {
+            listeners[listener_count++] = dest;
+        } else {
+            std::cerr << "[FATAL] " << getName() << " exceeded MAX_TELEM_LISTENERS boundary. Refusing listener." << std::endl;
+        }
     }
 
 private:
-    std::vector<std::unique_ptr<InputPort<Serializer::ByteArray>>> internal_inputs;
-    std::vector<InputPort<Serializer::ByteArray>*> listeners;
+    // Zero dynamic memory allocation. All ports exist in a fixed memory footprint at boot.
+    std::array<InputPort<Serializer::ByteArray>, MAX_TELEM_INPUTS> internal_inputs;
+    std::array<InputPort<Serializer::ByteArray>*, MAX_TELEM_LISTENERS> listeners;
+    
+    size_t input_count = 0;
+    size_t listener_count = 0;
 };
 
 } // namespace deltav

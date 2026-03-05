@@ -4,6 +4,7 @@
 #include "Serializer.hpp"
 #include "Types.hpp"
 #include "ParamDb.hpp"
+#include "TimeService.hpp"
 
 namespace deltav {
 
@@ -30,11 +31,10 @@ public:
         battery_level -= drain_rate;
         if (battery_level < 0) battery_level = 0.0f;
 
-        // Use a 1000ms increment for the dashboard
-        static uint32_t simulated_ms = 0;
-        simulated_ms += 1000; 
+        // 🚀 UPGRADE: Fetch globally synchronized Mission Elapsed Time (MET)
+        uint32_t current_met = TimeService::getMET(); 
 
-        TelemetryPacket p = { simulated_ms, getId(), battery_level };
+        TelemetryPacket p = { current_met, getId(), battery_level };
         telemetry_out.send(Serializer::pack(p));
         battery_out_internal.send(battery_level);
     }
