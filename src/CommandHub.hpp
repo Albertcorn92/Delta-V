@@ -4,10 +4,10 @@
 #include "Types.hpp"
 #include <array>
 #include <iostream>
+#include <cstdio>
 
 namespace deltav {
 
-// Define strict, compile-time memory boundaries
 constexpr size_t MAX_COMMAND_ROUTES = 32;
 
 struct RouteEntry {
@@ -19,33 +19,40 @@ class CommandHub : public Component {
 public:
     CommandHub(std::string_view name, uint32_t id) : Component(name, id) {}
 
-    // Input from the outside world (Radio/Bridge)
     InputPort<CommandPacket> cmd_input;
+    OutputPort<EventPacket> ack_out; 
 
     void init() override {}
 
     void step() override {
         if (cmd_input.hasNew()) {
             CommandPacket cmd = cmd_input.consume();
+            bool routed = false;
 
-            // Linear search through contiguous memory to find the designated route
             for (size_t i = 0; i < route_count; ++i) {
-                if (routes[i].comp_id == cmd.target_id && routes[i].port != nullptr) {
+                if (routes[i].comp_id == cmd.target_id) {
                     routes[i].port->send(cmd);
-                    break; // Command routed, stop searching
+                    routed = true;
+                    break;
                 }
+            }
+
+            char msg[32];
+            if (routed) {
+                std::snprintf(msg, sizeof(msg), "ACK: CMD %u to ID %u", cmd.opcode, cmd.target_id);
+                ack_out.send(EventPacket::create(1, msg));
+            } else {
+                std::snprintf(msg, sizeof(msg), "NACK: ID %u Not Found", cmd.target_id);
+                ack_out.send(EventPacket::create(2, msg));
             }
         }
     }
 
-    // Helper to wire components to the hub
     void registerRoute(uint32_t comp_id, OutputPort<CommandPacket>* port) {
         if (route_count < MAX_COMMAND_ROUTES) {
             routes[route_count].comp_id = comp_id;
             routes[route_count].port = port;
             route_count++;
-        } else {
-            std::cerr << "[FATAL] " << getName() << " exceeded MAX_COMMAND_ROUTES boundary. Refusing route." << std::endl;
         }
     }
 

@@ -9,60 +9,101 @@
 #include <unistd.h>
 #include <fcntl.h> 
 #include <iostream>
+#include <array>
+#include <cstring> 
 
 namespace deltav {
 
-class TelemetryBridge : public Component {
+class TelemetryBridge : public ActiveComponent {
 public:
-    TelemetryBridge(std::string_view name, uint32_t id) : Component(name, id) {}
+    // 🚀 ALIGNED TO GDS: Ports 9001 (Downlink) and 9002 (Uplink)
+    static constexpr uint16_t GDS_DOWNLINK_PORT = 9001; 
+    static constexpr uint16_t GDS_UPLINK_PORT = 9002;
 
+    TelemetryBridge(std::string_view name, uint32_t id) : ActiveComponent(name, id, 20) {}
+
+    // Must match the Serializer output type from TelemHub
     InputPort<Serializer::ByteArray> telem_in;
     InputPort<EventPacket> event_in; 
     OutputPort<CommandPacket> command_out;
 
     void init() override {
         sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
-        // Ensure non-blocking so the flight loop doesn't hang waiting for a command
+        if (sock_fd < 0) {
+            std::cerr << "[" << getName() << "] FATAL: Socket creation failed!" << std::endl;
+            return;
+        }
+
+        // Set non-blocking to prevent the 1Hz loop from hanging
         fcntl(sock_fd, F_SETFL, O_NONBLOCK);
 
         server_addr.sin_family = AF_INET;
-        server_addr.sin_port = htons(9002); 
+        server_addr.sin_port = htons(GDS_UPLINK_PORT); 
         server_addr.sin_addr.s_addr = INADDR_ANY;
 
-        bind(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr));
-        std::cout << "[" << getName() << "] Bridge Online. Downlink: 9001, Uplink: 9002" << std::endl;
+        if (bind(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+            std::cerr << "[" << getName() << "] WARN: Could not bind Uplink port 9002" << std::endl;
+        }
+
+        std::cout << "[" << getName() << "] Bridge Online. Downlink: " << GDS_DOWNLINK_PORT 
+                  << ", Uplink: " << GDS_UPLINK_PORT << " [CCSDS FRAMING ACTIVE]" << std::endl;
     }
 
     void step() override {
         struct sockaddr_in dest_addr;
         dest_addr.sin_family = AF_INET;
-        dest_addr.sin_port = htons(9001);
+        dest_addr.sin_port = htons(GDS_DOWNLINK_PORT);
         dest_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-        // 1. Downlink Telemetry (Strict 12 bytes)
+        static uint16_t telem_seq = 0;
+        static uint16_t event_seq = 0;
+
+        // 1. TELEMETRY DOWNLINK
         if (telem_in.hasNew()) {
             auto data = telem_in.consume();
-            sendto(sock_fd, data.data(), data.size(), 0,
-                   (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+            CcsdsHeader header = {0xDEADBEEF, 10, telem_seq++, static_cast<uint16_t>(data.size())};
+            
+            // Total packet size: 10 (header) + 12 (payload) = 22 bytes
+            std::array<uint8_t, 22> frame;
+            std::memcpy(frame.data(), &header, sizeof(CcsdsHeader));
+            std::memcpy(frame.data() + sizeof(CcsdsHeader), data.data(), data.size());
+            
+            ssize_t sent = sendto(sock_fd, frame.data(), frame.size(), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+            
+            if (sent > 0) {
+                // 🚀 DEBUG PRINT: You should see this in your flight_software terminal
+                std::cout << "[RadioLink] Sent Telemetry Packet (Seq: " << telem_seq-1 << ")" << std::endl;
+            } else {
+                std::perror("[RadioLink] Sendto Failed");
+            }
         }
 
-        // 2. Downlink Events (Strict 36 bytes)
+        // 2. EVENT DOWNLINK
         if (event_in.hasNew()) {
             auto evt = event_in.consume();
-            // Use sizeof(EventPacket) which is now 36 due to packing
-            sendto(sock_fd, &evt, sizeof(EventPacket), 0,
-                   (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+            CcsdsHeader header = {0xDEADBEEF, 20, event_seq++, sizeof(EventPacket)};
+            
+            std::array<uint8_t, sizeof(CcsdsHeader) + sizeof(EventPacket)> frame;
+            std::memcpy(frame.data(), &header, sizeof(CcsdsHeader));
+            std::memcpy(frame.data() + sizeof(CcsdsHeader), &evt, sizeof(EventPacket));
+            
+            sendto(sock_fd, frame.data(), frame.size(), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+            std::cout << "[RadioLink] Sent Event Packet" << std::endl;
         }
 
-        // 3. Uplink Commands
-        CommandPacket cmd;
+        // 3. COMMAND UPLINK
+        std::array<uint8_t, 64> recv_buf;
         struct sockaddr_in client_addr;
         socklen_t addr_len = sizeof(client_addr);
-        int len = recvfrom(sock_fd, &cmd, sizeof(CommandPacket), 0, 
-                           (struct sockaddr*)&client_addr, &addr_len);
+        int len = recvfrom(sock_fd, recv_buf.data(), recv_buf.size(), 0, (struct sockaddr*)&client_addr, &addr_len);
 
-        if (len == sizeof(CommandPacket)) {
-            command_out.send(cmd); 
+        if (len >= (int)sizeof(CcsdsHeader)) {
+            CcsdsHeader* hdr = reinterpret_cast<CcsdsHeader*>(recv_buf.data());
+            if (hdr->sync_word == 0xDEADBEEF && hdr->apid == 30) {
+                CommandPacket* cmd = reinterpret_cast<CommandPacket*>(recv_buf.data() + sizeof(CcsdsHeader));
+                command_out.send(*cmd); 
+                std::cout << "[RadioLink] Command Received! Routing to CmdHub..." << std::endl;
+            }
         }
     }
 

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <cstring>
 
 namespace deltav {
 
@@ -13,100 +14,138 @@ constexpr const char* PARAM_FILE = "mission_params.db"; // SITL Persistence
 
 class ParamDb {
 public:
+    // 🚀 UPDATED: Public constructor allows the Test Suite to create instances
+    ParamDb() : count(0), expected_crc(0) {}
+
     static ParamDb& getInstance() {
         static ParamDb instance;
         return instance;
     }
 
-    // Lock-free read operation using atomic memory acquire
+    // 🚀 UPGRADE: Standard CRC-32 Algorithm for memory integrity
+    static uint32_t computeCRC32(const uint8_t* data, size_t length) {
+        uint32_t crc = 0xFFFFFFFF;
+        for (size_t i = 0; i < length; i++) {
+            crc ^= data[i];
+            for (int j = 0; j < 8; j++) {
+                crc = (crc >> 1) ^ (0xEDB88320 & (-(crc & 1)));
+            }
+        }
+        return ~crc;
+    }
+
+    // Helper for Test Suite to inject specific values by name (mapped to ID)
+    void setValue(const std::string& name, float value) {
+        // Simple hash of string to ID for testing purposes
+        uint32_t id = 0;
+        for(char c : name) id += c;
+        setParam(id, value);
+    }
+
+    // Helper for Test Suite to get a raw pointer to simulate corruption
+    void* getPtr(const std::string& name) {
+        uint32_t id = 0;
+        for(char c : name) id += c;
+        
+        size_t current_count = count.load(std::memory_order_acquire);
+        for (size_t i = 0; i < current_count; ++i) {
+            if (params[i].id == id) {
+                return &(params[i].value);
+            }
+        }
+        return nullptr;
+    }
+
     float getParam(uint32_t param_id, float default_val) {
         size_t current_count = count.load(std::memory_order_acquire);
-        
-        // Linear search through contiguous memory is highly cache-efficient
         for (size_t i = 0; i < current_count; ++i) {
             if (params[i].id == param_id) {
                 return params[i].value.load(std::memory_order_acquire);
             }
         }
         
-        // If not found, safely add it without locks
         size_t idx = count.fetch_add(1, std::memory_order_acq_rel);
         if (idx < MAX_PARAMS) {
             params[idx].id = param_id;
             params[idx].value.store(default_val, std::memory_order_release);
+            updateChecksum();
             return default_val;
         }
-        return default_val; // Failsafe if we exceed MAX_PARAMS
+        return default_val; 
     }
 
-    // Lock-free write operation
     void setParam(uint32_t param_id, float value) {
         size_t current_count = count.load(std::memory_order_acquire);
-        
         for (size_t i = 0; i < current_count; ++i) {
             if (params[i].id == param_id) {
                 params[i].value.store(value, std::memory_order_release);
+                updateChecksum();
                 return;
             }
         }
         
-        // If updating a non-existent parameter, safely add it
         size_t idx = count.fetch_add(1, std::memory_order_acq_rel);
         if (idx < MAX_PARAMS) {
             params[idx].id = param_id;
             params[idx].value.store(value, std::memory_order_release);
+            updateChecksum();
         }
     }
 
-    // SITL Phase 5: State Persistence Load
+    bool verifyIntegrity() {
+        uint32_t current_crc = calculateCurrentChecksum();
+        return (current_crc == expected_crc.load(std::memory_order_acquire));
+    }
+
     void load() {
         std::ifstream file(PARAM_FILE);
-        if (!file.is_open()) {
-            std::cout << "[ParamDb] No existing parameter file found. Starting fresh.\n";
-            return;
-        }
+        if (!file.is_open()) return;
 
         uint32_t id;
         float val;
-        int loaded_count = 0;
-        
-        // Safely insert file contents into the lock-free array
         while (file >> id >> val) {
             setParam(id, val);
-            loaded_count++;
         }
-        std::cout << "[ParamDb] Successfully loaded " << loaded_count << " parameters from NVS.\n";
+        updateChecksum();
     }
 
-    // SITL Phase 5: State Persistence Save
     void save() const {
         std::ofstream file(PARAM_FILE, std::ios::trunc);
-        if (!file.is_open()) {
-            std::cerr << "[ParamDb] ERROR: Failed to open parameter file for saving!\n";
-            return;
-        }
+        if (!file.is_open()) return;
 
         size_t current_count = count.load(std::memory_order_acquire);
         for (size_t i = 0; i < current_count; ++i) {
             file << params[i].id << " " << params[i].value.load(std::memory_order_acquire) << "\n";
         }
-        std::cout << "[ParamDb] Mission parameters safely written to NVS.\n";
     }
 
 private:
-    ParamDb() : count(0) {}
-    
     struct ParamEntry {
         uint32_t id;
         std::atomic<float> value;
-        
-        // Atomics cannot be trivially copied, so we initialize them manually
         ParamEntry() : id(0), value(0.0f) {}
     };
 
-    // Statically allocated memory block
     std::array<ParamEntry, MAX_PARAMS> params;
     std::atomic<size_t> count;
+    std::atomic<uint32_t> expected_crc;
+
+    uint32_t calculateCurrentChecksum() {
+        size_t current_count = count.load(std::memory_order_acquire);
+        if (current_count == 0) return 0;
+
+        // Create a buffer of the current values to hash
+        float buffer[MAX_PARAMS];
+        for(size_t i = 0; i < current_count; ++i) {
+            buffer[i] = params[i].value.load(std::memory_order_acquire);
+        }
+        
+        return computeCRC32(reinterpret_cast<const uint8_t*>(buffer), current_count * sizeof(float));
+    }
+
+    void updateChecksum() {
+        expected_crc.store(calculateCurrentChecksum(), std::memory_order_release);
+    }
 };
 
 } // namespace deltav

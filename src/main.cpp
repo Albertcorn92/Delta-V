@@ -13,9 +13,7 @@
 using namespace deltav;
 
 int main() {
-    // 🚀 UPGRADE: Establish Mission Epoch (T-0)
     TimeService::initEpoch();
-
     ParamDb::getInstance().load();
 
     TelemHub telem_hub("TelemHub", 10);
@@ -28,28 +26,41 @@ int main() {
     SensorComponent star_tracker("StarTracker", 100);
     PowerComponent battery("BatterySystem", 200);
 
-    // TELEMETRY WIRING
+    // FDIR Registration
+    watchdog.registerSubsystem(&radio);
+    watchdog.registerSubsystem(&star_tracker);
+    watchdog.registerSubsystem(&battery);
+
+    // --- TELEMETRY WIRING ---
     telem_hub.connectInput(star_tracker.telemetry_out_ground);
     telem_hub.connectInput(battery.telemetry_out);
     telem_hub.registerListener(&radio.telem_in);
     telem_hub.registerListener(&recorder.telemetry_in);
 
-    // COMMAND WIRING
+    // --- COMMAND WIRING (THE FIX) ---
     radio.command_out.connect(&cmd_hub.cmd_input);
-    static OutputPort<CommandPacket> h1, h2;
-    h1.connect(&battery.cmd_in);
-    h2.connect(&star_tracker.cmd_in);
-    cmd_hub.registerRoute(200, &h1);
-    cmd_hub.registerRoute(100, &h2);
 
-    // EVENT WIRING
-    static InputPort<EventPacket> e1, e2, e3;
+    // Persistent ports for the Hub to route through
+    static OutputPort<CommandPacket> batt_route;
+    static OutputPort<CommandPacket> track_route;
+
+    batt_route.connect(&battery.cmd_in);
+    track_route.connect(&star_tracker.cmd_in);
+
+    cmd_hub.registerRoute(200, &batt_route);
+    cmd_hub.registerRoute(100, &track_route);
+
+    // --- EVENT WIRING ---
+    static InputPort<EventPacket> e1, e2, e3, e4; 
     battery.event_out.connect(&e1);
     star_tracker.event_out.connect(&e2);
     watchdog.event_out.connect(&e3);
+    cmd_hub.ack_out.connect(&e4);
+
     event_hub.registerEventSource(&e1);
     event_hub.registerEventSource(&e2);
     event_hub.registerEventSource(&e3);
+    event_hub.registerEventSource(&e4);
     event_hub.event_out.connect(&radio.event_in);
 
     battery.battery_out_internal.connect(&watchdog.battery_level_in);

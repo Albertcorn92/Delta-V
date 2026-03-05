@@ -10,7 +10,13 @@
         "200": "BatterySystem"
     },
     "commands": {
-        "RESET_BATTERY": {"target_id": 200, "opcode": 1},
-        "SET_DRAIN_RATE": {"target_id": 200, "opcode": 2}
+        "RESET_BATTERY": {
+            "target_id": 200,
+            "opcode": 1
+        },
+        "SET_DRAIN_RATE": {
+            "target_id": 200,
+            "opcode": 2
+        }
     }
 }

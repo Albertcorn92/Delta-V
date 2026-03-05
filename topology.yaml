@@ -1,0 +1,40 @@
+# DELTA-V Spacecraft Topology Blueprint
+system:
+  name: "DeltaV_Flight_Computer"
+  version: "1.1.0"
+
+components:
+  - id: 1
+    name: "Supervisor"
+    type: "Active"
+  - id: 10
+    name: "TelemHub"
+    type: "Passive"
+  - id: 11
+    name: "CmdHub"
+    type: "Passive"
+  - id: 12
+    name: "EventHub"
+    type: "Passive"
+  - id: 20
+    name: "RadioLink"
+    type: "Active"
+  - id: 30
+    name: "BlackBox"
+    type: "Passive"
+  - id: 100
+    name: "StarTracker"
+    type: "Passive"
+  - id: 200
+    name: "BatterySystem"
+    type: "Passive"
+
+commands:
+  - name: "RESET_BATTERY"
+    target_id: 200
+    opcode: 1
+    description: "Resets battery SOC to 100%"
+  - name: "SET_DRAIN_RATE"
+    target_id: 200
+    opcode: 2
+    description: "Sets the battery discharge rate"

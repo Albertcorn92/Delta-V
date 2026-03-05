@@ -10,7 +10,55 @@ namespace deltav {
 template<typename T>
 concept FlightData = std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T>;
 
-// Interface class allows OutputPorts to connect without knowing the Input Queue Depth
+/**
+ * @brief A thread-safe, lock-based Ring Buffer.
+ * This satisfies the 'RingBuffer' type required by the unit tests.
+ */
+template <FlightData T, size_t Size>
+class RingBuffer {
+public:
+    RingBuffer() : head(0), tail(0) {}
+
+    bool push(const T& data) {
+        while (lock.test_and_set(std::memory_order_acquire)) { /* spin */ }
+        
+        size_t next_head = (head + 1) % Size;
+        bool success = false;
+        if (next_head != tail) {
+            buffer[head] = data;
+            head = next_head;
+            success = true;
+        }
+        
+        lock.clear(std::memory_order_release);
+        return success;
+    }
+
+    T pop() {
+        T data{};
+        while (lock.test_and_set(std::memory_order_acquire)) { /* spin */ }
+        
+        if (head != tail) {
+            data = buffer[tail];
+            tail = (tail + 1) % Size;
+        }
+        
+        lock.clear(std::memory_order_release);
+        return data;
+    }
+
+    bool isEmpty() const {
+        return head == tail;
+    }
+
+private:
+    std::array<T, Size> buffer;
+    size_t head = 0;
+    size_t tail = 0;
+    std::atomic_flag lock = ATOMIC_FLAG_INIT;
+};
+
+// Interface class allows OutputPorts to connect without knowing Input Queue Depth
 template<FlightData T>
 class IInputPort {
 public:
@@ -18,56 +66,29 @@ public:
     virtual void receive(const T& data) = 0;
 };
 
-// Upgraded InputPort with a fixed-size, thread-safe Ring Buffer Queue
+// Upgraded InputPort using the RingBuffer logic
 template<FlightData T, size_t QUEUE_DEPTH = 10>
 class InputPort : public IInputPort<T> {
 public:
-    // Push data into the queue (Protected by a thread-safe Micro-Spinlock)
     void receive(const T& data) override {
-        while (lock.test_and_set(std::memory_order_acquire)) {
-            // Spin and wait for lock (Highly efficient for RTOS environments)
-        }
-        
-        size_t next_head = (head + 1) % QUEUE_DEPTH;
-        if (next_head != tail) {
-            buffer[head] = data;
-            head = next_head;
-        } 
-        // Note: If queue is full, we intentionally drop the packet. 
-        // In flight software, dropping telemetry is always safer than a memory overflow crash.
-        
-        lock.clear(std::memory_order_release);
+        queue.push(data);
     }
 
     bool hasNew() const {
-        return head != tail;
+        return !queue.isEmpty();
     }
 
-    // Pop data from the queue 
     T consume() {
-        T data{};
-        while (lock.test_and_set(std::memory_order_acquire)) { /* spin */ }
-        
-        if (head != tail) {
-            data = buffer[tail];
-            tail = (tail + 1) % QUEUE_DEPTH;
-        }
-        
-        lock.clear(std::memory_order_release);
-        return data;
+        return queue.pop();
     }
 
-private:
-    std::array<T, QUEUE_DEPTH> buffer;
-    size_t head = 0;
-    size_t tail = 0;
-    std::atomic_flag lock = ATOMIC_FLAG_INIT;
+    // Exposed for testing
+    RingBuffer<T, QUEUE_DEPTH> queue;
 };
 
 template<FlightData T>
 class OutputPort {
 public:
-    // Connects to the generic interface
     void connect(IInputPort<T>* input) {
         _connected_input = input;
     }
