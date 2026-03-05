@@ -4,81 +4,151 @@ import struct
 import pandas as pd
 import threading
 import time
+from datetime import datetime
 import os
 
 # CONFIG
-PORT = 9001
+PORT_DOWNLINK = 9001
+PORT_UPLINK = 9002
 TELEM_FORMAT = "<IIf" 
 EVENT_FORMAT = "<I32s"
 DATA_FILE = "live_telem.csv"
 EVENT_FILE = "events.log"
 
-# BACKGROUND LISTENER
+# 1. BACKGROUND UDP LISTENER
 def udp_listener():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(("0.0.0.0", PORT)) # Listen on all interfaces
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    except AttributeError:
+        pass
+        
+    sock.bind(("0.0.0.0", PORT_DOWNLINK)) 
     sock.settimeout(0.5)
+    
     while True:
         try:
             data, addr = sock.recvfrom(1024)
+            
+            # TELEMETRY PACKET (12 bytes)
             if len(data) == 12:
-                time_ms, comp_id, val = struct.unpack(TELEM_FORMAT, data)
+                ms_clock, comp_id, val = struct.unpack(TELEM_FORMAT, data)
+                
+                # FIX: Convert MS to Seconds for Python datetime
+                # Or just use current time if the clock hasn't synced yet
+                timestamp = datetime.now().strftime('%H:%M:%S')
+                
                 with open(DATA_FILE, "a") as f:
-                    f.write(f"{time_ms},{comp_id},{val}\n")
+                    f.write(f"{timestamp},{comp_id},{val}\n")
+                    f.flush() # Force write to disk so Streamlit sees it
+
+            # EVENT PACKET (36 bytes)
             elif len(data) == 36:
                 severity, msg_bytes = struct.unpack(EVENT_FORMAT, data)
                 msg = msg_bytes.decode('ascii', errors='ignore').strip('\x00')
-                timestamp = time.strftime("%H:%M:%S")
+                timestamp = datetime.now().strftime('%H:%M:%S')
+                
                 with open(EVENT_FILE, "a") as f:
-                    f.write(f"[{timestamp}] {msg}\n")
-        except: continue
+                    sev_str = "INFO" if severity == 1 else "WARN" if severity == 2 else "CRIT"
+                    f.write(f"[{timestamp}] [{sev_str}] {msg}\n")
+                    f.flush()
+        except Exception:
+            continue
 
-if 'thread_started' not in st.session_state:
+# Ensure files exist with headers
+if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, "w") as f: f.write("Time,ID,Value\n")
+if not os.path.exists(EVENT_FILE):
     with open(EVENT_FILE, "w") as f: f.write("--- MISSION START ---\n")
-    threading.Thread(target=udp_listener, daemon=True).start()
-    st.session_state.thread_started = True
 
-# DASHBOARD UI
-st.set_page_config(page_title="DELTA-V GDS", layout="wide")
-st.title("🛰️ DELTA-V Mission Control")
+# Global Thread Check
+thread_exists = any(t.name == "DELTA_V_LISTENER" for t in threading.enumerate())
+if not thread_exists:
+    t = threading.Thread(target=udp_listener, daemon=True, name="DELTA_V_LISTENER")
+    t.start()
 
-col_main, col_ctrl = st.columns([2, 1])
+# 2. UI CONFIGURATION
+st.set_page_config(page_title="DELTA-V GDS", page_icon="🛰️", layout="wide")
 
-with col_main:
-    # 1. GRAPH SECTION
-    st.subheader("📈 Live Telemetry")
-    chart_placeholder = st.empty()
-    
-    # 2. LOG SECTION
-    st.subheader("📟 Event Console")
-    log_placeholder = st.empty()
+st.markdown("""
+    <style>
+    .block-container { padding-top: 1rem; }
+    div[data-testid="metric-container"] {
+        background-color: #1e1e2e;
+        border-left: 5px solid #00ff00;
+        padding: 10px;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-with col_ctrl:
-    st.subheader("🎮 Vehicle Control")
-    if st.button("🔋 RESET BATTERY", use_container_width=True):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(struct.pack(TELEM_FORMAT, 200, 1, 0.0), ("127.0.0.1", PORT))
-    
-    if st.button("✨ RESET STARTRACKER", use_container_width=True):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(struct.pack(TELEM_FORMAT, 100, 1, 0.0), ("127.0.0.1", PORT))
+st.title("🛰️ DELTA-V MISSION CONTROL")
 
-# THE UPDATE LOOP (The "Engine")
-while True:
-    # Update Chart
+col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+col_plot, col_cmd = st.columns([3, 1])
+col_logs, col_raw = st.columns([3, 1])
+
+def load_data():
     try:
         df = pd.read_csv(DATA_FILE)
-        if len(df) > 1:
-            df_piv = df.pivot_table(index='Time', columns='ID', values='Value').tail(30)
-            chart_placeholder.line_chart(df_piv)
-    except: pass
+        return df
+    except:
+        return pd.DataFrame(columns=['Time', 'ID', 'Value'])
 
-    # Update Logs
+def load_events():
     try:
-        with open(EVENT_FILE, "r") as f:
-            lines = f.readlines()
-            log_placeholder.code("".join(lines[-10:])) # Show last 10 lines
-    except: pass
+        if os.path.exists(EVENT_FILE):
+            with open(EVENT_FILE, "r") as f:
+                return "".join(f.readlines()[-15:])
+        return "Waiting..."
+    except:
+        return "Waiting..."
 
-    time.sleep(0.5) # Fast update
+df = load_data()
+events = load_events()
+
+# KPI Logic
+batt_level = "WAIT"
+sys_time = "WAIT"
+if not df.empty:
+    latest = df.iloc[-1]
+    batt_df = df[df['ID'] == 200]
+    if not batt_df.empty:
+        batt_level = f"{batt_df.iloc[-1]['Value']:.1f}%"
+    sys_time = latest['Time']
+
+with col_kpi1: st.metric("📡 UPLINK", "NOMINAL")
+with col_kpi2: st.metric("🛰️ DOWNLINK", "AOS" if not df.empty else "LOS")
+with col_kpi3: st.metric("🔋 BATTERY", batt_level)
+with col_kpi4: st.metric("⏱️ CLOCK", sys_time)
+
+with col_plot:
+    st.subheader("📈 Telemetry Analytics")
+    if len(df) > 1:
+        # Pivot so each ID gets its own line
+        df_piv = df.pivot_table(index='Time', columns='ID', values='Value').tail(50)
+        st.line_chart(df_piv)
+    else:
+        st.info("Awaiting telemetry stream...")
+
+with col_cmd:
+    st.subheader("🎮 Controls")
+    if st.button("⚡ RESET BATTERY", use_container_width=True):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.sendto(struct.pack(TELEM_FORMAT, 1, 1, 0.0), ("127.0.0.1", PORT_UPLINK))
+    
+    drain_rate = st.slider("Drain Rate", 0.1, 5.0, 0.5)
+    if st.button("SET PARAM"):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.sendto(struct.pack(TELEM_FORMAT, 2, 1, float(drain_rate)), ("127.0.0.1", PORT_UPLINK))
+
+with col_logs:
+    st.subheader("📟 System Events")
+    st.code(events, language="bash")
+
+with col_raw:
+    st.subheader("🗄️ Raw Buffer")
+    st.dataframe(df.tail(5), hide_index=True)
+
+time.sleep(1)
+st.rerun()

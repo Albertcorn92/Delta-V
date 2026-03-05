@@ -3,10 +3,10 @@
 #include "Port.hpp"
 #include "Serializer.hpp"
 #include <vector>
+#include <memory>
 
 namespace deltav {
 
-// This component acts like a network switch for your satellite
 class TelemHub : public Component {
 public:
     TelemHub(std::string_view name, uint32_t id) : Component(name, id) {}
@@ -14,23 +14,32 @@ public:
     void init() override {}
 
     void step() override {
-        // Collect from all registered input ports and push to the one output
-        for (auto* port : inputs) {
+        for (auto& port : internal_inputs) {
             if (port->hasNew()) {
-                output.send(port->consume());
+                auto data = port->consume();
+                // Push data to every registered listener's InputPort
+                for (auto* listener : listeners) {
+                    listener->receive(data);
+                }
             }
         }
     }
 
-    // A helper to let developers easily "plug in" to the hub
-    void registerInput(InputPort<Serializer::ByteArray>* port) {
-        inputs.push_back(port);
+    // Connects a sensor to the Hub using stable heap memory
+    void connectInput(OutputPort<Serializer::ByteArray>& source) {
+        auto new_port = std::make_unique<InputPort<Serializer::ByteArray>>();
+        source.connect(new_port.get());
+        internal_inputs.push_back(std::move(new_port));
     }
 
-    OutputPort<Serializer::ByteArray> output;
+    // Registers external components (Radio, Logger) to receive the stream
+    void registerListener(InputPort<Serializer::ByteArray>* dest) {
+        listeners.push_back(dest);
+    }
 
 private:
-    std::vector<InputPort<Serializer::ByteArray>*> inputs;
+    std::vector<std::unique_ptr<InputPort<Serializer::ByteArray>>> internal_inputs;
+    std::vector<InputPort<Serializer::ByteArray>*> listeners;
 };
 
-}
+} // namespace deltav

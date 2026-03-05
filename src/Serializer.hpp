@@ -2,13 +2,18 @@
 #include <array>
 #include <bit>
 #include <cstdint>
-#include "Types.hpp" // CRITICAL: Serializer needs to know what it's packing!
+#include "Types.hpp" 
 
 namespace deltav {
 
 class Serializer {
 public:
-    // Define ByteArray based on the size of the telemetry packet
+    // DO-178C Mathematical Compile-Time Proofs
+    static_assert(sizeof(TelemetryPacket) == 12, "FATAL: TelemetryPacket memory alignment broken! Must be exactly 12 bytes.");
+    static_assert(sizeof(EventPacket) == 36, "FATAL: EventPacket memory alignment broken! Must be exactly 36 bytes.");
+    static_assert(sizeof(CommandPacket) == 12, "FATAL: CommandPacket memory alignment broken! Must be exactly 12 bytes.");
+
+    // Define ByteArray based on the guaranteed 12-byte size of the telemetry packet
     using ByteArray = std::array<uint8_t, sizeof(TelemetryPacket)>;
 
     static constexpr ByteArray pack(const TelemetryPacket& packet) {

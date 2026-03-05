@@ -4,6 +4,9 @@
 
 namespace deltav {
 
+// NASA-GRADE: Enforce strict DO-178C memory layout (Zero compiler padding allowed)
+#pragma pack(push, 1)
+
 struct TelemetryPacket {
     uint32_t timestamp_ms;
     uint32_t component_id;
@@ -28,5 +31,7 @@ struct EventPacket {
         return p;
     }
 };
+
+#pragma pack(pop)
 
 } // namespace deltav
