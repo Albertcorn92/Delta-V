@@ -202,7 +202,7 @@ TEST(Serializer, Crc16DetectsCorruption) {
 // =============================================================================
 class ParamDbTest : public ::testing::Test {
 protected:
-    ParamDb db; // fresh instance per test (not the singleton)
+    ParamDb db; // fresh instance per test
 };
 
 TEST_F(ParamDbTest, GetReturnsDefault) {
@@ -247,10 +247,10 @@ TEST_F(ParamDbTest, StringAndIdApisAreEquivalent) {
 
 TEST_F(ParamDbTest, SaveAndLoadFile) {
     db.setParam("flight_alt", 400.0f);
-    db.save(); // Uses actual ParamDb method
+    db.save(); 
 
     ParamDb db2;
-    db2.load(); // Uses actual ParamDb method
+    db2.load(); 
     EXPECT_FLOAT_EQ(db2.getParam("flight_alt", 0.0f), 400.0f);
 }
 
@@ -265,7 +265,6 @@ public:
     void init()  override { initialized = true; }
     void step()  override {}
     HealthStatus reportHealth() override { 
-        // Allow tests to either force a status, or use the base error tracking
         if (forced != HealthStatus::NOMINAL) return forced;
         return Component::reportHealth(); 
     }
@@ -280,10 +279,10 @@ TEST(Component, ErrorTrackingEscalation) {
     c.recordError();
     c.recordError();
     EXPECT_EQ(c.getErrorCount(), 3u);
-    EXPECT_EQ(c.reportHealth(), HealthStatus::WARNING); // 3+ errors is warning
+    EXPECT_EQ(c.reportHealth(), HealthStatus::WARNING); 
     
     for(int i=0; i<8; i++) c.recordError();
-    EXPECT_EQ(c.reportHealth(), HealthStatus::CRITICAL_FAILURE); // 10+ errors is critical
+    EXPECT_EQ(c.reportHealth(), HealthStatus::CRITICAL_FAILURE); 
 }
 
 // =============================================================================
@@ -303,11 +302,11 @@ TEST(TimeService, IsReadyAfterInit) {
 }
 
 // =============================================================================
-// Scheduler
+// Scheduler — Fixes stack-use-after-scope by declaring component first
 // =============================================================================
 TEST(Scheduler, RegistersAndInits) {
-    Scheduler sys;
-    FakeComponent c1;
+    FakeComponent c1; // Declared first, dies last
+    Scheduler sys;    // Declared second, dies first
     sys.registerComponent(&c1);
     sys.initAll();
     EXPECT_TRUE(c1.initialized);
@@ -323,7 +322,7 @@ TEST(TelemHub, RoutesToListeners) {
     InputPort<Serializer::ByteArray> dest1;
     InputPort<Serializer::ByteArray> dest2;
 
-    hub.connectInput(sender); // Uses actual TelemHub connectInput method
+    hub.connectInput(sender); 
     hub.registerListener(&dest1);
     hub.registerListener(&dest2);
     hub.init();
@@ -399,7 +398,7 @@ TEST_F(CommandHubTest, NacksUnknownTarget) {
     OutputPort<CommandPacket> sender;
     sender.connect(&hub.cmd_input);
 
-    CommandPacket cmd{999, 1, 0.0f}; // unknown ID
+    CommandPacket cmd{999, 1, 0.0f}; 
     sender.send(cmd);
     hub.step();
 
@@ -426,7 +425,7 @@ TEST(LoggerComponent, DrainsInputs) {
     telem_src.send(Serializer::pack(p));
     event_src.send(EventPacket::create(Severity::INFO, 1, "TEST LOG"));
 
-    logger.step(); // should drain both without crashing
+    logger.step(); 
 
     EXPECT_FALSE(logger.telemetry_in.hasNew());
     EXPECT_FALSE(logger.event_in.hasNew());
