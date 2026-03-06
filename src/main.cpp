@@ -1,16 +1,11 @@
 // =============================================================================
 // main.cpp — DELTA-V Flight Software Entry Point
 // =============================================================================
-// Boot sequence (mirrors NASA FSW boot phases):
-//   Phase 0: Hardware/service init (TimeService, ParamDb)
-//   Phase 1: Topology wiring   (TopologyManager::wire)
-//   Phase 2: Subsystem init    (Scheduler::initAll → Component::init)
-//   Phase 3: Real-time loop    (Scheduler::executeLoop)
-// =============================================================================
 #include "ParamDb.hpp"
 #include "Scheduler.hpp"
 #include "TimeService.hpp"
 #include "TopologyManager.hpp"
+#include "I2cDriver.hpp" // Added for HAL support
 #include <iostream>
 
 using namespace deltav;
@@ -22,8 +17,16 @@ int main() {
     TimeService::initEpoch();
     ParamDb::getInstance().load();
 
+    // Phase 0.5: Hardware Drivers (HAL)
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+    hal::Esp32I2c i2c_bus(I2C_NUM_0); 
+#else
+    hal::MockI2c  i2c_bus; // Used for SITL on macOS
+#endif
+
     // Phase 1: Instantiate and wire topology
-    TopologyManager topology;
+    // We pass the i2c_bus reference so the topology can inject it into components
+    TopologyManager topology(i2c_bus); 
     topology.wire();
     topology.registerFdir();
 
@@ -36,7 +39,9 @@ int main() {
     Scheduler sys;
     topology.registerAll(sys);
     sys.initAll();
-    sys.executeLoop(1); // 1 Hz master loop — Active components run at their own rates
+    
+    // 1 Hz master loop — Active components (like TelemBridge) run at their own rates
+    sys.executeLoop(1); 
 
     return 0;
 }

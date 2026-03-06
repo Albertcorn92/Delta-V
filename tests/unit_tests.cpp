@@ -1,5 +1,5 @@
 // =============================================================================
-// unit_tests.cpp — DELTA-V Framework Test Suite  v2.1
+// unit_tests.cpp — DELTA-V Framework Test Suite  v2.2
 // =============================================================================
 // Original 40 tests preserved exactly. 45 new tests added to push coverage
 // above 80% on every source file.
@@ -56,6 +56,7 @@
 #include "LoggerComponent.hpp"
 #include "TopologyManager.hpp"
 #include "Scheduler.hpp"
+#include "I2cDriver.hpp" // Added to fix TopologyManager constructor requirement
 
 using namespace deltav;
 
@@ -905,7 +906,7 @@ TEST(SensorComponent, UnknownOpcodeIncrementsErrorCount) {
     TimeService::initEpoch();
     SensorComponent sensor{"StarTracker", 100};
     InputPort<Serializer::ByteArray> telem_dest;
-    sensor.telemetry_out_ground.connect(&telem_dest);
+    sensor.telemetry_out.connect(&telem_dest);
     sensor.init();
 
     OutputPort<CommandPacket> sender;
@@ -922,7 +923,7 @@ TEST(SensorComponent, Opcode1SetsAmplitude) {
     SensorComponent sensor{"StarTracker", 100};
     InputPort<Serializer::ByteArray> telem_dest;
     InputPort<EventPacket>           event_dest;
-    sensor.telemetry_out_ground.connect(&telem_dest);
+    sensor.telemetry_out.connect(&telem_dest);
     sensor.event_out.connect(&event_dest);
     sensor.init();
 
@@ -942,7 +943,7 @@ TEST(SensorComponent, TelemetryEmittedPerStep) {
     TimeService::initEpoch();
     SensorComponent sensor{"StarTracker", 100};
     InputPort<Serializer::ByteArray> telem_dest;
-    sensor.telemetry_out_ground.connect(&telem_dest);
+    sensor.telemetry_out.connect(&telem_dest);
     sensor.init();
 
     sensor.step();
@@ -1107,11 +1108,12 @@ TEST(WatchdogComponent, PollSchedulerHealthSilentWhenNoNewDrops) {
 }
 
 // =============================================================================
-// TopologyManager — verify() must pass after wire()
+// TopologyManager — FIXED FOR HARDWARE INJECTION
 // =============================================================================
 TEST(TopologyManager, VerifyPassesAfterWire) {
     TimeService::initEpoch();
-    TopologyManager topo;
+    hal::MockI2c mock_bus;           // FIX: Provide required hardware bus
+    TopologyManager topo(mock_bus);  // FIX: Inject bus
     topo.wire();
     topo.registerFdir();
     EXPECT_TRUE(topo.verify());
@@ -1120,14 +1122,12 @@ TEST(TopologyManager, VerifyPassesAfterWire) {
 // ----- NEW -----
 TEST(TopologyManager, RegisterAllInitialisesAllComponents) {
     TimeService::initEpoch();
-    TopologyManager topo;
+    hal::MockI2c mock_bus;
+    TopologyManager topo(mock_bus);
     topo.wire();
     topo.registerFdir();
 
     // registerAll() then initAll() must succeed without throwing.
-    // If any component is missing from registerAll() its init() won't run,
-    // and any subsequent verify() would catch broken wiring — so we assert
-    // both: no throw AND verify still passes post-init.
     Scheduler sys;
     topo.registerAll(sys);
     EXPECT_NO_THROW(sys.initAll());
@@ -1136,7 +1136,8 @@ TEST(TopologyManager, RegisterAllInitialisesAllComponents) {
 
 TEST(TopologyManager, VerifyFailsWithoutWire) {
     TimeService::initEpoch();
-    TopologyManager topo;
+    hal::MockI2c mock_bus;
+    TopologyManager topo(mock_bus);
     // Do NOT call topo.wire() — verify() must return false
     EXPECT_FALSE(topo.verify());
 }

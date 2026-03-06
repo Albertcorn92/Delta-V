@@ -24,7 +24,7 @@ constexpr uint32_t PARAM_STAR_AMPLITUDE = ParamDb::fnv1a("star_amplitude");
 
 class SensorComponent : public Component {
 public:
-    OutputPort<Serializer::ByteArray> telemetry_out_ground;
+    OutputPort<Serializer::ByteArray> telemetry_out;
     OutputPort<EventPacket>           event_out;
     InputPort<CommandPacket>          cmd_in;
 
@@ -49,7 +49,7 @@ public:
         float reading = std::sin(angle) * amplitude;
 
         TelemetryPacket p{ TimeService::getMET(), getId(), reading };
-        telemetry_out_ground.send(Serializer::pack(p));
+        telemetry_out.send(Serializer::pack(p));
     }
 
 private:

@@ -6,27 +6,43 @@ system:
 components:
   - id: 1
     name: "Supervisor"
+    class: "WatchdogComponent"
+    instance: "watchdog"
     type: "Active"
   - id: 10
     name: "TelemHub"
+    class: "TelemHub"
+    instance: "telem_hub"
     type: "Passive"
   - id: 11
     name: "CmdHub"
+    class: "CommandHub"
+    instance: "cmd_hub"
     type: "Passive"
   - id: 12
     name: "EventHub"
+    class: "EventHub"
+    instance: "event_hub"
     type: "Passive"
   - id: 20
     name: "RadioLink"
+    class: "TelemetryBridge"
+    instance: "radio"
     type: "Active"
   - id: 30
     name: "BlackBox"
+    class: "LoggerComponent"
+    instance: "recorder"
     type: "Passive"
   - id: 100
     name: "StarTracker"
+    class: "SensorComponent"
+    instance: "star_tracker"
     type: "Passive"
   - id: 200
     name: "BatterySystem"
+    class: "PowerComponent"
+    instance: "battery"
     type: "Passive"
 
 commands:
@@ -38,3 +54,6 @@ commands:
     target_id: 200
     opcode: 2
     description: "Sets the battery discharge rate"
+
+custom_wiring:
+  - "battery.battery_out_internal.connect(&watchdog.battery_level_in);"

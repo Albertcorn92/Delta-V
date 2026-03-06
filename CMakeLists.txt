@@ -53,11 +53,19 @@ endif()
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
 # =============================================================================
+# Auto-Discovery Source Mapping
+# =============================================================================
+# CONFIGURE_DEPENDS forces CMake to watch the folder. If dv-util.py adds a file,
+# CMake will automatically reconfigure on the next build.
+file(GLOB_RECURSE ALL_FRAMEWORK_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+
+# Remove main.cpp from the library sources so the test suite doesn't get a duplicate main()
+list(REMOVE_ITEM ALL_FRAMEWORK_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
+
+# =============================================================================
 # Flight Software Executable
 # =============================================================================
-file(GLOB_RECURSE FLIGHT_SOURCES "src/*.cpp")
-
-add_executable(flight_software ${FLIGHT_SOURCES})
+add_executable(flight_software src/main.cpp ${ALL_FRAMEWORK_SOURCES})
 target_include_directories(flight_software PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(flight_software PRIVATE Threads::Threads)
 target_compile_options(flight_software PRIVATE ${DELTAV_WARN_FLAGS})
@@ -71,13 +79,14 @@ endif()
 # =============================================================================
 enable_testing()
 
-# Find GTest — install with: sudo apt install libgtest-dev (Ubuntu)
-#                             brew install googletest       (macOS)
+# Find GTest — install with: sudo apt install libgtest-dev (Ubuntu) / brew install googletest (macOS)
 find_package(GTest QUIET)
 
 if(GTest_FOUND OR GTEST_FOUND)
-    add_executable(run_tests tests/unit_tests.cpp)
+    # Link tests against all framework sources (excluding main.cpp)
+    add_executable(run_tests tests/unit_tests.cpp ${ALL_FRAMEWORK_SOURCES})
     target_include_directories(run_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    
     target_link_libraries(run_tests PRIVATE Threads::Threads GTest::GTest GTest::Main)
     target_compile_options(run_tests PRIVATE ${DELTAV_WARN_FLAGS})
 
@@ -95,7 +104,7 @@ if(GTest_FOUND OR GTEST_FOUND)
     message(STATUS "Unit tests: ENABLED (target: run_tests)")
 
     # Coverage target (builds separate binary with --coverage flags)
-    add_executable(run_tests_coverage tests/unit_tests.cpp)
+    add_executable(run_tests_coverage tests/unit_tests.cpp ${ALL_FRAMEWORK_SOURCES})
     target_include_directories(run_tests_coverage PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(run_tests_coverage PRIVATE Threads::Threads GTest::GTest GTest::Main)
     target_compile_options(run_tests_coverage PRIVATE ${DELTAV_COVERAGE_FLAGS})
@@ -126,13 +135,13 @@ endif()
 # =============================================================================
 find_program(CLANG_TIDY_EXECUTABLE clang-tidy)
 if(CLANG_TIDY_EXECUTABLE)
-    file(GLOB_RECURSE ALL_SOURCE_FILES "src/*.hpp" "src/*.cpp")
+    file(GLOB_RECURSE ALL_SOURCE_FILES CONFIGURE_DEPENDS "src/*.hpp" "src/*.cpp")
     add_custom_target(tidy
         COMMAND ${CLANG_TIDY_EXECUTABLE}
             -p ${CMAKE_BINARY_DIR}
             --checks=cppcoreguidelines-*,cert-*,performance-*,modernize-*,bugprone-*
             --warnings-as-errors=*
-            ${ALL_SOURCE_FILES}
+             ${ALL_SOURCE_FILES}
         COMMENT "Running clang-tidy static analysis"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
