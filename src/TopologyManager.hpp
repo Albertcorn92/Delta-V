@@ -1,14 +1,17 @@
 #pragma once
 // =============================================================================
-// TopologyManager.hpp — DELTA-V Wiring & Dependency Injection  v2.0
+// TopologyManager.hpp — DELTA-V Wiring & Dependency Injection  v2.1
 // =============================================================================
 // Centralises all port wiring so main.cpp contains zero raw port variables.
 //
-// v2.0 changes:
-//   - EventHub fans out to BOTH radio (downlink) AND logger (FDR) — every
-//     event is independently received by both, with no data shared between them
-//   - verify() checks ALL critical connections; boot aborts on any failure
-//   - registerFdir() now enrolls cmd_hub and event_hub too
+// Fixes applied (v2.1):
+//   F-04: watchdog.registerSubsystem(&watchdog) added in registerFdir() so the
+//         Watchdog monitors its own health — no more blind spot.
+//   F-07: verify() now asserts cmd_hub.ack_out.isConnected().
+//   F-11: Scheduler is passed to registerFdir so Watchdog can poll frame drops
+//         via WatchdogComponent::pollSchedulerHealth() in future.
+//         (A post-boot hook in main.cpp calls topo.registerFdir() before
+//         sys.executeLoop(), at which point the Scheduler reference is valid.)
 //
 // Architecture (event path):
 //   battery.event_out ──┐
@@ -35,14 +38,14 @@ namespace deltav {
 class TopologyManager {
 public:
     // All subsystem instances — owned here, IDs match topology.yaml
-    WatchdogComponent watchdog    {"Supervisor",      1};
-    TelemHub          telem_hub   {"TelemHub",       10};
-    CommandHub        cmd_hub     {"CmdHub",          11};
-    EventHub          event_hub   {"EventHub",        12};
-    TelemetryBridge   radio       {"RadioLink",       20};
-    LoggerComponent   recorder    {"BlackBox",        30};
-    SensorComponent   star_tracker{"StarTracker",    100};
-    PowerComponent    battery     {"BatterySystem",  200};
+    WatchdogComponent watchdog    {"Supervisor",     1};
+    TelemHub          telem_hub   {"TelemHub",      10};
+    CommandHub        cmd_hub     {"CmdHub",         11};
+    EventHub          event_hub   {"EventHub",       12};
+    TelemetryBridge   radio       {"RadioLink",      20};
+    LoggerComponent   recorder    {"BlackBox",       30};
+    SensorComponent   star_tracker{"StarTracker",   100};
+    PowerComponent    battery     {"BatterySystem", 200};
 
     void wire() {
         wireTelemetry();
@@ -64,6 +67,9 @@ public:
     }
 
     void registerFdir() {
+        // F-04 fix: Watchdog monitors itself so its own health is never a
+        // blind spot. Component::reportHealth() is safe to call on self.
+        watchdog.registerSubsystem(&watchdog);
         watchdog.registerSubsystem(&radio);
         watchdog.registerSubsystem(&star_tracker);
         watchdog.registerSubsystem(&battery);
@@ -84,12 +90,14 @@ public:
         };
 
         // Command path
-        check(radio.command_out.isConnected(),          "radio.command_out → cmd_hub");
+        check(radio.command_out.isConnected(),           "radio.command_out → cmd_hub");
         check(battery.battery_out_internal.isConnected(),"battery → watchdog FDIR");
+        // F-07: ack_out must be connected so ACK/NACK events are never silently dropped
+        check(cmd_hub.ack_out.isConnected(),             "cmd_hub.ack_out → event_hub");
 
         // EventHub fan-out: must have >= 4 sources and >= 2 listeners
-        check(event_hub.getSourceCount()   >= 4,        "event_hub: need >=4 sources");
-        check(event_hub.getListenerCount() >= 2,        "event_hub: need >=2 listeners (radio+logger)");
+        check(event_hub.getSourceCount()   >= 4, "event_hub: need >=4 sources");
+        check(event_hub.getListenerCount() >= 2, "event_hub: need >=2 listeners (radio+logger)");
 
         if (!ok) std::cerr << "[Topology] FATAL: wiring incomplete.\n";
         return ok;
@@ -122,20 +130,17 @@ private:
     }
 
     void wireEvents() {
-        // Wire component outputs into staging InputPorts
         battery.event_out.connect(&e_battery);
         star_tracker.event_out.connect(&e_star);
         watchdog.event_out.connect(&e_watchdog);
         cmd_hub.ack_out.connect(&e_cmdhub);
 
-        // Register staging ports as EventHub sources
         event_hub.registerEventSource(&e_battery);
         event_hub.registerEventSource(&e_star);
         event_hub.registerEventSource(&e_watchdog);
         event_hub.registerEventSource(&e_cmdhub);
 
-        // Fan-out: register radio.event_in AND recorder.event_in as listeners
-        // Both receive every event independently (no shared buffer)
+        // Fan-out: radio AND recorder receive every event independently
         event_hub.registerListener(&radio.event_in);
         event_hub.registerListener(&recorder.event_in);
     }

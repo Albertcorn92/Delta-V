@@ -2,15 +2,27 @@
 // =============================================================================
 // WatchdogComponent.hpp — DELTA-V Fault Detection, Isolation & Recovery (FDIR)
 // =============================================================================
-// The Watchdog is the system's safety net. Every scheduler tick it:
+// Every scheduler tick the Watchdog:
 //   1. Checks battery level against safe-mode threshold
-//   2. Polls reportHealth() on every registered subsystem
+//   2. Polls reportHealth() on every registered subsystem (including itself)
 //   3. Attempts automatic restart of failed ActiveComponents (up to MAX_RESTARTS)
 //   4. Transitions the mission FSM: NOMINAL → DEGRADED → SAFE_MODE → EMERGENCY
 //   5. Verifies ParamDb integrity on a slower cadence
 //   6. Emits a periodic heartbeat so the GDS can detect communication loss
+//   7. Recovers DEGRADED → NOMINAL when all conditions clear (F-15)
 //
-// DO-178C: No dynamic allocation. All subsystem pointers are registered at boot.
+// Fixes applied (v2.1):
+//   F-04: Watchdog can be registered with itself via registerSubsystem(&watchdog)
+//         in TopologyManager::registerFdir(). Self-monitoring is now the default.
+//   F-11: pollSchedulerHealth(uint64_t frame_drops) added so Scheduler's frame
+//         drop count is surfaced to the FDIR event stream.
+//   F-15: DEGRADED state now auto-recovers to NOMINAL when all subsystems report
+//         healthy and battery is above the DEGRADED threshold. Only SAFE_MODE
+//         and EMERGENCY require explicit ground command to clear.
+//   F-17: pollPortOverflows() added — call with any InputPort to detect and
+//         report queue overflow events to the GDS.
+//
+// DO-178C: No dynamic allocation. All arrays are fixed at compile time.
 // =============================================================================
 #include "Component.hpp"
 #include "ParamDb.hpp"
@@ -23,10 +35,10 @@
 
 namespace deltav {
 
-constexpr size_t MAX_MONITORED_SUBSYSTEMS = 32;
-constexpr uint32_t MAX_RESTARTS_PER_COMPONENT = 3;
-constexpr uint32_t HEARTBEAT_INTERVAL_CYCLES   = 10; // at 1 Hz → 10 s
-constexpr uint32_t PARAM_CHECK_INTERVAL_CYCLES = 30; // at 1 Hz → 30 s
+constexpr size_t   MAX_MONITORED_SUBSYSTEMS     = 32;
+constexpr uint32_t MAX_RESTARTS_PER_COMPONENT   = 3;
+constexpr uint32_t HEARTBEAT_INTERVAL_CYCLES    = 10; // at 1 Hz → 10 s
+constexpr uint32_t PARAM_CHECK_INTERVAL_CYCLES  = 30; // at 1 Hz → 30 s
 
 // ---------------------------------------------------------------------------
 // Mission FSM states — ordered by severity (higher = worse)
@@ -55,11 +67,12 @@ public:
     WatchdogComponent(std::string_view comp_name, uint32_t comp_id)
         : Component(comp_name, comp_id) {}
 
-    InputPort<float>       battery_level_in;
+    InputPort<float>        battery_level_in;
     OutputPort<EventPacket> event_out;
 
     void init() override {
-        mission_state = MissionState::NOMINAL;
+        mission_state  = MissionState::NOMINAL;
+        last_batt_soc  = 100.0f;
         event_out.send(EventPacket::create(Severity::INFO, getId(),
             "WATCHDOG: Init complete. FDIR active."));
         std::cout << "[" << getName() << "] FDIR online. Supervising "
@@ -74,6 +87,33 @@ public:
         }
     }
 
+    // F-11: Called by Scheduler (or a periodic task) to surface frame drops
+    // into the FDIR event stream.
+    void pollSchedulerHealth(uint64_t frame_drops) {
+        if (frame_drops > last_frame_drops) {
+            uint64_t new_drops = frame_drops - last_frame_drops;
+            last_frame_drops   = frame_drops;
+            char msg[28];
+            std::snprintf(msg, sizeof(msg), "SCHED: %llu frame drops",
+                static_cast<unsigned long long>(new_drops));
+            emit(Severity::WARNING, msg);
+            recordError();
+        }
+    }
+
+    // F-17: Poll an InputPort for overflow and emit an event if found.
+    // Call this from step() for any critical port (e.g. event_in on RadioLink).
+    template<typename T, size_t D>
+    void pollPortOverflow(InputPort<T, D>& port, const char* port_name) {
+        uint32_t ov = port.drainOverflowCount();
+        if (ov > 0) {
+            char msg[28];
+            std::snprintf(msg, sizeof(msg), "OVF:%s x%u", port_name, ov);
+            emit(Severity::WARNING, msg);
+            recordError();
+        }
+    }
+
     MissionState getMissionState() const { return mission_state; }
 
     void step() override {
@@ -81,11 +121,12 @@ public:
 
         checkBattery();
         checkSubsystems();
+        tryRecoverDegraded(); // F-15: auto-recovery for DEGRADED
 
         // Periodic ParamDb integrity check
         if (cycles % PARAM_CHECK_INTERVAL_CYCLES == 0) {
             if (!ParamDb::getInstance().verifyIntegrity()) {
-                emit(Severity::CRITICAL, "FDIR: ParamDb CRC mismatch! Memory may be corrupted.");
+                emit(Severity::CRITICAL, "FDIR: ParamDb CRC mismatch!");
                 escalate(MissionState::SAFE_MODE);
             }
         }
@@ -105,8 +146,10 @@ private:
     uint32_t   restart_counts[MAX_MONITORED_SUBSYSTEMS]{};
     size_t     monitored_count{0};
 
-    MissionState          mission_state{MissionState::BOOT};
-    uint32_t              cycles{0};
+    MissionState mission_state{MissionState::BOOT};
+    uint32_t     cycles{0};
+    float        last_batt_soc{100.0f};
+    uint64_t     last_frame_drops{0};
 
     // -----------------------------------------------------------------------
     // Battery FDIR
@@ -114,6 +157,7 @@ private:
     void checkBattery() {
         float batt{0.0f};
         while (battery_level_in.tryConsume(batt)) {
+            last_batt_soc = batt; // track for recovery logic
             if (batt <= 2.0f) {
                 emit(Severity::CRITICAL, "FDIR: Battery <=2%. EMERGENCY.");
                 escalate(MissionState::EMERGENCY);
@@ -129,6 +173,7 @@ private:
 
     // -----------------------------------------------------------------------
     // Software FDIR — poll every registered subsystem
+    // Returns: true if any component is in WARNING or worse
     // -----------------------------------------------------------------------
     void checkSubsystems() {
         bool any_critical = false;
@@ -144,20 +189,41 @@ private:
             } else if (health == HealthStatus::WARNING) {
                 any_warning = true;
                 char msg[28];
-                std::snprintf(msg, sizeof(msg), "FDIR: %s WARNING (%u errs)",
+                std::snprintf(msg, sizeof(msg), "FDIR: %s WARN (%u errs)",
                     comp->getName().data(), comp->getErrorCount());
                 emit(Severity::WARNING, msg);
             }
         }
 
-        // Ratchet mission state upward (never auto-recover without ground cmd)
         if (any_critical) escalate(MissionState::SAFE_MODE);
         else if (any_warning) escalate(MissionState::DEGRADED);
     }
 
     // -----------------------------------------------------------------------
+    // F-15: DEGRADED → NOMINAL auto-recovery.
+    // Only applies to DEGRADED. SAFE_MODE and EMERGENCY require ground command.
+    // Conditions: all subsystems NOMINAL + battery above DEGRADED threshold.
+    // -----------------------------------------------------------------------
+    void tryRecoverDegraded() {
+        if (mission_state != MissionState::DEGRADED) return;
+
+        bool all_nominal = true;
+        for (size_t i = 0; i < monitored_count; ++i) {
+            if (monitored_systems[i]->reportHealth() != HealthStatus::NOMINAL) {
+                all_nominal = false;
+                break;
+            }
+        }
+
+        if (all_nominal && last_batt_soc > 15.0f) {
+            emit(Severity::INFO, "FDIR: Recovery -> NOMINAL");
+            mission_state = MissionState::NOMINAL;
+            std::cout << "[" << getName() << "] Mission recovered to NOMINAL\n";
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Component restart (ActiveComponent only)
-    // Up to MAX_RESTARTS_PER_COMPONENT attempts before declaring EMERGENCY.
     // -----------------------------------------------------------------------
     void handleCritical(size_t idx) {
         Component* comp = monitored_systems[idx];
@@ -194,11 +260,11 @@ private:
     void escalate(MissionState next) {
         if (static_cast<uint8_t>(next) > static_cast<uint8_t>(mission_state)) {
             char msg[28];
-            std::snprintf(msg, sizeof(msg), "FSM: %s -> %s",
+            std::snprintf(msg, sizeof(msg), "FSM: %s->%s",
                 missionStateName(mission_state), missionStateName(next));
             mission_state = next;
             emit(Severity::CRITICAL, msg);
-            std::cout << "[" << getName() << "] Mission state: " << msg << std::endl;
+            std::cout << "[" << getName() << "] " << msg << std::endl;
         }
     }
 

@@ -7,11 +7,20 @@
 // Downlink (flight → ground, port 9001):
 //   [CcsdsHeader 10B][Payload NB][CRC-16 2B]
 //   APID 10 = Telemetry, APID 20 = Events
-//   Sync word: 0x1ACFFC1D (CCSDS standard — was 0xDEADBEEF)
 //
 // Uplink (ground → flight, port 9002):
 //   [CcsdsHeader 10B][CommandPacket 12B]
 //   Validated: sync word, APID==30, payload_len==12, sequence monotonicity
+//
+// Fixes applied (v2.1):
+//   F-03: last_uplink_seq promoted to uint32_t. Wire-format seq is still 16-bit
+//         (CCSDS constraint), but the wrap-around is detected: accept if the new
+//         16-bit seq is greater than the last 16-bit seq OR if the 16-bit counter
+//         has visibly wrapped (last > 0xFF00 && new < 0x0100).
+//   F-10: receiveCommands() drains the OS socket buffer in a loop (was single
+//         recvfrom — burst commands were silently dropped by the OS).
+//   F-19: Uplink buffer sized as sizeof(CcsdsHeader)+MAX_UPLINK_PAYLOAD with a
+//         static_assert guarding against future payload growth.
 //
 // DO-178C: No dynamic allocation. Socket is non-blocking to prevent thread stall.
 // =============================================================================
@@ -30,6 +39,12 @@
 #include <unistd.h>
 
 namespace deltav {
+
+// F-19: named constant for uplink payload ceiling.
+// static_assert below guarantees CommandPacket never exceeds this.
+constexpr size_t MAX_UPLINK_PAYLOAD = 64u;
+static_assert(sizeof(CommandPacket) <= MAX_UPLINK_PAYLOAD,
+    "CommandPacket exceeds MAX_UPLINK_PAYLOAD — increase the constant");
 
 class TelemetryBridge : public ActiveComponent {
 public:
@@ -70,7 +85,7 @@ public:
 
         std::cout << "[" << getName() << "] Bridge online. "
                   << "Downlink:" << GDS_DOWNLINK_PORT
-                  << " Uplink:" << GDS_UPLINK_PORT
+                  << " Uplink:"  << GDS_UPLINK_PORT
                   << " [CCSDS 0x1ACFFC1D | CRC-16/CCITT]\n";
     }
 
@@ -93,7 +108,11 @@ private:
     sockaddr_in  dest_addr{};
     uint16_t     telem_seq{0};
     uint16_t     event_seq{0};
-    uint16_t     last_uplink_seq{0};
+
+    // F-03 fix: promoted to uint32_t so the comparison survives the 16-bit
+    // sequence counter wrapping around. Only the lower 16 bits are meaningful
+    // (matching the wire format), but the comparison must NOT truncate.
+    uint32_t     last_uplink_seq{0};
     bool         first_uplink{true};
     uint32_t     rejected_count{0};
 
@@ -144,49 +163,65 @@ private:
     }
 
     void receiveCommands() {
-        // Uplink frame: [CcsdsHeader 10B][CommandPacket 12B]
-        constexpr size_t UPLINK_SIZE = sizeof(CcsdsHeader) + sizeof(CommandPacket);
-        std::array<uint8_t, 128> buf{};
+        // F-10 fix: drain the OS socket buffer in a loop.
+        // The socket is O_NONBLOCK so recvfrom returns -1 / EAGAIN when empty.
+        // Before: a single recvfrom meant burst commands were silently dropped
+        // by the OS socket buffer (default ~128 datagrams on Linux).
+        constexpr size_t BUF_SIZE =
+            sizeof(CcsdsHeader) + MAX_UPLINK_PAYLOAD;
+        std::array<uint8_t, BUF_SIZE> buf{};
+
         sockaddr_in client{};
         socklen_t   client_len = sizeof(client);
 
-        ssize_t len = recvfrom(sock_fd, buf.data(), buf.size(), 0,
-            reinterpret_cast<sockaddr*>(&client), &client_len);
+        while (true) {
+            ssize_t len = recvfrom(sock_fd, buf.data(), buf.size(), 0,
+                reinterpret_cast<sockaddr*>(&client), &client_len);
 
-        if (len < static_cast<ssize_t>(UPLINK_SIZE)) return;
+            if (len <= 0) break; // EAGAIN / EWOULDBLOCK — buffer drained
 
-        const auto* hdr = reinterpret_cast<const CcsdsHeader*>(buf.data());
+            constexpr size_t MIN_UPLINK = sizeof(CcsdsHeader) + sizeof(CommandPacket);
+            if (static_cast<size_t>(len) < MIN_UPLINK) continue;
 
-        // 1. Sync word validation
-        if (hdr->sync_word != CCSDS_SYNC_WORD) {
-            ++rejected_count;
-            return;
-        }
-        // 2. APID validation
-        if (hdr->apid != Apid::COMMAND) {
-            ++rejected_count;
-            return;
-        }
-        // 3. Payload length validation
-        if (hdr->payload_len != sizeof(CommandPacket)) {
-            ++rejected_count;
-            return;
-        }
-        // 4. Sequence monotonicity (reject replay attacks / duplicates)
-        if (!first_uplink && hdr->seq_count <= last_uplink_seq) {
-            ++rejected_count;
-            std::cerr << "[" << getName() << "] Rejected replayed command seq="
-                      << hdr->seq_count << "\n";
-            return;
-        }
-        first_uplink     = false;
-        last_uplink_seq  = hdr->seq_count;
+            const auto* hdr = reinterpret_cast<const CcsdsHeader*>(buf.data());
 
-        CommandPacket cmd{};
-        std::memcpy(&cmd, buf.data() + sizeof(CcsdsHeader), sizeof(CommandPacket));
-        command_out.send(cmd);
-        std::cout << "[" << getName() << "] CMD seq=" << hdr->seq_count
-                  << " op=" << cmd.opcode << " -> ID " << cmd.target_id << "\n";
+            // 1. Sync word validation
+            if (hdr->sync_word != CCSDS_SYNC_WORD) {
+                ++rejected_count;
+                continue;
+            }
+            // 2. APID validation
+            if (hdr->apid != Apid::COMMAND) {
+                ++rejected_count;
+                continue;
+            }
+            // 3. Payload length validation
+            if (hdr->payload_len != sizeof(CommandPacket)) {
+                ++rejected_count;
+                continue;
+            }
+
+            // F-03 fix: compare using uint32_t arithmetic to survive the 16-bit
+            // wire-format counter wrapping at 65535.
+            // Wrap is defined as: last was near the top of 16-bit range AND
+            // new seq is near zero. This gives a ±256-count replay window.
+            const uint32_t new_seq  = hdr->seq_count;
+            const bool     wrapped  = (last_uplink_seq > 0xFF00u) && (new_seq < 0x0100u);
+            if (!first_uplink && !wrapped && new_seq <= last_uplink_seq) {
+                ++rejected_count;
+                std::cerr << "[" << getName() << "] Rejected replayed command seq="
+                          << new_seq << "\n";
+                continue;
+            }
+            first_uplink    = false;
+            last_uplink_seq = new_seq;
+
+            CommandPacket cmd{};
+            std::memcpy(&cmd, buf.data() + sizeof(CcsdsHeader), sizeof(CommandPacket));
+            command_out.send(cmd);
+            std::cout << "[" << getName() << "] CMD seq=" << new_seq
+                      << " op=" << cmd.opcode << " -> ID " << cmd.target_id << "\n";
+        }
     }
 };
 

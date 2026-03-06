@@ -5,10 +5,11 @@
 // Receives CommandPackets from TelemetryBridge and routes them by target_id
 // to the registered component OutputPort.
 //
-// Fixes over previous version:
-//   - Drains ALL queued commands per tick (not just one)
-//   - ACK/NACK EventPackets include source_id for GDS correlation
-//   - Route table is populated at boot and never modified at runtime
+// Fixes applied (v2.1):
+//   F-07: ack_out.send() return value is now checked. If ack_out is not
+//         connected (wiring mistake), the failure is visible via recordError()
+//         rather than silently disappearing. TopologyManager::verify() also
+//         asserts ack_out.isConnected().
 // =============================================================================
 #include "Component.hpp"
 #include "Port.hpp"
@@ -27,7 +28,8 @@ struct RouteEntry {
 
 class CommandHub : public Component {
 public:
-    CommandHub(std::string_view comp_name, uint32_t comp_id) : Component(comp_name, comp_id) {}
+    CommandHub(std::string_view comp_name, uint32_t comp_id)
+        : Component(comp_name, comp_id) {}
 
     InputPort<CommandPacket>  cmd_input;
     OutputPort<EventPacket>   ack_out;
@@ -35,7 +37,6 @@ public:
     void init() override {}
 
     void step() override {
-        // Drain ALL pending commands this tick (not just one)
         CommandPacket cmd{};
         while (cmd_input.tryConsume(cmd)) {
             dispatchCommand(cmd);
@@ -48,6 +49,8 @@ public:
         }
     }
 
+    size_t routeCount() const { return route_count; }
+
 private:
     std::array<RouteEntry, MAX_COMMAND_ROUTES> routes{};
     size_t route_count{0};
@@ -59,13 +62,19 @@ private:
                 char msg[28];
                 std::snprintf(msg, sizeof(msg), "ACK: OP%u->ID%u",
                     cmd.opcode, cmd.target_id);
-                ack_out.send(EventPacket::create(Severity::INFO, getId(), msg));
+                // F-07: check return value — missing connection is an error
+                if (!ack_out.send(EventPacket::create(Severity::INFO, getId(), msg))) {
+                    recordError(); // ack_out not connected — wiring defect
+                }
                 return;
             }
         }
+        // Unknown target
         char msg[28];
         std::snprintf(msg, sizeof(msg), "NACK: ID%u not found", cmd.target_id);
-        ack_out.send(EventPacket::create(Severity::WARNING, getId(), msg));
+        if (!ack_out.send(EventPacket::create(Severity::WARNING, getId(), msg))) {
+            recordError(); // ack_out not connected
+        }
         recordError(); // FDIR: unroutable command counts as an error
     }
 };

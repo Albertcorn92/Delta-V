@@ -5,15 +5,24 @@
 // Design principles:
 //   1. FlightData concept enforces trivially_copyable + standard_layout at
 //      compile time — misuse is a build error, never a runtime surprise.
-//   2. Single RingBuffer definition (RingBuffer.hpp is deleted).
+//   2. RingBuffer uses Os::Mutex (std::mutex-backed) for correct memory
+//      ordering on all tier-1 targets.
 //   3. pop() is always safe: returns false and leaves `out` untouched if empty.
 //   4. Overflow is counted and readable via overflowCount() for FDIR monitoring.
-//   5. OutputPort supports 1:1 connections (extend to fan-out via TelemHub).
+//   5. OutputPort supports 1:1 connections (fan-out via TelemHub/EventHub).
+//
+// Fixes applied (v2.1):
+//   F-02: lock declared mutable in RingBuffer so isEmpty()/size() can acquire
+//         it from const methods without const_cast (which was UB).
+//   F-17: overflow_count is exposed via overflowCount() and drainOverflowCount()
+//         for Watchdog FDIR polling. A note in the component checklist reminds
+//         integrators to wire these into WatchdogComponent::step().
 // =============================================================================
 #include <array>
 #include <atomic>
 #include <concepts>
 #include <cstddef>
+#include <mutex>
 #include <type_traits>
 #include "Os.hpp"
 
@@ -31,11 +40,12 @@ concept FlightData =
 
 // ---------------------------------------------------------------------------
 // RingBuffer<T, Capacity>
-// Thread-safe bounded queue. Uses Os::Mutex spinlock so it is safe across
-// Active (threaded) and Passive (scheduler-called) component boundaries.
+// Thread-safe bounded queue. Uses std::mutex so it is safe across Active
+// (threaded) and Passive (scheduler-called) component boundaries, and
+// provides the memory barriers required on ARM/Power architectures.
 //
-// pop() returns bool — callers MUST check the return value.
-// Overflow is tracked atomically and readable without locking.
+// F-02 fix: lock is mutable so isEmpty() and size() can be called on a
+//   const RingBuffer without undefined behaviour.
 // ---------------------------------------------------------------------------
 template<FlightData T, size_t Capacity>
 class RingBuffer {
@@ -44,7 +54,7 @@ public:
 
     // Returns false and discards item if full. Increments overflow_count.
     bool push(const T& item) {
-        Os::Mutex::Guard g(lock);
+        std::lock_guard<std::mutex> g(lock);
         size_t next = (head + 1) % (Capacity + 1);
         if (next == tail) {
             overflow_count.fetch_add(1, std::memory_order_relaxed);
@@ -58,20 +68,20 @@ public:
     // Returns true and writes item to `out` if data is available.
     // Returns false and leaves `out` untouched if empty — NO UB.
     bool pop(T& out) {
-        Os::Mutex::Guard g(lock);
+        std::lock_guard<std::mutex> g(lock);
         if (head == tail) return false;
-        out = buf[tail];
+        out  = buf[tail];
         tail = (tail + 1) % (Capacity + 1);
         return true;
     }
 
     bool isEmpty() const {
-        Os::Mutex::Guard g(const_cast<Os::Mutex&>(lock));
+        std::lock_guard<std::mutex> g(lock);
         return head == tail;
     }
 
     size_t size() const {
-        Os::Mutex::Guard g(const_cast<Os::Mutex&>(lock));
+        std::lock_guard<std::mutex> g(lock);
         return (head - tail + Capacity + 1) % (Capacity + 1);
     }
 
@@ -88,7 +98,7 @@ private:
     T      buf[Capacity + 1]{};
     size_t head{0};
     size_t tail{0};
-    Os::Mutex lock;
+    mutable std::mutex    lock;           // mutable: locked in const isEmpty/size
     std::atomic<uint32_t> overflow_count{0};
 };
 
@@ -106,8 +116,7 @@ public:
 // ---------------------------------------------------------------------------
 // InputPort<T, QUEUE_DEPTH>
 // Wraps a RingBuffer. Components call hasNew() / consume() in their step().
-// consume() returns a default-constructed T and logs nothing if empty —
-// always call hasNew() first, or check the bool return of tryConsume().
+// tryConsume() returns bool — always check the return value.
 // ---------------------------------------------------------------------------
 template<FlightData T, size_t QUEUE_DEPTH = 16>
 class InputPort : public IInputPort<T> {
