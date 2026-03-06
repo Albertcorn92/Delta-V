@@ -1,6 +1,8 @@
 venv/
 build/
 build_*/
+ports/esp32/build_*/
+ports/esp32/sdkconfig.old
 bin/
 .DS_Store
 __pycache__/

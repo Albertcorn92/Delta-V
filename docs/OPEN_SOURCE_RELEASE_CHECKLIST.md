@@ -10,6 +10,8 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
 - [ ] `cmake --build build --target flight_readiness` passes.
 - [ ] `cmake --build build --target qualification_bundle` passes.
 - [ ] `cmake --build build --target software_final` passes.
+- [ ] ESP local-only build boots on hardware (`DELTAV_LOCAL_ONLY=ON`).
+- [ ] 3-5 minute ESP monitor smoke test passes with no reboot/panic/stack-overflow output.
 - [ ] `docs/REQUIREMENTS_TRACE_MATRIX.md` and `.json` are refreshed.
 - [ ] `docs/qualification_report.md` and `.json` are refreshed.
 - [ ] `docs/SOFTWARE_FINAL_STATUS.md` is refreshed.
@@ -21,7 +23,8 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
 - [ ] `README.md` links `docs/CIVILIAN_USE_POLICY.md` and `docs/EXPORT_CONTROL_NOTE.md`.
 - [ ] `README.md` and `DISCLAIMER.md` include non-operational-use limits.
 - [ ] `docs/SAFETY_ASSURANCE.md` references current gate commands.
-- [ ] `docs/ESP32_BRINGUP.md` includes latest hardware validation steps.
+- [ ] `docs/ESP32_BRINGUP.md` includes latest no-sensor and hardware validation steps.
+- [ ] `docs/ESP32_SENSORLESS_BASELINE.md` reflects the latest local-only hardware run.
 - [ ] `docs/process/*.md` templates are present for mission teams.
 
 ## 3. Security and Safety Hygiene

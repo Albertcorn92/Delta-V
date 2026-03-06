@@ -18,6 +18,10 @@
 //   F-09: std::mutex provides the full memory barrier that std::atomic_flag
 //         clear(release) alone could NOT guarantee for the non-atomic head/tail.
 // =============================================================================
+#if defined(DELTAV_OS_FREERTOS)
+#include "Os_FreeRTOS.hpp"
+#else
+
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -148,3 +152,5 @@ private:
 
 } // namespace Os
 } // namespace deltav
+
+#endif // DELTAV_OS_FREERTOS

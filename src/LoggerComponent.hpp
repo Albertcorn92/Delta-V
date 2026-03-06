@@ -14,8 +14,10 @@
 #include "Serializer.hpp"
 #include "TimeService.hpp"
 #include "Types.hpp"
+#if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
 #include <fstream>
-#include <iostream>
+#endif
+#include <cstdio>
 
 namespace deltav {
 
@@ -39,6 +41,11 @@ public:
     InputPort<EventPacket>           event_in;
 
     void init() override {
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        const auto name = getName();
+        std::printf("[%.*s] FDR online. File logging disabled on ESP local-only target.\n",
+            static_cast<int>(name.size()), name.data());
+#else
         telem_log.open(telem_log_path_, std::ios::out | std::ios::app);
         event_log.open(event_log_path_, std::ios::out | std::ios::app);
         if (telem_log.is_open()) {
@@ -47,12 +54,23 @@ public:
         if (event_log.is_open()) {
             event_log << "--- SESSION START T+" << TimeService::getMET() << " ---\n";
         }
-        std::cout << "[" << getName() << "] FDR online. "
-                  << "Telemetry→" << telem_log_path_
-                  << " | Events→" << event_log_path_ << "\n";
+        const auto name = getName();
+        std::printf("[%.*s] FDR online. Telemetry->%s | Events->%s\n",
+            static_cast<int>(name.size()), name.data(), telem_log_path_, event_log_path_);
+#endif
     }
 
     void step() override {
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        // Local-only embedded mode: drain queues without filesystem writes.
+        Serializer::ByteArray raw{};
+        while (telemetry_in.tryConsume(raw)) {
+            ++telem_packet_count;
+        }
+
+        EventPacket evt{};
+        while (event_in.tryConsume(evt)) {}
+#else
         // Drain telemetry
         Serializer::ByteArray raw{};
         while (telemetry_in.tryConsume(raw)) {
@@ -80,16 +98,21 @@ public:
                 event_log.flush();
             }
         }
+#endif
     }
 
     ~LoggerComponent() {
+#if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
         if (telem_log.is_open()) { telem_log.flush(); telem_log.close(); }
         if (event_log.is_open()) { event_log.flush(); event_log.close(); }
+#endif
     }
 
 private:
+#if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
     std::ofstream telem_log;
     std::ofstream event_log;
+#endif
     uint32_t      telem_packet_count{0};
     const char*   telem_log_path_{DEFAULT_TELEM_LOG_PATH};
     const char*   event_log_path_{DEFAULT_EVENT_LOG_PATH};

@@ -14,9 +14,9 @@
 #include "TmrStore.hpp"
 #include "Types.hpp"
 #include <array>
+#include <cinttypes>
 #include <cstdint>
 #include <cstdio>
-#include <iostream>
 
 namespace deltav {
 
@@ -66,8 +66,9 @@ public:
         last_batt_soc  = 100.0f;
         event_out.send(EventPacket::create(Severity::INFO, getId(),
             "WATCHDOG: Init complete. FDIR active."));
-        std::cout << "[" << getName() << "] FDIR online. Supervising "
-                  << monitored_count << " subsystems.\n";
+        const auto name = getName();
+        std::printf("[%.*s] FDIR online. Supervising %zu subsystems.\n",
+            static_cast<int>(name.size()), name.data(), monitored_count);
     }
 
     auto registerSubsystem(Component* comp) -> void {
@@ -112,7 +113,7 @@ public:
         uint32_t ov = port.drainOverflowCount();
         if (ov > 0) {
             std::array<char, EVENT_MSG_SIZE> msg{};
-            (void)std::snprintf(msg.data(), msg.size(), "OVF:%s x%u", port_name, ov);
+            (void)std::snprintf(msg.data(), msg.size(), "OVF:%s x%" PRIu32, port_name, ov);
             emit(Severity::WARNING, msg.data());
             recordError();
         }
@@ -227,9 +228,9 @@ private:
                 any_warning = true;
                 const auto comp_name = comp->getName();
                 std::array<char, EVENT_MSG_SIZE> msg{};
-                (void)std::snprintf(msg.data(), msg.size(), "FDIR: %.*s WARN (%u)",
+                (void)std::snprintf(msg.data(), msg.size(), "FDIR: %.*s WARN (%" PRIu32 ")",
                     static_cast<int>(comp_name.size()), comp_name.data(),
-                    comp->getErrorCount());
+                    static_cast<std::uint32_t>(comp->getErrorCount()));
                 emit(Severity::WARNING, msg.data());
             }
         }
@@ -260,7 +261,9 @@ private:
         if (all_nominal && last_batt_soc > thresholds.degraded_pct) {
             emit(Severity::INFO, "FDIR: Recovery -> NOMINAL");
             mission_state = MissionState::NOMINAL;
-            std::cout << "[" << getName() << "] Mission recovered to NOMINAL\n";
+            const auto name = getName();
+            std::printf("[%.*s] Mission recovered to NOMINAL\n",
+                static_cast<int>(name.size()), name.data());
         }
     }
 
@@ -305,8 +308,9 @@ private:
 
         const auto comp_name = comp->getName();
         std::array<char, EVENT_MSG_SIZE> msg{};
-        (void)std::snprintf(msg.data(), msg.size(), "FDIR: CRIT %.*s (%u)",
-            static_cast<int>(comp_name.size()), comp_name.data(), comp->getErrorCount());
+        (void)std::snprintf(msg.data(), msg.size(), "FDIR: CRIT %.*s (%" PRIu32 ")",
+            static_cast<int>(comp_name.size()), comp_name.data(),
+            static_cast<std::uint32_t>(comp->getErrorCount()));
         emit(Severity::CRITICAL, msg.data());
 
         if (comp->isActive()) {
@@ -316,11 +320,12 @@ private:
                 comp->clearErrors();
                 comp->startThread();
                 std::array<char, EVENT_MSG_SIZE> rmsg{};
-                (void)std::snprintf(rmsg.data(), rmsg.size(), "FDIR: RST %.*s (#%u)",
+                (void)std::snprintf(rmsg.data(), rmsg.size(), "FDIR: RST %.*s (#%" PRIu32 ")",
                     static_cast<int>(comp_name.size()), comp_name.data(),
-                    restart_counts.at(idx));
+                    static_cast<std::uint32_t>(restart_counts.at(idx)));
                 emit(Severity::WARNING, rmsg.data());
-                std::cout << "[" << getName() << "] " << rmsg.data() << "\n";
+                const auto name = getName();
+                std::printf("[%.*s] %s\n", static_cast<int>(name.size()), name.data(), rmsg.data());
             } else {
                 std::array<char, EVENT_MSG_SIZE> emsg{};
                 (void)std::snprintf(emsg.data(), emsg.size(), "FDIR: %.*s UNRECOV",
@@ -338,7 +343,8 @@ private:
                 missionStateName(mission_state), missionStateName(next));
             mission_state = next;
             emit(Severity::CRITICAL, msg.data());
-            std::cout << "[" << getName() << "] " << msg.data() << "\n";
+            const auto name = getName();
+            std::printf("[%.*s] %s\n", static_cast<int>(name.size()), name.data(), msg.data());
         }
     }
 

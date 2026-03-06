@@ -1,6 +1,6 @@
 # DELTA-V Qualification Report
 
-- Generated (UTC): `2026-03-06T18:53:48.885362+00:00`
+- Generated (UTC): `2026-03-06T21:48:20.569233+00:00`
 - Workspace: `DELTA-V Framework`
 
 ## Build Provenance
@@ -8,10 +8,10 @@
 | Field | Value |
 |---|---|
 | Git branch | `main` |
-| Git commit | `ba58284946771d7ba43d963e03e9f3c2463eada5` |
+| Git commit | `deac8586b76215c1c873f5e9d492408e4639849c` |
 | Dirty worktree | `True` |
-| Host OS | `macOS-26.2-arm64-arm-64bit-Mach-O` |
-| Python | `3.14.3` |
+| Host OS | `macOS-26.2-arm64-arm-64bit` |
+| Python | `3.12.12` |
 | CMake | `cmake version 4.2.3` |
 
 ## Qualification Gates
@@ -20,7 +20,7 @@
 |---|---|---|
 | Build/Test Gate | PASS | flight_readiness target execution |
 | Static Safety Gate | PASS | tidy_safety in flight_readiness |
-| Requirements Traceability Gate | PASS | build_final/requirements_trace_matrix.json |
+| Requirements Traceability Gate | PASS | build/requirements_trace_matrix.json |
 
 ## Requirements Coverage
 
@@ -34,11 +34,11 @@
 
 | Artifact | CRC-32 |
 |---|---|
-| `build_final/requirements_trace_matrix.json` | `93ea3889` |
-| `build_final/requirements_trace_matrix.md` | `0d46e8ba` |
+| `build/requirements_trace_matrix.json` | `93ea3889` |
+| `build/requirements_trace_matrix.md` | `0d46e8ba` |
 | `tests/unit_tests.cpp` | `af3a9e85` |
-| `build_final/flight_software` | `6944d96d` |
-| `build_final/run_tests` | `85d697ea` |
+| `build/flight_software` | `63e7be9f` |
+| `build/run_tests` | `8f2a1680` |
 
 ## Manual Evidence Remaining
 

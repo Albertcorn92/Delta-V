@@ -16,7 +16,7 @@
 // =============================================================================
 #include <chrono>
 #include <cstdint>
-#include <iostream>
+#include <cstdio>
 
 namespace deltav {
 
@@ -42,8 +42,9 @@ public:
         // Warn once when approaching uint32_t overflow (~46-day mark).
         if (!overflow_warned && isNearOverflow(ms)) {
             overflow_warned = true;
-            std::cerr << "[TimeService] WARNING: MET approaching uint32_t overflow "
-                         "(~46 days). Upgrade to uint64_t for long-duration missions.\n";
+            (void)std::fprintf(stderr,
+                "[TimeService] WARNING: MET approaching uint32_t overflow "
+                "(~46 days). Upgrade to uint64_t for long-duration missions.\n");
         }
 
         return static_cast<uint32_t>(ms & MET_WRAP_MASK);

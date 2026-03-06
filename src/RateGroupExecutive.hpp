@@ -9,7 +9,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <iostream>
+#include <cstdio>
 #include <thread>
 
 namespace deltav {
@@ -26,12 +26,13 @@ struct RateTier {
 
     auto add(Component* c) -> bool {
         if (c == nullptr) {
-            std::cerr << "[RGE] WARN: " << name << " tier rejected null component\n";
+            (void)std::fprintf(stderr, "[RGE] WARN: %s tier rejected null component\n", name);
             return false;
         }
         if (count >= RGE_MAX_PER_TIER) {
-            std::cerr << "[RGE] WARN: " << name
-                      << " tier full — cannot register " << c->getName() << "\n";
+            const auto comp_name = c->getName();
+            (void)std::fprintf(stderr, "[RGE] WARN: %s tier full - cannot register %.*s\n",
+                name, static_cast<int>(comp_name.size()), comp_name.data());
             return false;
         }
         comps.at(count++) = c;
@@ -98,7 +99,7 @@ public:
                 active_.at(active_count_++) = c;
                 printReg("ACTIVE", c);
             } else {
-                std::cerr << "[RGE] WARN: active slot limit reached\n";
+                (void)std::fprintf(stderr, "[RGE] WARN: active slot limit reached\n");
             }
         } else {
             registerNorm(c);
@@ -106,20 +107,50 @@ public:
     }
 
     auto initAll() -> void {
-        std::cout << "[RGE] Initializing " << totalCount() << " components...\n";
+        std::printf("[RGE] Initializing %zu components...\n", totalCount());
         initTier(fast_);
         initTier(norm_);
         initTier(slow_);
         for (size_t i = 0; i < active_count_; ++i) active_.at(i)->init();
-        std::cout << "[RGE] Tiers ready — FAST=" << fast_.count
-                  << " NORM=" << norm_.count
-                  << " SLOW=" << slow_.count
-                  << " ACTIVE=" << active_count_ << "\n";
+        std::printf("[RGE] Tiers ready - FAST=%zu NORM=%zu SLOW=%zu ACTIVE=%zu\n",
+            fast_.count, norm_.count, slow_.count, active_count_);
     }
 
     auto startAll() -> void {
         running_.store(true, std::memory_order_release);
 
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        // ESP path: cooperative scheduler avoids heavy host-style threading stack use.
+        constexpr uint32_t FAST_PERIOD_MS = 100; // 10 Hz
+        uint32_t norm_divider = 0;
+        uint32_t slow_divider = 0;
+
+        std::printf("[RGE] Embedded cooperative scheduler running.\n\n");
+
+        while (running_.load(std::memory_order_acquire)) {
+            fast_.tick();
+
+            ++norm_divider;
+            if (norm_divider >= 10) {
+                norm_divider = 0;
+                norm_.tick();
+
+                // Active components execute in the cooperative loop on ESP targets.
+                for (size_t i = 0; i < active_count_; ++i) {
+                    active_.at(i)->step();
+                }
+
+                ++slow_divider;
+                if (slow_divider >= 10) {
+                    slow_divider = 0;
+                    slow_.tick();
+                }
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(FAST_PERIOD_MS));
+        }
+        return;
+#else
         for (size_t i = 0; i < active_count_; ++i) active_.at(i)->startThread();
 
         fast_thread_ = std::thread([this] { runTier(fast_); });
@@ -138,7 +169,8 @@ public:
                 if (now > wake) {
                     ++norm_.frame_drops;
                     if (norm_.frame_drops == 1 || norm_.frame_drops % 100 == 0)
-                        std::cerr << "[RGE] NORM frame drop #" << norm_.frame_drops << "\n";
+                        (void)std::fprintf(stderr, "[RGE] NORM frame drop #%llu\n",
+                            static_cast<unsigned long long>(norm_.frame_drops));
                     wake = now; // reset — don't try to catch up after a sustained overrun
                 } else {
                     std::this_thread::sleep_until(wake);
@@ -146,10 +178,11 @@ public:
             }
         });
 
-        std::cout << "[RGE] All rate groups running. Ctrl+C to stop.\n\n";
+        std::printf("[RGE] All rate groups running. Ctrl+C to stop.\n\n");
 
         if (fast_thread_.joinable()) fast_thread_.join();
         if (norm_thread_.joinable()) norm_thread_.join();
+#endif
     }
 
     auto stopAll() -> void {
@@ -210,12 +243,13 @@ private:
 
     auto rejectRegistration(const Component* c) -> bool {
         if (c == nullptr) {
-            std::cerr << "[RGE] WARN: null component registration rejected\n";
+            (void)std::fprintf(stderr, "[RGE] WARN: null component registration rejected\n");
             return true;
         }
         if (isRegistered(c)) {
-            std::cerr << "[RGE] WARN: duplicate registration rejected for "
-                      << c->getName() << "\n";
+            const auto comp_name = c->getName();
+            (void)std::fprintf(stderr, "[RGE] WARN: duplicate registration rejected for %.*s\n",
+                static_cast<int>(comp_name.size()), comp_name.data());
             return true;
         }
         return false;
@@ -232,8 +266,8 @@ private:
             if (now > wake) {
                 ++t.frame_drops;
                 if (t.frame_drops == 1 || t.frame_drops % 100 == 0)
-                    std::cerr << "[RGE] " << t.name
-                              << " frame drop #" << t.frame_drops << "\n";
+                    (void)std::fprintf(stderr, "[RGE] %s frame drop #%llu\n", t.name,
+                        static_cast<unsigned long long>(t.frame_drops));
                 wake = now; // prevent catch-up spiral
             } else {
                 std::this_thread::sleep_until(wake);
@@ -246,7 +280,9 @@ private:
     }
 
     static auto printReg(const char* tier, const Component* c) -> void {
-        std::cout << "[RGE]  +" << c->getName() << " → " << tier << "\n";
+        const auto comp_name = c->getName();
+        std::printf("[RGE]  +%.*s -> %s\n",
+            static_cast<int>(comp_name.size()), comp_name.data(), tier);
     }
 };
 

@@ -19,7 +19,7 @@
 #include "Port.hpp"
 #include "Types.hpp"
 #include <array>
-#include <iostream>
+#include <cstdio>
 
 namespace deltav {
 
@@ -50,8 +50,9 @@ public:
         if (input_count < MAX_EVENT_SOURCES) {
             inputs[input_count++] = port;
         } else {
-            std::cerr << "[FATAL] EventHub: exceeded MAX_EVENT_SOURCES ("
-                      << MAX_EVENT_SOURCES << "). Increase limit.\n";
+            (void)std::fprintf(stderr,
+                "[FATAL] EventHub: exceeded MAX_EVENT_SOURCES (%zu). Increase limit.\n",
+                static_cast<size_t>(MAX_EVENT_SOURCES));
         }
     }
 
@@ -61,8 +62,9 @@ public:
             listeners[listener_count].connect(dest);
             ++listener_count;
         } else {
-            std::cerr << "[FATAL] EventHub: exceeded MAX_EVENT_LISTENERS ("
-                      << MAX_EVENT_LISTENERS << "). Increase limit.\n";
+            (void)std::fprintf(stderr,
+                "[FATAL] EventHub: exceeded MAX_EVENT_LISTENERS (%zu). Increase limit.\n",
+                static_cast<size_t>(MAX_EVENT_LISTENERS));
         }
     }
 

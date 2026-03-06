@@ -27,10 +27,10 @@
 // Guard — this file is only compiled when FreeRTOS is the target OS
 #ifdef DELTAV_OS_FREERTOS
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
-#include "queue.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+#include "freertos/queue.h"
 #include <cstdint>
 #include <functional>
 

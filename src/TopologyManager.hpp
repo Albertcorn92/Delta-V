@@ -9,7 +9,7 @@
 #include "RateGroupExecutive.hpp"
 #include "TmrStore.hpp"
 #include "Hal.hpp"
-#include <iostream>
+#include <cstdio>
 #include "WatchdogComponent.hpp"
 #include "TelemHub.hpp"
 #include "CommandHub.hpp"
@@ -19,8 +19,15 @@
 #include "SensorComponent.hpp"
 #include "PowerComponent.hpp"
 #include "ImuComponent.hpp"
+#if defined(ESP_PLATFORM)
+#include "esp_log.h"
+#endif
 
 namespace deltav {
+
+#if defined(ESP_PLATFORM)
+static constexpr const char* TOPOLOGY_LOG_TAG = "Topology";
+#endif
 
 struct TopologyManager {
 private:
@@ -52,7 +59,11 @@ public:
         wireCommands();
         wireEvents();
         wireCustom();
-        std::cout << "[Topology] All ports connected.\n";
+#if defined(ESP_PLATFORM)
+        ESP_LOGI(TOPOLOGY_LOG_TAG, "All ports connected.");
+#else
+        std::printf("[Topology] All ports connected.\n");
+#endif
     }
 
     auto registerAll(RateGroupExecutive& rge) -> void {
@@ -85,7 +96,11 @@ public:
         bool ok = true;
         auto check = [&](bool cond, const char* label) -> void {
             if (!cond) {
-                std::cerr << "[Topology] UNCONNECTED: " << label << "\n";
+#if defined(ESP_PLATFORM)
+                ESP_LOGE(TOPOLOGY_LOG_TAG, "UNCONNECTED: %s", label);
+#else
+                (void)std::fprintf(stderr, "[Topology] UNCONNECTED: %s\n", label);
+#endif
                 ok = false;
             }
         };
@@ -98,7 +113,13 @@ public:
         check(imu_unit.telemetry_out.isConnected(), "imu_unit.telemetry_out → telem_hub");
         check(event_hub.getSourceCount()   >= 2, "event_hub: need >=2 sources");
         check(event_hub.getListenerCount() >= 2, "event_hub: need >=2 listeners");
-        if (!ok) std::cerr << "[Topology] FATAL: wiring incomplete.\n";
+        if (!ok) {
+#if defined(ESP_PLATFORM)
+            ESP_LOGE(TOPOLOGY_LOG_TAG, "FATAL: wiring incomplete.");
+#else
+            (void)std::fprintf(stderr, "[Topology] FATAL: wiring incomplete.\n");
+#endif
+        }
         return ok;
     }
 

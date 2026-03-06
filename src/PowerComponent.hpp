@@ -13,7 +13,7 @@
 #include "Serializer.hpp"
 #include "TimeService.hpp"
 #include "Types.hpp"
-#include <iostream>
+#include <cstdio>
 
 namespace deltav {
 
@@ -62,7 +62,11 @@ private:
                 soc = 100.0f;
                 event_out.send(EventPacket::create(Severity::INFO, getId(),
                     "BATT: SOC reset to 100%"));
-                std::cout << "[" << getName() << "] SOC reset to 100%\n";
+                {
+                    const auto name = getName();
+                    std::printf("[%.*s] SOC reset to 100%%\n",
+                        static_cast<int>(name.size()), name.data());
+                }
                 break;
 
             case 2: // SET_DRAIN_RATE
@@ -70,8 +74,12 @@ private:
                     drain_rate = cmd.argument;
                     event_out.send(EventPacket::create(Severity::INFO, getId(),
                         "BATT: Drain rate updated"));
-                    std::cout << "[" << getName() << "] Drain rate set to "
-                              << cmd.argument << "%/tick\n";
+                    {
+                        const auto name = getName();
+                        std::printf("[%.*s] Drain rate set to %.3f%%/tick\n",
+                            static_cast<int>(name.size()), name.data(),
+                            static_cast<double>(cmd.argument));
+                    }
                 } else {
                     recordError();
                     event_out.send(EventPacket::create(Severity::WARNING, getId(),

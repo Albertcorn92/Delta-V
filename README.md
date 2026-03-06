@@ -7,6 +7,7 @@ The framework targets **DO-178C DAL-B compliance** and is designed for embedded 
 Roadmap for raising assurance rigor: `docs/HIGH_ASSURANCE_ROADMAP.md`.
 Safety gates and traceability workflow: `docs/SAFETY_ASSURANCE.md`.
 ESP32 hardware bring-up plan: `docs/ESP32_BRINGUP.md`.
+ESP32 no-sensor baseline evidence: `docs/ESP32_SENSORLESS_BASELINE.md`.
 
 ---
 
@@ -14,7 +15,9 @@ ESP32 hardware bring-up plan: `docs/ESP32_BRINGUP.md`.
 
 Using **C++20 Concepts and Template Metaprogramming**, DELTA-V moves system validation to the **compiler**. Component wiring and data types are verified at compile time. If the spacecraft's internal architecture is incorrect, **the program will not compile**.
 
-After boot, the heap is **permanently locked** by `HeapGuard::arm()`. Any inadvertent call to `malloc` or `new` during flight aborts with a fatal diagnostic.
+In host/SITL builds, the heap is locked after initialization by `HeapGuard::arm()`.
+On ESP builds, heap lock is intentionally disabled in the default profile to keep
+runtime compatibility with ESP-IDF/FreeRTOS internals.
 
 ---
 
@@ -95,6 +98,23 @@ cmake --build .
 # Terminal 2 — GDS Dashboard
 streamlit run gds/gds_dash.py
 ```
+
+### ESP32-S3 (Local-Only Baseline)
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+cd ports/esp32
+idf.py set-target esp32s3
+idf.py -B build_esp32 build flash -p /dev/cu.usbmodem101
+idf.py -B build_esp32 -p /dev/cu.usbmodem101 monitor
+```
+
+Expected runtime lines:
+
+- `[RadioLink] Local-only mode: UDP bridge disabled.`
+- `[RGE] Embedded cooperative scheduler running.`
+
+Port-specific quick reference: `ports/esp32/README.md`.
 
 ### Run Unit Tests
 

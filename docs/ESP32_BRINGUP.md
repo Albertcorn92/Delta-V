@@ -1,64 +1,73 @@
-# ESP32 Bring-Up Plan
+# ESP32 Bring-Up and Sensorless Validation
 
 Date: 2026-03-06
 
 ## Goal
 
-Run DELTA-V on ESP32 with the same safety properties verified in SITL:
+Run DELTA-V on ESP32-S3 in a stable, local-only, civilian profile that does not
+require external sensors.
 
-- command validation and anti-replay,
-- watchdog-driven FDIR transitions,
-- no heap allocation after initialization,
-- deterministic component scheduling.
+## Validated Profile (Current Baseline)
 
-## Pre-Flight Checklist
+The current ESP32 baseline is configured as:
 
-1. Toolchain
-- Install ESP-IDF and verify `idf.py --version`.
-- Pin SDK/toolchain versions in your project release notes.
+- `DELTAV_LOCAL_ONLY=ON` (UDP bridge disabled),
+- `DELTAV_ESP_SAFE_MODE=OFF` (full framework runtime),
+- `DELTAV_ALLOW_IMU_SIMULATION=ON` (no physical IMU required).
 
-2. Build configuration
-- Build with `ESP_PLATFORM` defined.
-- Verify HAL selection logs show `ESP32 I2C hardware driver`.
+This profile boots the full framework topology and runs a cooperative embedded
+scheduler on-target.
 
-3. Hardware interface checks
-- Confirm I2C pins, pull-ups, and MPU6050 address (`0x68`).
-- Validate IMU wake write (`reg 0x6B <- 0x00`) succeeds.
+## Quick Start (ESP32-S3)
 
-4. Safety checks on target
-- Confirm `HeapGuard::arm()` is reached after all init steps.
-- Send valid and invalid uplink packets; verify:
-  - valid packets dispatch,
-  - malformed or wrong-length packets increment reject count,
-  - replay packets are rejected.
-- Force battery thresholds and verify state transitions:
-  - `NOMINAL -> DEGRADED -> SAFE_MODE -> EMERGENCY`.
+1. Export ESP-IDF environment:
+- `source $HOME/esp/esp-idf/export.sh`
 
-5. Runtime soak
-- Run for at least 1 hour with telemetry active.
-- Record:
-  - watchdog heartbeat cadence,
-  - command reject counts,
-  - frame-drop counters,
-  - reset/restart events.
+2. Build and flash:
+- `cd ports/esp32`
+- `idf.py set-target esp32s3`
+- `idf.py -B build_esp32 build flash -p /dev/cu.usbmodem101`
 
-## Recommended First Hardware Tests
+3. Open monitor:
+- `idf.py -B build_esp32 -p /dev/cu.usbmodem101 monitor`
 
-1. IMU smoke test
-- Boot and verify IMU telemetry is produced each fast cycle.
+## 3-5 Minute Hardware Smoke Test
 
-2. Command path test
-- Send one valid command frame to battery component and verify ACK + behavior change.
+Run monitor for 3-5 minutes and check for both expected startup lines and
+absence of failure signatures.
 
-3. FDIR threshold test
-- Inject battery level command sequence to hit each threshold.
+Expected startup lines:
 
-4. Anti-replay test
-- Send same sequence twice and verify second command is rejected.
+- `[Boot] HAL: ESP32 I2C hardware driver`
+- `[RadioLink] Local-only mode: UDP bridge disabled.`
+- `[RGE] Embedded cooperative scheduler running.`
+- `[IMU_01] WARN: Hardware IMU missing. Using simulation fallback.`
 
-## Exit Criteria Before Mission Prototyping
+Failure signatures (must not appear):
 
-- No runtime crashes during soak run.
-- All command security behaviors observed on hardware.
-- All FDIR mode transitions observed and logged.
-- No post-init heap violations.
+- `stack overflow`
+- `assert failed`
+- `Guru Meditation`
+- repeating reboot banners (`ESP-ROM ...` loop)
+
+## If Flash/Boot Gets Stuck
+
+If serial shows `boot:0x0 (DOWNLOAD...)` or `waiting for download`:
+
+1. Release `BOOT`.
+2. Remove any jumper tying `GPIO0` to `GND`.
+3. Tap `RESET` once.
+4. Re-open monitor.
+
+## Current Limitations
+
+- No real I2C sensor validation yet (simulation fallback only).
+- No long-duration soak evidence yet (hours/days).
+- No mission-specific HIL campaign evidence yet.
+
+## Next Hardware Tests (When Parts Are Available)
+
+1. Real IMU data-path verification (I2C address `0x68`).
+2. Command path + anti-replay checks with real uplink source.
+3. FDIR transition tests under injected fault conditions.
+4. Multi-hour soak test with reboot-cycle statistics.

@@ -18,6 +18,7 @@
 #include "Types.hpp"
 #include "WatchdogComponent.hpp"
 #include <array>
+#include <cinttypes>
 #include <cstdio>
 
 namespace deltav {
@@ -84,8 +85,8 @@ private:
             uint8_t state_raw = watchdog->getMissionStateRaw();
             if (!MissionFsm::isAllowed(state_raw, cmd.opcode)) {
                 char msg[28];
-                (void)std::snprintf(msg, sizeof(msg), "FSM_BLOCKED: OP%u in %s",
-                    cmd.opcode, MissionFsm::stateName(state_raw));
+                (void)std::snprintf(msg, sizeof(msg), "FSM_BLOCKED: OP%" PRIu32 " in %s",
+                    static_cast<std::uint32_t>(cmd.opcode), MissionFsm::stateName(state_raw));
                 if (!ack_out.send(EventPacket::create(Severity::WARNING, getId(), msg))) {
                     recordError();
                 }
@@ -98,8 +99,9 @@ private:
             if (routes.at(i).comp_id == cmd.target_id) {
                 routes.at(i).port->send(cmd);
                 char msg[28];
-                (void)std::snprintf(msg, sizeof(msg), "ACK: OP%u->ID%u",
-                    cmd.opcode, cmd.target_id);
+                (void)std::snprintf(msg, sizeof(msg), "ACK: OP%" PRIu32 "->ID%" PRIu32,
+                    static_cast<std::uint32_t>(cmd.opcode),
+                    static_cast<std::uint32_t>(cmd.target_id));
                 if (!ack_out.send(EventPacket::create(Severity::INFO, getId(), msg))) {
                     recordError();
                 }
@@ -108,7 +110,8 @@ private:
         }
         // Unknown target
         char msg[28];
-        (void)std::snprintf(msg, sizeof(msg), "NACK: ID%u not found", cmd.target_id);
+        (void)std::snprintf(msg, sizeof(msg), "NACK: ID%" PRIu32 " not found",
+            static_cast<std::uint32_t>(cmd.target_id));
         if (!ack_out.send(EventPacket::create(Severity::WARNING, getId(), msg))) {
             recordError();
         }

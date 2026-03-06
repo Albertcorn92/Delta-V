@@ -15,7 +15,7 @@
 #include "TimeService.hpp"
 #include "Types.hpp"
 #include <cmath>
-#include <iostream>
+#include <cstdio>
 #include <string_view>
 
 namespace deltav {
@@ -71,8 +71,12 @@ private:
                 ParamDb::getInstance().setParam(PARAM_STAR_AMPLITUDE, cmd.argument);
                 event_out.send(EventPacket::create(Severity::INFO, getId(),
                     "STAR: Amplitude updated"));
-                std::cout << "[" << getName() << "] Amplitude set to "
-                          << cmd.argument << "\n";
+                {
+                    const auto name = getName();
+                    std::printf("[%.*s] Amplitude set to %.3f\n",
+                        static_cast<int>(name.size()), name.data(),
+                        static_cast<double>(cmd.argument));
+                }
                 break;
             default:
                 recordError(); // Unknown opcode — FDIR visible

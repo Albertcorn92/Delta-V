@@ -16,8 +16,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
 #include <fstream>
-#include <iostream>
+#endif
+#include <cstdio>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <string>
@@ -100,9 +102,17 @@ public:
 #endif
 
     auto init() -> void override {
+#if defined(DELTAV_LOCAL_ONLY)
+        const auto name = getName();
+        std::printf("[%.*s] Local-only mode: UDP bridge disabled.\n",
+            static_cast<int>(name.size()), name.data());
+        return;
+#else
         sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
         if (sock_fd < 0) {
-            std::cerr << "[" << getName() << "] FATAL: socket() failed\n";
+            const auto name = getName();
+            (void)std::fprintf(stderr, "[%.*s] FATAL: socket() failed\n",
+                static_cast<int>(name.size()), name.data());
             recordError();
             return;
         }
@@ -113,25 +123,38 @@ public:
         bind_addr.sin_port        = htons(uplink_port_);
         bind_addr.sin_addr.s_addr = INADDR_ANY;
         if (bind(sock_fd, reinterpret_cast<sockaddr*>(&bind_addr), sizeof(bind_addr)) < 0) {
-            std::cerr << "[" << getName() << "] WARN: bind() on port "
-                      << uplink_port_ << " failed — uplink disabled\n";
+            const auto name = getName();
+            (void)std::fprintf(stderr, "[%.*s] WARN: bind() on port %u failed - uplink disabled\n",
+                static_cast<int>(name.size()), name.data(),
+                static_cast<unsigned>(uplink_port_));
         }
 
         dest_addr.sin_family      = AF_INET;
         dest_addr.sin_port        = htons(downlink_port_);
         dest_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-        std::cout << "[" << getName() << "] Bridge online. "
-                  << "Downlink:" << downlink_port_
-                  << " Uplink:"  << uplink_port_
-                  << " [CCSDS 0x1ACFFC1D | strict frame + anti-replay]\n";
+        const auto name = getName();
+        std::printf("[%.*s] Bridge online. Downlink:%u Uplink:%u [CCSDS 0x1ACFFC1D | strict frame + anti-replay]\n",
+            static_cast<int>(name.size()), name.data(),
+            static_cast<unsigned>(downlink_port_), static_cast<unsigned>(uplink_port_));
+#endif
     }
 
     auto step() -> void override {
+#if defined(DELTAV_LOCAL_ONLY)
+        // In strict local-only mode, drain and discard link traffic to keep the
+        // internal queues healthy without opening sockets.
+        Serializer::ByteArray data{};
+        while (telem_in.tryConsume(data)) {}
+        EventPacket evt{};
+        while (event_in.tryConsume(evt)) {}
+        return;
+#else
         if (sock_fd < 0) { recordError(); return; }
         sendTelemetry();
         sendEvents();
         receiveCommands();
+#endif
     }
 
 private:
@@ -155,6 +178,9 @@ private:
     }
 
     auto loadReplayState() -> void {
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        return;
+#else
         if (replay_seq_path.empty()) {
             return;
         }
@@ -170,21 +196,28 @@ private:
                 last_uplink_seq = stored_seq;
                 first_uplink = false;
             } else {
-                std::cerr << "[" << getName() << "] WARN: replay sequence out of range; ignoring state.\n";
+                const auto name = getName();
+                (void)std::fprintf(stderr, "[%.*s] WARN: replay sequence out of range; ignoring state.\n",
+                    static_cast<int>(name.size()), name.data());
                 recordError();
             }
         }
+#endif
     }
 
     auto persistReplayState() -> void {
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        return;
+#else
         if (replay_seq_path.empty()) {
             return;
         }
 
         std::ofstream replay_file(replay_seq_path, std::ios::trunc);
         if (!replay_file.is_open()) {
-            std::cerr << "[" << getName() << "] WARN: cannot persist replay state to "
-                      << replay_seq_path << "\n";
+            const auto name = getName();
+            (void)std::fprintf(stderr, "[%.*s] WARN: cannot persist replay state to %s\n",
+                static_cast<int>(name.size()), name.data(), replay_seq_path.c_str());
             recordError();
             return;
         }
@@ -192,6 +225,7 @@ private:
         if (!replay_file.good()) {
             recordError();
         }
+#endif
     }
 
     template<size_t PayloadSize>
@@ -291,7 +325,9 @@ private:
 
         if (!first_uplink && !wrapped && new_seq <= last_uplink_seq) {
             ++rejected_count;
-            std::cerr << "[" << getName() << "] Rejected replayed command seq=" << new_seq << "\n";
+            const auto name = getName();
+            (void)std::fprintf(stderr, "[%.*s] Rejected replayed command seq=%u\n",
+                static_cast<int>(name.size()), name.data(), static_cast<unsigned>(new_seq));
             return false;
         }
         first_uplink = false;
@@ -301,8 +337,12 @@ private:
         CommandPacket cmd{};
         std::memcpy(&cmd, data + sizeof(CcsdsHeader), sizeof(CommandPacket));
         command_out.send(cmd);
-        std::cout << "[" << getName() << "] CMD seq=" << new_seq
-                  << " op=" << cmd.opcode << " -> ID " << cmd.target_id << "\n";
+        const auto name = getName();
+        std::printf("[%.*s] CMD seq=%u op=%u -> ID %u\n",
+            static_cast<int>(name.size()), name.data(),
+            static_cast<unsigned>(new_seq),
+            static_cast<unsigned>(cmd.opcode),
+            static_cast<unsigned>(cmd.target_id));
         return true;
     }
 };

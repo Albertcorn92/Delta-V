@@ -19,8 +19,10 @@
 #include <atomic>
 #include <cstdint>
 #include <cstring>
+#if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
 #include <fstream>
-#include <iostream>
+#endif
+#include <cstdio>
 #include <mutex>
 
 namespace deltav {
@@ -150,6 +152,9 @@ public:
     // Persistence (SITL only — on real hardware, params come from EEPROM/flash)
     // -----------------------------------------------------------------------
     void load() {
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        return;
+#else
         std::ifstream file(PARAM_FILE);
         if (!file.is_open()) return;
         uint32_t id; float val;
@@ -158,10 +163,14 @@ public:
         }
         std::lock_guard<std::mutex> lk(write_mutex);
         updateChecksum();
-        std::cout << "[ParamDb] Loaded parameters from " << PARAM_FILE << std::endl;
+        std::printf("[ParamDb] Loaded parameters from %s\n", PARAM_FILE);
+#endif
     }
 
     void save() const {
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        return;
+#else
         std::ofstream file(PARAM_FILE, std::ios::trunc);
         if (!file.is_open()) return;
         size_t n = count.load(std::memory_order_acquire);
@@ -169,6 +178,7 @@ public:
             file << params[i].id << " "
                  << params[i].value.load(std::memory_order_acquire) << "\n";
         }
+#endif
     }
 
     size_t paramCount() const { return count.load(std::memory_order_acquire); }
