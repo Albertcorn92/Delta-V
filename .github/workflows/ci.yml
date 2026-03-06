@@ -69,7 +69,9 @@ jobs:
           brew install cmake ninja googletest lcov
 
       - name: Install Python dependencies
-        run: pip3 install pyyaml --quiet
+        run: |
+          python3 -m pip install --break-system-packages pyyaml --quiet || \
+          python3 -m pip install pyyaml --quiet
 
       - name: Run autocoder
         run: python3 tools/autocoder.py
@@ -115,7 +117,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - run: pip3 install pyyaml --quiet
+      - run: |
+          python3 -m pip install --break-system-packages pyyaml --quiet || \
+          python3 -m pip install pyyaml --quiet
       - name: Dry-run validation
         run: python3 tools/autocoder.py --dry-run
       - name: Full autocoder run
@@ -137,7 +141,9 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y cmake ninja-build libgtest-dev lcov g++-12
 
-      - run: pip3 install pyyaml --quiet
+      - run: |
+          python3 -m pip install --break-system-packages pyyaml --quiet || \
+          python3 -m pip install pyyaml --quiet
       - run: python3 tools/autocoder.py
 
       - name: Configure with coverage
@@ -180,7 +186,8 @@ jobs:
       - run: |
           sudo apt-get update -q
           sudo apt-get install -y cmake ninja-build clang-14 clang-tidy-14 libgtest-dev
-          pip3 install pyyaml --quiet
+          python3 -m pip install --break-system-packages pyyaml --quiet || \
+          python3 -m pip install pyyaml --quiet
       - run: python3 tools/autocoder.py
       - name: Configure
         env: { CC: clang-14, CXX: clang++-14 }
@@ -209,7 +216,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - run: pip3 install pyyaml --quiet
+      - run: |
+          python3 -m pip install --break-system-packages pyyaml --quiet || \
+          python3 -m pip install pyyaml --quiet
 
       - name: Autocoder dry-run
         run: python3 tools/autocoder.py --dry-run
