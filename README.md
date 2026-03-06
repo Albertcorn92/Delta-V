@@ -1,4 +1,4 @@
-# 🛰️ DELTA-V Autonomy Framework  v3.0
+# 🛰️ DELTA-V Autonomy Framework  v4.0
 
 DELTA-V is a high-performance, zero-copy **C++20 flight software framework** for civilian aerospace, robotics, and research missions. It is designed for deterministic behavior and high assurance without heavyweight queues, XML dictionaries, or complex toolchains.
 
@@ -18,7 +18,7 @@ After boot, the heap is **permanently locked** by `HeapGuard::arm()`. Any inadve
 
 ---
 
-## 🧱 What's New in v3.0
+## 🧱 What's New in v4.0
 
 | Feature | Description |
 |---|---|
@@ -75,6 +75,7 @@ After boot, the heap is **permanently locked** by `HeapGuard::arm()`. Any inadve
 - C++20: Clang 14+ or GCC 11+
 - CMake 3.15+
 - Python 3.9+ (GDS dashboard)
+- `python3 -m venv .venv && source .venv/bin/activate`
 - `pip install streamlit pyyaml`
 
 ### Compile
@@ -119,6 +120,14 @@ cmake --build build --target flight_readiness
 ```bash
 cmake --build build --target qualification_bundle
 # emits build/qualification/qualification_report.{md,json}
+```
+
+### Finalize Software-Only Release Evidence
+
+```bash
+cmake --build build --target software_final
+# syncs docs/{REQUIREMENTS_TRACE_MATRIX.*,qualification_report.*}
+# emits docs/SOFTWARE_FINAL_STATUS.md
 ```
 
 Process templates for mission certification work are in `docs/process/`.

@@ -268,6 +268,18 @@ if(PYTHON3 AND TARGET flight_readiness)
     message(STATUS "Qualify  : ENABLED  (cmake --build build --target qualification_bundle)")
 endif()
 
+if(PYTHON3 AND TARGET qualification_bundle)
+    add_custom_target(software_final
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/software_final_check.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+            --python-exe ${PYTHON3}
+        DEPENDS qualification_bundle
+        COMMENT "Running software-final release gate and syncing docs artifacts"
+    )
+    message(STATUS "SoftFinal: ENABLED  (cmake --build build --target software_final)")
+endif()
+
 # =============================================================================
 # Summary
 # =============================================================================
@@ -289,6 +301,7 @@ message(STATUS "║    legal_compliance — civilian-use checks  ║")
 message(STATUS "║    traceability     — requirements trace   ║")
 message(STATUS "║    flight_readiness — full assurance gate  ║")
 message(STATUS "║    qualification_bundle — audit artifacts  ║")
+message(STATUS "║    software_final   — software release gate║")
 message(STATUS "║    gen              — run autocoder        ║")
 message(STATUS "╚════════════════════════════════════════════╝")
 message(STATUS "")

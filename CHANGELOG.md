@@ -4,7 +4,9 @@
 
 ### Added
 - `flight_readiness` and `qualification_bundle` build targets.
+- `software_final` release gate target for software-only finalization.
 - Qualification report generator (`tools/qualification_report.py`).
+- Software finalization validator/synchronizer (`tools/software_final_check.py`).
 - Requirements traceability matrix artifacts and mapping updates.
 - Process templates under `docs/process/` (PSAC/SVVP/SCMP/SQAP baseline).
 - Open-source release checklist.
@@ -18,10 +20,12 @@
 - Telemetry bridge now checks `sendto` result integrity and safer header parsing.
 - Logger tests now use unique file paths to avoid cross-run collisions.
 - Documentation updated for `gds/gds_dash.py` path and qualification workflow.
+- CI macOS runner updated to supported image and PEP 668-compatible pip invocations.
+- Coverage gate now binds lcov to compiler-matching gcov tool.
+- Safety gate fixed for clang-analyzer stack-address escape in `main.cpp`.
 
 ### Verification Snapshot
 - Unit tests: 119 passing.
-- Requirements traceability: 31/31 with direct test evidence.
+- Requirements traceability: 33/33 with direct test evidence.
 - Blocking safety gate: passing (`tidy_safety`).
 - Qualification bundle generation: passing.
-

@@ -1,17 +1,17 @@
 {
-  "generated_utc": "2026-03-06T17:28:49.921670+00:00",
-  "workspace": "/Users/albertcornelius/DELTA-V Framework",
+  "generated_utc": "2026-03-06T18:53:48.885362+00:00",
+  "workspace": "DELTA-V Framework",
   "git": {
     "branch": "main",
-    "commit": "6787a08b5de3bddb1571fe34603a9f78e9e13092",
+    "commit": "ba58284946771d7ba43d963e03e9f3c2463eada5",
     "dirty_worktree": true
   },
   "host": {
-    "platform": "macOS-26.2-arm64-arm-64bit",
-    "python": "3.12.12",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.3",
     "cmake": "cmake version 4.2.3"
   },
-  "unit_test_count": 121,
+  "unit_test_count": 119,
   "trace": {
     "summary": {
       "total_requirements": 33,
@@ -41,29 +41,29 @@
     {
       "name": "Requirements Traceability Gate",
       "status": "PASS",
-      "evidence": "/Users/albertcornelius/DELTA-V Framework/build/requirements_trace_matrix.json"
+      "evidence": "build_final/requirements_trace_matrix.json"
     }
   ],
   "hashes": [
     {
-      "path": "/Users/albertcornelius/DELTA-V Framework/build/requirements_trace_matrix.json",
-      "sha256": "0a8783134a1e71f69fbf847acf9173888f763b982c68f2bbf55e9eefa6bf8698"
+      "path": "build_final/requirements_trace_matrix.json",
+      "crc32": "93ea3889"
     },
     {
-      "path": "/Users/albertcornelius/DELTA-V Framework/build/requirements_trace_matrix.md",
-      "sha256": "abb2db41b71298af3c7ab8fbf294845e3f5623382723b9e1137c09cf6dbd4755"
+      "path": "build_final/requirements_trace_matrix.md",
+      "crc32": "0d46e8ba"
     },
     {
-      "path": "/Users/albertcornelius/DELTA-V Framework/tests/unit_tests.cpp",
-      "sha256": "a14f64659f5cd90035167fc4bb836a02c957e578d307366f9ca264f8809d8b61"
+      "path": "tests/unit_tests.cpp",
+      "crc32": "af3a9e85"
     },
     {
-      "path": "/Users/albertcornelius/DELTA-V Framework/build/flight_software",
-      "sha256": "56a777b9910ede0a7a07a64d375851232d26460700a3cd80bfaca336ddee0ae7"
+      "path": "build_final/flight_software",
+      "crc32": "6944d96d"
     },
     {
-      "path": "/Users/albertcornelius/DELTA-V Framework/build/run_tests",
-      "sha256": "39e7ab414c8bf3ab954efd3ab0b10d405cb27e3df066052c7cd08c429b63a527"
+      "path": "build_final/run_tests",
+      "crc32": "85d697ea"
     }
   ]
 }

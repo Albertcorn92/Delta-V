@@ -1,4 +1,4 @@
-# DELTA-V Flight Software Framework — Architecture Reference  v3.0
+# DELTA-V Flight Software Framework — Architecture Reference  v4.0
 
 ---
 

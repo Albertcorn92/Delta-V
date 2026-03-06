@@ -1,4 +1,4 @@
-# DELTA-V Developer Guide  v3.0
+# DELTA-V Developer Guide  v4.0
 
 ---
 
@@ -142,6 +142,9 @@ class FaultI2c : public deltav::hal::MockI2c {
 | Unit tests | `cmake --build . --target run_tests` | GTest suite |
 | Coverage report | `cmake --build . --target coverage` | lcov HTML report |
 | Static analysis | `cmake --build . --target tidy` | clang-tidy |
+| Flight readiness gate | `cmake --build . --target flight_readiness` | Legal + tests + safety + traceability |
+| Qualification bundle | `cmake --build . --target qualification_bundle` | Evidence report and artifact hashes |
+| Software final gate | `cmake --build . --target software_final` | Sync docs evidence + final software check |
 
 ---
 

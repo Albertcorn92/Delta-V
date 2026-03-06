@@ -9,7 +9,10 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
 - [ ] `python3 tools/legal_compliance_check.py` passes.
 - [ ] `cmake --build build --target flight_readiness` passes.
 - [ ] `cmake --build build --target qualification_bundle` passes.
+- [ ] `cmake --build build --target software_final` passes.
 - [ ] `docs/REQUIREMENTS_TRACE_MATRIX.md` and `.json` are refreshed.
+- [ ] `docs/qualification_report.md` and `.json` are refreshed.
+- [ ] `docs/SOFTWARE_FINAL_STATUS.md` is refreshed.
 - [ ] CI safety-assurance workflow passes on clean branch.
 
 ## 2. Documentation

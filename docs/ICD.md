@@ -1,4 +1,4 @@
-# DELTA-V Interface Control Document (ICD)  v3.0
+# DELTA-V Interface Control Document (ICD)  v4.0
 
 ## 1. Overview
 

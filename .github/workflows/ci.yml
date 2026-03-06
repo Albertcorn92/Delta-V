@@ -192,8 +192,8 @@ jobs:
       - name: Configure
         env: { CC: clang-14, CXX: clang++-14 }
         run: cmake -B build_tidy -G Ninja -DCMAKE_BUILD_TYPE=Debug
-      - name: Run qualification bundle gate
-        run: cmake --build build_tidy --target qualification_bundle
+      - name: Run software-final gate
+        run: cmake --build build_tidy --target software_final
 
       - name: Archive safety artifacts
         uses: actions/upload-artifact@v4
@@ -204,6 +204,7 @@ jobs:
             build_tidy/requirements_trace_matrix.json
             build_tidy/qualification/qualification_report.md
             build_tidy/qualification/qualification_report.json
+            docs/SOFTWARE_FINAL_STATUS.md
           retention-days: 14
 
   # ---------------------------------------------------------------------------

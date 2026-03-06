@@ -9,12 +9,12 @@ This script is intended to run after the `flight_readiness` gate succeeds.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import platform
 import re
 import subprocess
 import sys
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -33,12 +33,12 @@ def run_cmd(cmd: list[str], cwd: Path) -> str:
         return "unavailable"
 
 
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
+def crc32_file(path: Path) -> str:
+    checksum = 0
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(65536), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+            checksum = zlib.crc32(chunk, checksum)
+    return f"{checksum & 0xFFFFFFFF:08x}"
 
 
 def parse_test_count(tests_path: Path) -> int:
@@ -82,6 +82,15 @@ def validate_artifacts(paths: list[Path]) -> list[str]:
     return missing
 
 
+def display_path(path: Path, workspace: Path) -> str:
+    resolved = path.resolve()
+    workspace_resolved = workspace.resolve()
+    try:
+        return str(resolved.relative_to(workspace_resolved))
+    except ValueError:
+        return str(resolved)
+
+
 def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines: list[str] = []
     lines.append("# DELTA-V Qualification Report")
@@ -121,12 +130,12 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines.append(f"- Unit test count: `{report['unit_test_count']}`")
     lines.append(f"- DAL distribution: `{report['trace']['dal_counts']}`")
     lines.append("")
-    lines.append("## Artifact Hashes (SHA-256)")
+    lines.append("## Artifact Checksums (CRC-32)")
     lines.append("")
-    lines.append("| Artifact | SHA-256 |")
+    lines.append("| Artifact | CRC-32 |")
     lines.append("|---|---|")
     for item in report["hashes"]:
-        lines.append(f"| `{item['path']}` | `{item['sha256']}` |")
+        lines.append(f"| `{item['path']}` | `{item['crc32']}` |")
     lines.append("")
     lines.append("## Manual Evidence Remaining")
     lines.append("")
@@ -184,20 +193,26 @@ def main() -> int:
     output_json = args.output_dir / "qualification_report.json"
 
     now_utc = datetime.now(tz=timezone.utc).isoformat()
-    git_info = build_git_info(args.workspace)
+    workspace = args.workspace.resolve()
+    git_info = build_git_info(workspace)
     host_info = {
         "platform": platform.platform(),
         "python": platform.python_version(),
-        "cmake": run_cmd(["cmake", "--version"], args.workspace).splitlines()[0],
+        "cmake": run_cmd(["cmake", "--version"], workspace).splitlines()[0],
     }
 
     hashes = []
     for p in required_artifacts:
-        hashes.append({"path": str(p), "sha256": sha256_file(p)})
+        hashes.append(
+            {
+                "path": display_path(p, workspace),
+                "crc32": crc32_file(p),
+            }
+        )
 
     report = {
         "generated_utc": now_utc,
-        "workspace": str(args.workspace),
+        "workspace": str(workspace.name),
         "git": git_info,
         "host": host_info,
         "unit_test_count": parse_test_count(args.tests_file),
@@ -216,7 +231,7 @@ def main() -> int:
             {
                 "name": "Requirements Traceability Gate",
                 "status": "PASS",
-                "evidence": str(args.trace_json),
+                "evidence": display_path(args.trace_json, workspace),
             },
         ],
         "hashes": hashes,
