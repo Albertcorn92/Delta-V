@@ -1,59 +1,180 @@
-# DELTA-V Spacecraft Topology Blueprint
+# =============================================================================
+# DELTA-V Spacecraft Topology Blueprint  v4.0
+# =============================================================================
+# This file is the single source of truth for your spacecraft topology.
+# The autocoder reads it to generate:
+#   - src/Types.hpp          (C++ packet definitions)
+#   - src/TopologyManager.hpp (component wiring)
+#   - dictionary.json         (GDS ground dictionary)
+#
+# After ANY edit:
+#   python3 tools/autocoder.py
+#   cmake --build build
+#
+# To scaffold a new component:
+#   python3 tools/dv-util.py add-component ThermalControl --rate norm
+#   python3 tools/dv-util.py add-command   SET_HEATER --target-id 400 --opcode 1
+# =============================================================================
+
 system:
   name: "DeltaV_Flight_Computer"
-  version: "1.1.0"
+  version: "4.0.0"
 
+# ---------------------------------------------------------------------------
+# Components
+#
+# id         : Unique integer. NEVER reuse after first flight.
+# name       : Human-readable name shown in GDS.
+# class      : C++ class name. Header must be <class>.hpp in src/.
+# instance   : C++ variable name in TopologyManager.
+# type       : Passive | Active
+#              Passive  → executed by the rate group scheduler thread
+#              Active   → owns its own Os::Thread (inherits ActiveComponent)
+# rate_group : fast (10 Hz) | norm (1 Hz) | slow (0.1 Hz)
+#              Ignored for Active components — they declare their own Hz.
+# ---------------------------------------------------------------------------
 components:
+
+  # ── System Infrastructure (do not remove) ─────────────────────────────────
   - id: 1
     name: "Supervisor"
     class: "WatchdogComponent"
     instance: "watchdog"
-    type: "Active"
+    type: "Passive"
+    rate_group: "norm"
+
   - id: 10
     name: "TelemHub"
     class: "TelemHub"
     instance: "telem_hub"
     type: "Passive"
+    rate_group: "norm"
+
   - id: 11
     name: "CmdHub"
     class: "CommandHub"
     instance: "cmd_hub"
     type: "Passive"
+    rate_group: "norm"
+
   - id: 12
     name: "EventHub"
     class: "EventHub"
     instance: "event_hub"
     type: "Passive"
+    rate_group: "norm"
+
+  # ── Radio — Active, owns a dedicated 20 Hz thread ─────────────────────────
   - id: 20
     name: "RadioLink"
     class: "TelemetryBridge"
     instance: "radio"
     type: "Active"
+
+  # ── Flight Data Recorder ───────────────────────────────────────────────────
   - id: 30
     name: "BlackBox"
     class: "LoggerComponent"
     instance: "recorder"
     type: "Passive"
+    rate_group: "norm"
+
+  # ── Application Components — add your own below this line ──────────────────
   - id: 100
     name: "StarTracker"
     class: "SensorComponent"
     instance: "star_tracker"
     type: "Passive"
+    rate_group: "fast"      # 10 Hz — high-rate attitude measurement
+
   - id: 200
     name: "BatterySystem"
     class: "PowerComponent"
     instance: "battery"
     type: "Passive"
+    rate_group: "norm"      # 1 Hz — power budget monitoring
 
+  - id: 300
+    name: "IMU_01"
+    class: "ImuComponent"
+    instance: "imu_unit"
+    type: "Passive"
+    rate_group: "fast"      # 10 Hz — HAL-injected (Esp32I2c or MockI2c)
+
+# ---------------------------------------------------------------------------
+# Commands
+#
+# op_class controls which mission states accept this command (MissionFsm.hpp):
+#   HOUSEKEEPING  — allowed in ALL states including SAFE_MODE and EMERGENCY
+#   OPERATIONAL   — blocked during SAFE_MODE and EMERGENCY
+#   RESTRICTED    — NOMINAL state only (propulsion, payload deployment, etc.)
+# ---------------------------------------------------------------------------
 commands:
+
   - name: "RESET_BATTERY"
     target_id: 200
     opcode: 1
-    description: "Resets battery SOC to 100%"
+    op_class: "HOUSEKEEPING"
+    description: "Resets battery SOC to 100% (simulation reset)"
+
   - name: "SET_DRAIN_RATE"
     target_id: 200
     opcode: 2
-    description: "Sets the battery discharge rate"
+    op_class: "OPERATIONAL"
+    description: "Sets battery discharge rate. arg: 0.0–10.0 (%/tick)"
 
+  - name: "SET_STAR_AMPLITUDE"
+    target_id: 100
+    opcode: 1
+    op_class: "OPERATIONAL"
+    description: "Sets star tracker simulation sine amplitude. arg: float"
+
+  - name: "IMU_RECALIBRATE"
+    target_id: 300
+    opcode: 1
+    op_class: "OPERATIONAL"
+    description: "Triggers IMU self-calibration sequence. arg: unused (0.0)"
+
+# ---------------------------------------------------------------------------
+# Mission-critical parameters
+#
+# Parameters with tmr: true are stored in TmrStore<float>, which maintains
+# three independent copies and performs majority-vote healing on each read.
+# Use tmr: true for any value involved in FDIR thresholds or control laws.
+# ---------------------------------------------------------------------------
+params:
+
+  - name: "safe_mode_battery_pct"
+    default: 5.0
+    tmr: true
+    description: "Battery SOC % that triggers SAFE_MODE (DV-FDIR-01)"
+
+  - name: "degraded_battery_pct"
+    default: 15.0
+    tmr: true
+    description: "Battery SOC % that triggers DEGRADED state (DV-FDIR-03)"
+
+  - name: "emergency_battery_pct"
+    default: 2.0
+    tmr: true
+    description: "Battery SOC % that triggers EMERGENCY state (DV-FDIR-02)"
+
+  - name: "star_amplitude"
+    default: 10.0
+    tmr: false
+    description: "Star tracker simulation sine wave amplitude"
+
+  - name: "imu_sample_gain"
+    default: 1.0
+    tmr: false
+    description: "IMU accelerometer scaling factor"
+
+# ---------------------------------------------------------------------------
+# Custom port wiring
+# Lines injected verbatim into TopologyManager::wireCustom().
+# Use only for internal data feeds that the autocoder cannot auto-express.
+# ---------------------------------------------------------------------------
 custom_wiring:
   - "battery.battery_out_internal.connect(&watchdog.battery_level_in);"
+  - "cmd_hub.setMissionStateSource(&watchdog);"
+  - "watchdog.setBatteryThresholdSources(&tmr_emergency_battery_pct, &tmr_safe_mode_battery_pct, &tmr_degraded_battery_pct);"

@@ -1,251 +1,200 @@
-# 🛰️ DELTA-V Autonomy Framework
+# 🛰️ DELTA-V Autonomy Framework  v3.0
 
-DELTA-V is a high-performance, zero-copy **C++20 aerospace flight software executive** designed to provide the reliability of NASA’s **F´ (F Prime)** without the overhead of heavy message queues, XML dictionaries, or complex Python autocoders.
+DELTA-V is a high-performance, zero-copy **C++20 flight software framework** for civilian aerospace, robotics, and research missions. It is designed for deterministic behavior and high assurance without heavyweight queues, XML dictionaries, or complex toolchains.
 
-The framework focuses on **determinism, compile-time safety, and minimal runtime overhead**, making it suitable for embedded aerospace systems and edge-computing flight hardware.
+The framework targets **DO-178C DAL-B compliance** and is designed for embedded aerospace systems from prototype SITL on macOS/Linux through to FreeRTOS on Cortex-M7 hardware.
 
----
-
-# 🚀 Philosophy: Compile-Time Mission Safety
-
-Traditional aerospace software frameworks rely heavily on **runtime validation**, where wiring errors or incorrect data routing are only detected during execution.
-
-DELTA-V takes a different approach.
-
-Using **C++20 Concepts and Template Metaprogramming**, the framework moves system validation to the **compiler**. Component wiring and data types are mathematically verified during compilation.
-
-If the spacecraft’s internal software architecture is incorrect, **the program will not compile**.
-
-This approach dramatically reduces runtime failure risk and increases mission reliability.
+Roadmap for raising assurance rigor: `docs/HIGH_ASSURANCE_ROADMAP.md`.
+Safety gates and traceability workflow: `docs/SAFETY_ASSURANCE.md`.
+ESP32 hardware bring-up plan: `docs/ESP32_BRINGUP.md`.
 
 ---
 
-# 🧱 Key Architectural Pillars
+## 🚀 Philosophy: Compile-Time Mission Safety
 
-### Broadcast Data Bus
-DELTA-V uses a centralized telemetry distribution hub built on a **subscriber-listener pattern**.
+Using **C++20 Concepts and Template Metaprogramming**, DELTA-V moves system validation to the **compiler**. Component wiring and data types are verified at compile time. If the spacecraft's internal architecture is incorrect, **the program will not compile**.
 
-A single telemetry source can broadcast to multiple destinations simultaneously, such as:
-
-- Radio Downlink
-- BlackBox Storage
-- FDIR Systems (Fault Detection, Isolation, and Recovery)
-
-This architecture prevents pointer conflicts while allowing efficient multi-destination streaming.
+After boot, the heap is **permanently locked** by `HeapGuard::arm()`. Any inadvertent call to `malloc` or `new` during flight aborts with a fatal diagnostic.
 
 ---
 
-### Zero-Copy Memory Path
-All data movement occurs through `InputPort` and `OutputPort` structures that pass **direct memory references**.
+## 🧱 What's New in v3.0
 
-Benefits include:
-
-- Zero data duplication
-- Lower CPU overhead
-- Reduced latency
-- Deterministic communication timing
-
----
-
-### Static Execution Model
-DELTA-V enforces strict static memory usage.
-
-After the boot sequence:
-
-- `malloc` is prohibited  
-- `new` is prohibited  
-
-This prevents:
-
-- heap fragmentation  
-- runtime allocation failures  
-- unpredictable memory behavior during flight
+| Feature | Description |
+|---|---|
+| **HeapGuard** | Post-init heap lock: overrides `operator new` to fatal-abort after `arm()` |
+| **TmrStore** | Triple Modular Redundancy for critical params — SEU self-healing via majority vote |
+| **COBS Framing** | Consistent Overhead Byte Stuffing — guarantees frame sync after bit errors |
+| **MissionFsm** | Formal FSM gates uplink commands by state: SAFE_MODE blocks OPERATIONAL opcodes |
+| **Requirements.hpp** | RTM header — every DV-XXX-NN requirement linked to tests |
+| **FaultInjection** | `WatchdogComponent::injectBatteryLevel()` hook for HIL destructive testing |
+| **TMR Scrub** | Watchdog calls `TmrRegistry::scrubAll()` every 30 cycles |
 
 ---
 
-### Bit-Cast Serialization
-Telemetry packets are packed using **`std::bit_cast` binary serialization**.
+## 🏗️ System Architecture
 
-Advantages include:
+### Flight Software Layers (C++20)
 
-- extremely fast binary packing
-- hardware-level data formatting
-- zero transformation overhead before radio transmission
-
----
-
-# 🛠️ System Architecture
-
-DELTA-V is composed of two major layers:
-
-1. **Flight Software (C++20)**
-2. **Ground Data System (Python)**
-
----
-
-# Flight Software (C++20)
-
-### Scheduler.hpp — System Heartbeat
-
-Manages deterministic execution cycles and enforces strict timing across all registered flight components.
-
-Each component executes within a predictable scheduler tick.
-
----
-
-### TelemHub.hpp — Telemetry Bus
-
-Acts as the **central nervous system** for the spacecraft.
-
-Responsibilities include:
-
-- multiplexing sensor data
-- broadcasting telemetry to listeners
-- distributing system status information
+```
+┌─────────────────────────────────────────────────┐
+│  Ground Data System (Python / Streamlit)         │
+│  gds/gds_dash.py ←UDP 9001→ TelemetryBridge      │
+│               ←UDP 9002→  (CCSDS + COBS)          │
+└───────────────────┬─────────────────────────────┘
+                    │
+┌───────────────────▼─────────────────────────────┐
+│  TelemetryBridge (ActiveComponent, 20 Hz)        │
+│  Downlink: CCSDS + CRC-16 + COBS                 │
+│  Uplink:   CCSDS command frame validation         │
+└────┬──────────────┬──────────────────────────────┘
+     │              │
+┌────▼────┐   ┌─────▼──────┐   ┌─────────────────┐
+│TelemHub │   │ CommandHub │   │   EventHub      │
+│ Fan-Out │   │ +MissionFsm│   │  Broadcast      │
+└────┬────┘   └─────┬──────┘   └────────┬────────┘
+     │              │                   │
+┌────▼──────────────▼───────────────────▼────────┐
+│           Component Layer (Passive)             │
+│  StarTracker  BatterySystem  ImuComponent       │
+│  SensorComp   PowerComp      (HAL-injected)     │
+└────────────────────┬────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────┐
+│  WatchdogComponent (FDIR Supervisor)             │
+│  MissionFsm  ·  TmrRegistry  ·  ParamDb CRC     │
+└─────────────────────────────────────────────────┘
+```
 
 ---
 
-### CommandHub.hpp — Command Router
+## 🛠️ Building
 
-Receives uplink commands from ground control and routes them to the appropriate component ID within the flight software.
+### Prerequisites
 
----
+- C++20: Clang 14+ or GCC 11+
+- CMake 3.15+
+- Python 3.9+ (GDS dashboard)
+- `pip install streamlit pyyaml`
 
-### ParamDb.hpp — Parameter Database
-
-Persistent storage for mission configuration values such as:
-
-- PID controller gains
-- battery drain constants
-- system calibration values
-
-The database persists across system reboots.
-
----
-
-### TelemetryBridge.hpp — Ground Link
-
-Handles **UDP-based communication** between the flight software and the Ground Data System during Software-in-the-Loop (SITL) testing.
-
----
-
-# 🖥️ Ground Data System (Python 3.x)
-
-The Ground Data System (GDS) provides a modern **Streamlit-based mission dashboard**.
-
-Capabilities include:
-
-### Real-Time Analytics
-Live plotting of telemetry streams including sensor data, battery voltage, and subsystem metrics.
-
-### Mission Clock
-Maintains synchronized millisecond-level timing between flight software and ground control.
-
-### Event Console
-A color-coded system log displaying alerts, warnings, and heartbeat messages from onboard components.
-
-### Uplink Control
-Allows operators to issue commands and tune parameters in real time during testing.
-
----
-
-# 🏗️ Building and Launching
-
-## Prerequisites
-
-- C++20 compatible compiler  
-  - Clang 12+  
-  - GCC 11+  
-
-- CMake **3.15 or newer**
-
-- Python **3.9+** (for Ground Data System)
-
----
-
-# Compilation
-
-Run the following commands from the project root directory:
+### Compile
 
 ```bash
-mkdir build
-cd build
-cmake ..
+mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Debug ..
 cmake --build .
 ```
 
----
-
-# Launching Mission Control
-
-## Start the Flight Software
+### Run SITL
 
 ```bash
-./flight_software
+# Terminal 1 — Flight Software
+./build/flight_software
+
+# Terminal 2 — GDS Dashboard
+streamlit run gds/gds_dash.py
+```
+
+### Run Unit Tests
+
+```bash
+cd build && ctest --output-on-failure
+```
+
+### Validate Requirements Traceability
+
+```bash
+cmake --build build --target traceability
+# emits build/requirements_trace_matrix.md and requirements_trace_matrix.json
+```
+
+### Run Full Flight Readiness Gate
+
+```bash
+cmake --build build --target flight_readiness
+```
+
+### Generate Qualification Evidence Bundle
+
+```bash
+cmake --build build --target qualification_bundle
+# emits build/qualification/qualification_report.{md,json}
+```
+
+Process templates for mission certification work are in `docs/process/`.
+Open-source release checklist is in `docs/OPEN_SOURCE_RELEASE_CHECKLIST.md`.
+
+---
+
+## 📝 Adding a New Component
+
+### Quick scaffold
+
+```bash
+python3 tools/dv-util.py add-component ThermalControl
+# or for an Active (threaded) component:
+python3 tools/dv-util.py add-component ThermalControl --active
+```
+
+### Manual steps
+
+1. Add the component to `topology.yaml`
+2. Run `python3 tools/autocoder.py` to regenerate `Types.hpp` and `dictionary.json`
+3. Wire ports in `TopologyManager.hpp` (or re-run the autocoder)
+4. Add unit tests referencing the relevant DV-XXX-NN requirements
+
+---
+
+## 🔐 Security
+
+Uplink commands use strict CCSDS command-frame validation plus anti-replay sequence checks. The `MissionFsm` additionally gates commands by mission state. Restricted commands (e.g. actuator enable/deploy operations) are blocked in `SAFE_MODE` and `EMERGENCY`.
+
+Set replay-state persistence path before launch:
+
+```bash
+export DELTAV_REPLAY_SEQ_FILE="replay_seq.db"
 ```
 
 ---
 
-## Start the Ground Data System Dashboard
+## 📋 Requirements Traceability
 
-```bash
-streamlit run gds_dash.py
-```
+See `src/Requirements.hpp` for the full RTM. Every unit test references its governing requirement ID in a comment (e.g. `// DV-FDIR-01`).
 
 ---
 
-# 📝 Creating a New Component
+## ⚖️ Legal Scope
 
-DELTA-V is designed for **rapid subsystem development**.
-
-To add a new flight subsystem such as a **Thruster Controller** or **Star Tracker**:
-
-### 1. Inherit from `deltav::Component`
-
-Create a new class that derives from the base framework component.
-
-### 2. Define Ports
-
-Add communication endpoints:
-
-- `InputPort` for commands
-- `OutputPort` for telemetry
-
-### 3. Implement `step()`
-
-This function executes once per scheduler tick.
-
-### 4. Wire the Component in `main.cpp`
-
-Use the telemetry hub to connect the subsystem to the system bus.
+- DELTA-V is scoped for civilian, scientific, and educational use.
+- Contributions that add military, weapons, targeting, or fire-control behavior are out of scope and will be rejected.
+- This repository is intended for research/prototyping and is not certified for operational or safety-critical deployment.
+- This repository includes compliance guidance, but it is **not legal advice** and does not provide legal clearance by itself.
+- See `docs/CIVILIAN_USE_POLICY.md` and `docs/EXPORT_CONTROL_NOTE.md` before release or deployment.
 
 ---
 
-# Example Component
+## 🧪 Fault Injection / HIL Testing
 
 ```cpp
-// Minimal Power System Example
+// Simulate battery drain without waiting for real discharge:
+topology.watchdog.injectBatteryLevel(4.0f); // → SAFE_MODE
+topology.watchdog.injectBatteryLevel(1.5f); // → EMERGENCY
 
-class Battery : public deltav::Component {
-public:
-    void step() override {
-        float voltage = read_sensor();
-
-        TelemetryPacket p = {
-            timestamp,
-            getId(),
-            voltage
-        };
-
-        telemetry_out.send(Serializer::pack(p));
-    }
-
-    OutputPort<Serializer::ByteArray> telemetry_out;
-};
+// Simulate a stuck I2C bus via MockI2c override in unit tests
 ```
 
 ---
 
-# Author
+## Author
 
-**Albert Cornelius**
+**Albert Cornelius** · Apache License 2.0
+
+## Project Governance
+
+- Contributing guide: `CONTRIBUTING.md`
+- Security policy: `SECURITY.md`
+- Code of conduct: `CODE_OF_CONDUCT.md`
+- Release notes: `CHANGELOG.md`
+- Disclaimer: `DISCLAIMER.md`
+- Civilian use policy: `docs/CIVILIAN_USE_POLICY.md`
+- Export-control note: `docs/EXPORT_CONTROL_NOTE.md`

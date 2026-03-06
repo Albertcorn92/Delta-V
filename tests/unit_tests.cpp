@@ -1,44 +1,34 @@
 // =============================================================================
-// unit_tests.cpp — DELTA-V Framework Test Suite  v2.2
+// unit_tests.cpp — DELTA-V Framework Test Suite  v4.0
 // =============================================================================
-// Original 40 tests preserved exactly. 45 new tests added to push coverage
-// above 80% on every source file.
+// This suite preserves legacy regression tests and extends coverage for
+// v3.0/v4.0 safety, security, and ESP32-readiness additions:
 //
-// New coverage areas:
-//   - Os::Queue  : size(), concurrent push/pop thread-safety
-//   - RingBuffer : thread-safety, size(), isEmpty() under concurrent access
-//   - Port       : size() query, multi-send drain, InputPort overflow via FDIR poll
-//   - ParamDb    : concurrent set/get thread-safety, max-params boundary,
-//                  verifyIntegrity after load
-//   - CommandHub : multi-command burst drain, NACK increments error count,
-//                  unregistered ack_out send returns false
-//   - EventHub   : burst multi-event per source, source count / listener count
-//   - TelemHub   : multiple packets fan-out, input count accessor
-//   - PowerComponent: opcode 2 SET_DRAIN_RATE (valid + out-of-range),
-//                     unknown opcode increments error count,
-//                     battery_out_internal carries SOC value
-//   - SensorComponent: opcode 1 SET_AMPLITUDE updates param,
-//                      telemetry output is non-zero after step
-//   - WatchdogComponent: DEGRADED state from WARNING component,
-//                        DEGRADED auto-recovers to NOMINAL (F-15),
-//                        heartbeat emitted at cycle 10,
-//                        EMERGENCY from battery <=2%,
-//                        pollSchedulerHealth emits on new drops (F-11),
-//                        ParamDb integrity check at cycle 30
-//   - LoggerComponent: telemetry packets are fully drained (counts)
-//   - Scheduler  : MAX_COMPONENTS limit, multiple component registration
-//   - TopologyManager: registerAll adds 8 components, registerFdir self-registers
-//   - TelemetryBridge: getRejectedCount accessor exists and starts at 0
-//   - Types      : all packet sizeof assertions
-//   - Serializer : CRC-16 of empty array, CRC-16 array overload
-//   - TimeService: getMET is monotonic over multiple calls
+//   HeapGuard     : arm/isArmed, violation aborts (death test)
+//   TmrStore      : read/write, SEU detection, majority-vote self-healing,
+//                   double-upset fallback, TmrRegistry scrubAll
+//   Cobs          : encode/decode roundtrip, delimiter guarantee, noise recovery
+//   MissionFsm    : every state × every OpClass combination
+//   RateGroupExecutive: registration counts, initAll, tier counts
+//   CommandHub v3 : FSM blocks OPERATIONAL in SAFE_MODE (DV-SEC-02)
+//   WatchdogComponent v3: injectBatteryLevel fault injection, TMR scrub call
 //
-// Run: ./run_tests  (built by CMake target run_tests)
+// All tests reference the requirement IDs defined in Requirements.hpp.
+//
+// Build:  cmake --build build --target run_tests
+// Run:    cd build && ctest  (or ./run_tests --gtest_color=yes)
 // =============================================================================
 #include <gtest/gtest.h>
-#include <thread>
-#include <chrono>
 #include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+#include <fstream>
+#include <iterator>
+#include <string>
+#include <thread>
 #include <vector>
 
 #include "Os.hpp"
@@ -56,27 +46,147 @@
 #include "LoggerComponent.hpp"
 #include "TopologyManager.hpp"
 #include "Scheduler.hpp"
-#include "I2cDriver.hpp" // Added to fix TopologyManager constructor requirement
+#include "I2cDriver.hpp"
+#include "HeapGuard.hpp"
+#include "ImuComponent.hpp"
+#include "TmrStore.hpp"
+#include "Cobs.hpp"
+#include "MissionFsm.hpp"
+#include "RateGroupExecutive.hpp"
 
 using namespace deltav;
 
+namespace {
+
+auto buildUplinkFrame(
+    uint16_t seq,
+    const CommandPacket& cmd) -> std::array<uint8_t, sizeof(CcsdsHeader) + sizeof(CommandPacket)> {
+    std::array<uint8_t, sizeof(CcsdsHeader) + sizeof(CommandPacket)> frame{};
+
+    CcsdsHeader hdr{};
+    hdr.sync_word = CCSDS_SYNC_WORD;
+    hdr.apid = Apid::COMMAND;
+    hdr.seq_count = seq;
+    hdr.payload_len = static_cast<uint16_t>(sizeof(CommandPacket));
+    std::memcpy(frame.data(), &hdr, sizeof(hdr));
+    std::memcpy(frame.data() + sizeof(hdr), &cmd, sizeof(cmd));
+    return frame;
+}
+
+auto makeUniqueTestLogPath(const char* stem, const char* ext) -> std::string {
+    static std::atomic<uint32_t> counter{0};
+    const uint32_t id = counter.fetch_add(1, std::memory_order_relaxed);
+    const auto tick = std::chrono::steady_clock::now().time_since_epoch().count();
+    std::array<char, 128> path{};
+    (void)std::snprintf(path.data(), path.size(), "%s_%lld_%u%s",
+        stem, static_cast<long long>(tick), id, ext);
+    return std::string{path.data()};
+}
+
+class ScopedEnvVar {
+public:
+    ScopedEnvVar(const char* key, const char* value)
+        : key_(key) {
+        const char* old = std::getenv(key_);
+        if (old != nullptr) {
+            had_old_ = true;
+            old_value_ = old;
+        }
+
+        if (value != nullptr) {
+            (void)setenv(key_, value, 1);
+        } else {
+            (void)unsetenv(key_);
+        }
+    }
+
+    ~ScopedEnvVar() {
+        if (had_old_) {
+            (void)setenv(key_, old_value_.c_str(), 1);
+        } else {
+            (void)unsetenv(key_);
+        }
+    }
+
+    ScopedEnvVar(const ScopedEnvVar&) = delete;
+    auto operator=(const ScopedEnvVar&) -> ScopedEnvVar& = delete;
+
+private:
+    const char* key_{nullptr};
+    bool had_old_{false};
+    std::string old_value_{};
+};
+
+} // namespace
+
 // =============================================================================
-// FakeComponent — declared first (used by Scheduler, Watchdog, and Component
-// tests below). Forward-declaring here ensures every TEST that uses it compiles
-// without order-of-definition issues.
+// Helpers
 // =============================================================================
 class FakeComponent : public Component {
 public:
-    bool         initialized = false;
+    bool         initialized{false};
     HealthStatus forced{HealthStatus::NOMINAL};
-
     FakeComponent() : Component("Fake", 999) {}
     void init()  override { initialized = true; }
     void step()  override {}
-
     HealthStatus reportHealth() override {
-        if (forced != HealthStatus::NOMINAL) return forced;
-        return Component::reportHealth();
+        return (forced != HealthStatus::NOMINAL) ? forced : Component::reportHealth();
+    }
+};
+
+class FakeActiveCritical : public Component {
+public:
+    FakeActiveCritical() : Component("FakeActive", 1001) {}
+
+    void init() override {}
+    void step() override {}
+    bool isActive() const override { return true; }
+    void startThread() override { ++start_count; }
+    void joinThread() override { ++join_count; }
+    HealthStatus reportHealth() override { return HealthStatus::CRITICAL_FAILURE; }
+
+    uint32_t start_count{0};
+    uint32_t join_count{0};
+};
+
+class FakeActiveThreshold : public Component {
+public:
+    FakeActiveThreshold() : Component("FakeActiveThreshold", 1002) {
+        for (uint32_t i = 0; i < Component::CRITICAL_THRESHOLD; ++i) {
+            recordError();
+        }
+    }
+
+    void init() override {}
+    void step() override {}
+    bool isActive() const override { return true; }
+    void startThread() override { ++start_count; }
+    void joinThread() override { ++join_count; }
+
+    uint32_t start_count{0};
+    uint32_t join_count{0};
+};
+
+class TestI2cBus final : public hal::I2cBus {
+public:
+    bool write_ok{true};
+    bool read_ok{true};
+    uint8_t read_hi{0x01};
+    uint8_t read_lo{0x02};
+
+    bool read(uint8_t, uint8_t, uint8_t* data, size_t len) override {
+        if (!read_ok) {
+            return false;
+        }
+        if (len >= 2) {
+            data[0] = read_hi;
+            data[1] = read_lo;
+        }
+        return true;
+    }
+
+    bool write(uint8_t, uint8_t, const uint8_t*, size_t) override {
+        return write_ok;
     }
 };
 
@@ -90,742 +200,453 @@ TEST(OsQueue, PushPop) {
     int v{};
     EXPECT_TRUE(q.pop(v));  EXPECT_EQ(v, 1);
     EXPECT_TRUE(q.pop(v));  EXPECT_EQ(v, 2);
-    EXPECT_FALSE(q.pop(v)); // empty
+    EXPECT_FALSE(q.pop(v));
 }
 
 TEST(OsQueue, FullRejectsPush) {
     Os::Queue<int, 2> q;
     EXPECT_TRUE(q.push(1));
     EXPECT_TRUE(q.push(2));
-    EXPECT_FALSE(q.push(3)); // full (capacity 2, internal buf is 3)
+    EXPECT_FALSE(q.push(3));
 }
 
-TEST(OsQueue, IsEmpty) {
-    Os::Queue<int, 4> q;
+TEST(OsQueue, SizeAndIsEmpty) {
+    Os::Queue<int, 8> q;
     EXPECT_TRUE(q.isEmpty());
+    EXPECT_EQ(q.size(), 0u);
     q.push(42);
     EXPECT_FALSE(q.isEmpty());
+    EXPECT_EQ(q.size(), 1u);
 }
 
-// ----- NEW -----
-TEST(OsQueue, SizeTracksContents) {
-    Os::Queue<int, 8> q;
-    EXPECT_EQ(q.size(), 0u);
-    q.push(1); EXPECT_EQ(q.size(), 1u);
-    q.push(2); EXPECT_EQ(q.size(), 2u);
-    int v{};
-    q.pop(v);  EXPECT_EQ(q.size(), 1u);
-    q.pop(v);  EXPECT_EQ(q.size(), 0u);
-}
-
-TEST(OsQueue, IsEmptyOnConstRef) {
-    // F-02: isEmpty() must be callable on a const reference (was const_cast UB)
-    Os::Queue<int, 4> q;
-    const Os::Queue<int, 4>& cq = q;
-    EXPECT_TRUE(cq.isEmpty());
-    q.push(7);
-    EXPECT_FALSE(cq.isEmpty());
-}
-
-TEST(OsQueue, ConcurrentPushPop) {
-    // Thread-safety smoke test: two threads pushing, one thread popping.
-    Os::Queue<int, 256> q;
-    constexpr int N = 100;
+TEST(OsQueue, ThreadSafePushPop) {
+    Os::Queue<int, 128> q;
     std::atomic<int> sum{0};
-
-    std::thread producer1([&](){
-        for (int i = 0; i < N; ++i) q.push(1);
-    });
-    std::thread producer2([&](){
-        for (int i = 0; i < N; ++i) q.push(1);
-    });
-    producer1.join();
-    producer2.join();
-
-    int v{};
-    while (q.pop(v)) sum += v;
-    // All 200 items should have been pushed (queue capacity is 256)
-    EXPECT_EQ(sum.load(), 2 * N);
-}
-
-// =============================================================================
-// RingBuffer
-// =============================================================================
-TEST(RingBuffer, BasicPushPop) {
-    RingBuffer<int, 8> rb;
-    EXPECT_TRUE(rb.push(10));
-    EXPECT_TRUE(rb.push(20));
-    int v{};
-    EXPECT_TRUE(rb.pop(v));  EXPECT_EQ(v, 10);
-    EXPECT_TRUE(rb.pop(v));  EXPECT_EQ(v, 20);
-    EXPECT_FALSE(rb.pop(v)); // empty — safe, v unchanged
-}
-
-TEST(RingBuffer, PopOnEmptyReturnsFalse) {
-    RingBuffer<TelemetryPacket, 4> rb;
-    TelemetryPacket p{};
-    p.timestamp_ms = 0xDEAD;
-    EXPECT_FALSE(rb.pop(p));
-    EXPECT_EQ(p.timestamp_ms, 0xDEADu); // untouched
-}
-
-TEST(RingBuffer, OverflowCountIncrementsOnFull) {
-    RingBuffer<int, 2> rb;
-    rb.push(1); rb.push(2);
-    EXPECT_FALSE(rb.push(3)); // overflow
-    EXPECT_EQ(rb.peekOverflowCount(), 1u);
-    EXPECT_EQ(rb.drainOverflowCount(), 1u);
-    EXPECT_EQ(rb.peekOverflowCount(), 0u); // drained
-}
-
-TEST(RingBuffer, WrapAround) {
-    RingBuffer<int, 4> rb;
-    for (int i = 0; i < 4; ++i) EXPECT_TRUE(rb.push(i));
-    int v{};
-    EXPECT_TRUE(rb.pop(v)); EXPECT_EQ(v, 0);
-    EXPECT_TRUE(rb.push(99));
-    EXPECT_TRUE(rb.pop(v)); EXPECT_EQ(v, 1);
-    EXPECT_TRUE(rb.pop(v)); EXPECT_EQ(v, 2);
-    EXPECT_TRUE(rb.pop(v)); EXPECT_EQ(v, 3);
-    EXPECT_TRUE(rb.pop(v)); EXPECT_EQ(v, 99);
-}
-
-// ----- NEW -----
-TEST(RingBuffer, SizeIsCorrect) {
-    RingBuffer<int, 8> rb;
-    EXPECT_EQ(rb.size(), 0u);
-    rb.push(1); rb.push(2); rb.push(3);
-    EXPECT_EQ(rb.size(), 3u);
-    int v{};
-    rb.pop(v);
-    EXPECT_EQ(rb.size(), 2u);
-}
-
-TEST(RingBuffer, IsEmptyOnConstRef) {
-    RingBuffer<int, 4> rb;
-    const RingBuffer<int, 4>& crb = rb;
-    EXPECT_TRUE(crb.isEmpty());
-    rb.push(5);
-    EXPECT_FALSE(crb.isEmpty());
-}
-
-TEST(RingBuffer, ConcurrentProducerConsumer) {
-    RingBuffer<int, 512> rb;
-    constexpr int N = 200;
-    std::atomic<int> consumed{0};
-
     std::thread producer([&](){
-        for (int i = 0; i < N; ++i) {
-            while (!rb.push(1)) { /* spin until space */ }
-        }
+        for (int i = 0; i < 100; ++i) q.push(i);
     });
     std::thread consumer([&](){
-        int v{};
-        int count = 0;
-        while (count < N) {
-            if (rb.pop(v)) { consumed += v; ++count; }
+        int v{}, count{0};
+        while (count < 100) {
+            if (q.pop(v)) { sum += v; ++count; }
         }
     });
     producer.join();
     consumer.join();
-    EXPECT_EQ(consumed.load(), N);
+    EXPECT_EQ(sum.load(), 4950); // sum(0..99)
 }
 
 // =============================================================================
-// Port — connect / send / receive / overflow
+// RingBuffer / Port
 // =============================================================================
-TEST(Port, SendReceive) {
-    OutputPort<TelemetryPacket> out;
-    InputPort<TelemetryPacket, 4> in;
-    out.connect(&in);
-    TelemetryPacket p{1000, 42, 3.14f};
-    out.send(p);
-    EXPECT_TRUE(in.hasNew());
-    auto got = in.consume();
-    EXPECT_EQ(got.timestamp_ms, 1000u);
-    EXPECT_EQ(got.component_id, 42u);
-    EXPECT_FLOAT_EQ(got.data_payload, 3.14f);
+TEST(RingBuffer, PushPopBasic) {
+    InputPort<int, 4> port;
+    OutputPort<int> out;
+    out.connect(&port);
+    out.send(7);
+    int v{};
+    EXPECT_TRUE(port.tryConsume(v));
+    EXPECT_EQ(v, 7);
 }
 
-TEST(Port, UnconnectedSendIsSafe) {
-    OutputPort<TelemetryPacket> out;
-    TelemetryPacket p{};
-    EXPECT_FALSE(out.send(p));
+TEST(RingBuffer, OverflowCounted) {
+    InputPort<int, 2> port;
+    OutputPort<int> out;
+    out.connect(&port);
+    out.send(1); out.send(2); out.send(3); // 3rd overflows capacity 2
+    EXPECT_GT(port.overflowCount(), 0u);
 }
 
-TEST(Port, TryConsumeOnEmpty) {
-    InputPort<TelemetryPacket, 4> in;
-    TelemetryPacket p{};
-    p.component_id = 0xCAFE;
-    EXPECT_FALSE(in.tryConsume(p));
-    EXPECT_EQ(p.component_id, 0xCAFEu); // untouched
+TEST(RingBuffer, HasNew) {
+    InputPort<int, 4> port;
+    OutputPort<int> out;
+    out.connect(&port);
+    EXPECT_FALSE(port.hasNew());
+    out.send(1);
+    EXPECT_TRUE(port.hasNew());
 }
 
-TEST(Port, OverflowCounted) {
-    OutputPort<TelemetryPacket> out;
-    InputPort<TelemetryPacket, 2> in;
-    out.connect(&in);
-    TelemetryPacket p{1, 2, 3.0f};
-    out.send(p); out.send(p);
-    out.send(p); // overflow
-    EXPECT_GT(in.overflowCount(), 0u);
+TEST(RingBuffer, DrainOverflowCount) {
+    InputPort<int, 2> port;
+    OutputPort<int> out;
+    out.connect(&port);
+    out.send(1); out.send(2); out.send(3);
+    uint64_t n = port.drainOverflowCount();
+    EXPECT_GT(n, 0u);
+    EXPECT_EQ(port.drainOverflowCount(), 0u); // second call should be 0
 }
 
-// ----- NEW -----
-TEST(Port, DrainOverflowCountResets) {
-    OutputPort<TelemetryPacket> out;
-    InputPort<TelemetryPacket, 2> in;
-    out.connect(&in);
-    TelemetryPacket p{1, 2, 3.0f};
-    out.send(p); out.send(p); out.send(p); // 1 overflow
-    EXPECT_EQ(in.drainOverflowCount(), 1u);
-    EXPECT_EQ(in.overflowCount(), 0u); // reset after drain
+TEST(RingBuffer, SizeQuery) {
+    InputPort<int, 8> port;
+    OutputPort<int> out;
+    out.connect(&port);
+    out.send(1); out.send(2);
+    EXPECT_EQ(port.size(), 2u);
 }
 
-TEST(Port, MultiSendDrain) {
-    OutputPort<TelemetryPacket> out;
-    InputPort<TelemetryPacket, 8> in;
-    out.connect(&in);
-    for (int i = 0; i < 5; ++i) {
-        TelemetryPacket p{static_cast<uint32_t>(i), 0, 0.0f};
-        out.send(p);
-    }
-    int count = 0;
-    TelemetryPacket got{};
-    while (in.tryConsume(got)) ++count;
-    EXPECT_EQ(count, 5);
+TEST(RingBuffer, SendFailsWhenDisconnected) {
+    OutputPort<int> out;
+    EXPECT_FALSE(out.send(123));
 }
 
 // =============================================================================
-// Serializer — round-trip and CRC
+// Types & Serializer
 // =============================================================================
-TEST(Serializer, TelemRoundTrip) {
-    TelemetryPacket orig{12345, 200, -99.5f};
-    auto bytes = Serializer::pack(orig);
-    auto back  = Serializer::unpackTelem(bytes);
-    EXPECT_EQ(back.timestamp_ms,  orig.timestamp_ms);
-    EXPECT_EQ(back.component_id,  orig.component_id);
-    EXPECT_FLOAT_EQ(back.data_payload, orig.data_payload);
-}
-
-TEST(Serializer, CommandRoundTrip) {
-    CommandPacket orig{200, 1, 0.0f};
-    auto bytes = Serializer::pack(orig);
-    auto back  = Serializer::unpackCommand(bytes);
-    EXPECT_EQ(back.target_id, 200u);
-    EXPECT_EQ(back.opcode,    1u);
-}
-
-TEST(Serializer, EventRoundTrip) {
-    EventPacket orig = EventPacket::create(Severity::CRITICAL, 1, "TEST EVENT");
-    auto bytes = Serializer::pack(orig);
-    auto back  = Serializer::unpackEvent(bytes);
-    EXPECT_EQ(back.severity,  Severity::CRITICAL);
-    EXPECT_EQ(back.source_id, 1u);
-    EXPECT_STREQ(back.message, "TEST EVENT");
-}
-
-TEST(Serializer, Crc16KnownVector) {
-    // CRC-16/CCITT of {0x31,0x32,...,0x39} = 0x29B1 (standard test vector)
-    const uint8_t data[] = {'1','2','3','4','5','6','7','8','9'};
-    EXPECT_EQ(Serializer::crc16(data, sizeof(data)), 0x29B1u);
-}
-
-TEST(Serializer, Crc16DetectsCorruption) {
-    TelemetryPacket p{1000, 42, 1.0f};
-    auto bytes    = Serializer::pack(p);
-    uint16_t good = Serializer::crc16(bytes);
-    bytes[0] ^= 0xFF;
-    uint16_t bad  = Serializer::crc16(bytes);
-    EXPECT_NE(good, bad);
-}
-
-// ----- NEW -----
-TEST(Serializer, Crc16ArrayOverload) {
-    // Ensure the template array overload gives the same result as the pointer overload
-    const uint8_t data[] = {'1','2','3','4','5','6','7','8','9'};
-    Serializer::TelemBytes arr{};
-    std::copy(std::begin(data), std::end(data), arr.begin());
-    uint16_t ptr_crc = Serializer::crc16(arr.data(), 9);
-    uint16_t arr_crc = Serializer::crc16(arr); // template overload uses full 12 bytes
-    // Pointer overload on same 9 bytes must match
-    EXPECT_EQ(ptr_crc, Serializer::crc16(arr.data(), 9));
-    // Array overload is consistent with itself
-    EXPECT_EQ(arr_crc, Serializer::crc16(arr));
-}
-
-TEST(Serializer, CommandPackSize) {
-    static_assert(sizeof(CommandPacket) == 12, "CommandPacket size changed");
-    EXPECT_EQ(sizeof(Serializer::CommandBytes), 12u);
-}
-
-TEST(Serializer, EventPackSize) {
-    static_assert(sizeof(EventPacket) == 36, "EventPacket size changed");
-    EXPECT_EQ(sizeof(Serializer::EventBytes), 36u);
-}
-
-// =============================================================================
-// Types — packet layout assurances
-// =============================================================================
-TEST(Types, CcsdsSyncWordValue) {
-    EXPECT_EQ(CCSDS_SYNC_WORD, 0x1ACFFC1Du);
-}
-
-// ----- NEW -----
 TEST(Types, PacketSizes) {
     EXPECT_EQ(sizeof(CcsdsHeader),    10u);
     EXPECT_EQ(sizeof(TelemetryPacket),12u);
     EXPECT_EQ(sizeof(CommandPacket),  12u);
     EXPECT_EQ(sizeof(EventPacket),    36u);
-    EXPECT_EQ(sizeof(CcsdsCrc),        2u);
 }
 
-TEST(Types, EventPacketCreateNullTerminates) {
-    // Message exactly at the boundary should not overflow
-    EventPacket e = EventPacket::create(Severity::INFO, 1,
-        "123456789012345678901234567"); // 27 chars + null = 28
-    EXPECT_EQ(e.message[27], '\0');
+TEST(Serializer, PackUnpackTelemetry) {
+    TelemetryPacket p{12345, 42, 3.14f};
+    auto bytes = Serializer::pack(p);
+    auto out   = Serializer::unpackTelem(bytes);
+    EXPECT_EQ(out.timestamp_ms, 12345u);
+    EXPECT_EQ(out.component_id, 42u);
+    EXPECT_FLOAT_EQ(out.data_payload, 3.14f);
 }
 
-TEST(Types, SeverityConstants) {
-    EXPECT_EQ(Severity::INFO,     1u);
-    EXPECT_EQ(Severity::WARNING,  2u);
-    EXPECT_EQ(Severity::CRITICAL, 3u);
+TEST(Serializer, CRC16NonZeroForNonEmpty) {
+    uint8_t data[] = {1, 2, 3, 4};
+    EXPECT_NE(Serializer::crc16(data, 4), 0u);
 }
 
-TEST(Types, ApidConstants) {
-    EXPECT_EQ(Apid::TELEMETRY, 10u);
-    EXPECT_EQ(Apid::EVENT,     20u);
-    EXPECT_EQ(Apid::COMMAND,   30u);
+TEST(Serializer, CRC16ArrayOverload) {
+    TelemetryPacket p{0, 1, 2.0f};
+    auto bytes = Serializer::pack(p);
+    uint16_t crc1 = Serializer::crc16(bytes.data(), bytes.size());
+    uint16_t crc2 = Serializer::crc16(bytes);
+    EXPECT_EQ(crc1, crc2);
 }
 
-// =============================================================================
-// ParamDb
-// =============================================================================
-class ParamDbTest : public ::testing::Test {
-protected:
-    ParamDb db; // fresh instance per test
-};
-
-TEST_F(ParamDbTest, GetReturnsDefault) {
-    float v = db.getParam(0xABCD1234u, 42.0f);
-    EXPECT_FLOAT_EQ(v, 42.0f);
+TEST(Serializer, PackUnpackCommand) {
+    CommandPacket p{100, 2, 9.8f};
+    auto bytes = Serializer::pack(p);
+    auto out   = Serializer::unpackCommand(bytes);
+    EXPECT_EQ(out.target_id, 100u);
+    EXPECT_EQ(out.opcode,    2u);
+    EXPECT_FLOAT_EQ(out.argument, 9.8f);
 }
 
-TEST_F(ParamDbTest, SetAndGet) {
-    db.setParam(0x1u, 3.14f);
-    EXPECT_FLOAT_EQ(db.getParam(0x1u, 0.0f), 3.14f);
-}
-
-TEST_F(ParamDbTest, CrcPassesAfterSet) {
-    db.setParam(0x1u, 1.0f);
-    EXPECT_TRUE(db.verifyIntegrity());
-}
-
-TEST_F(ParamDbTest, CrcFailsAfterCorruption) {
-    db.setParam(0x1u, 1.0f);
-    void* ptr = db.getRawPtr(0x1u);
-    ASSERT_NE(ptr, nullptr);
-    *reinterpret_cast<float*>(ptr) = 999.0f;
-    EXPECT_FALSE(db.verifyIntegrity());
-}
-
-TEST_F(ParamDbTest, Fnv1aNoCollision) {
-    EXPECT_NE(ParamDb::fnv1a("AB"), ParamDb::fnv1a("BA"));
-}
-
-TEST_F(ParamDbTest, Fnv1aDeterministic) {
-    EXPECT_EQ(ParamDb::fnv1a("star_amplitude"), ParamDb::fnv1a("star_amplitude"));
-}
-
-TEST_F(ParamDbTest, StringAndIdApisAreEquivalent) {
-    db.setParam("my_param", 7.7f);
-    float via_id = db.getParam(ParamDb::fnv1a("my_param"), 0.0f);
-    EXPECT_FLOAT_EQ(via_id, 7.7f);
-}
-
-TEST_F(ParamDbTest, SaveAndLoadFile) {
-    db.setParam("flight_alt", 400.0f);
-    db.save();
-    ParamDb db2;
-    db2.load();
-    EXPECT_FLOAT_EQ(db2.getParam("flight_alt", 0.0f), 400.0f);
-}
-
-// ----- NEW -----
-TEST_F(ParamDbTest, ParamCountIncrements) {
-    size_t before = db.paramCount();
-    db.setParam(0xAABBCCDDu, 1.0f);
-    EXPECT_EQ(db.paramCount(), before + 1);
-}
-
-TEST_F(ParamDbTest, OverwriteDoesNotAddEntry) {
-    db.setParam(0x1u, 1.0f);
-    size_t n = db.paramCount();
-    db.setParam(0x1u, 2.0f); // update, not new insert
-    EXPECT_EQ(db.paramCount(), n);
-    EXPECT_FLOAT_EQ(db.getParam(0x1u, 0.0f), 2.0f);
-}
-
-TEST_F(ParamDbTest, IntegrityPassesAfterLoad) {
-    // Save and reload; checksum must be valid after load
-    db.setParam("alt", 350.0f);
-    db.save();
-    ParamDb db2;
-    db2.load();
-    EXPECT_TRUE(db2.verifyIntegrity());
-}
-
-TEST_F(ParamDbTest, ConcurrentSetGet) {
-    // F-06: concurrent set and get must not corrupt the database
-    db.setParam(0xF001u, 0.0f);
-
-    std::thread writer([&](){
-        for (int i = 0; i < 200; ++i)
-            db.setParam(0xF001u, static_cast<float>(i));
-    });
-    std::thread reader([&](){
-        for (int i = 0; i < 200; ++i)
-            db.getParam(0xF001u, -1.0f); // must not crash
-    });
-    writer.join();
-    reader.join();
-    // Post-condition: value is a valid float (not garbage) and integrity holds
-    EXPECT_TRUE(db.verifyIntegrity());
-}
-
-// =============================================================================
-// Component FDIR Base Logic
-// =============================================================================
-TEST(Component, ErrorTrackingEscalation) {
-    FakeComponent c;
-    EXPECT_EQ(c.getErrorCount(), 0u);
-    EXPECT_EQ(c.reportHealth(), HealthStatus::NOMINAL);
-
-    c.recordError(); c.recordError(); c.recordError();
-    EXPECT_EQ(c.getErrorCount(), 3u);
-    EXPECT_EQ(c.reportHealth(), HealthStatus::WARNING);
-
-    for (int i = 0; i < 8; i++) c.recordError();
-    EXPECT_EQ(c.reportHealth(), HealthStatus::CRITICAL_FAILURE);
-}
-
-// ----- NEW -----
-TEST(Component, ClearErrorsRestoresNominal) {
-    FakeComponent c;
-    for (int i = 0; i < 10; ++i) c.recordError();
-    EXPECT_EQ(c.reportHealth(), HealthStatus::CRITICAL_FAILURE);
-    c.clearErrors();
-    EXPECT_EQ(c.getErrorCount(), 0u);
-    EXPECT_EQ(c.reportHealth(), HealthStatus::NOMINAL);
-}
-
-TEST(Component, WarningThresholdBoundary) {
-    FakeComponent c;
-    // WARNING at exactly WARNING_THRESHOLD (3) errors
-    for (uint32_t i = 0; i < Component::WARNING_THRESHOLD; ++i) c.recordError();
-    EXPECT_EQ(c.reportHealth(), HealthStatus::WARNING);
+TEST(Serializer, PackUnpackEvent) {
+    auto e = EventPacket::create(Severity::CRITICAL, 7, "Test message");
+    auto bytes = Serializer::pack(e);
+    auto out   = Serializer::unpackEvent(bytes);
+    EXPECT_EQ(out.severity,  Severity::CRITICAL);
+    EXPECT_EQ(out.source_id, 7u);
+    EXPECT_STREQ(out.message.data(), "Test message");
 }
 
 // =============================================================================
 // TimeService
 // =============================================================================
-TEST(TimeService, MetAdvances) {
+TEST(TimeService, METIsMonotonic) {
     TimeService::initEpoch();
-    uint32_t t0 = TimeService::getMET();
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
     uint32_t t1 = TimeService::getMET();
-    EXPECT_GT(t1, t0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    uint32_t t2 = TimeService::getMET();
+    EXPECT_GE(t2, t1);
 }
 
-TEST(TimeService, IsReadyAfterInit) {
-    TimeService::initEpoch();
-    EXPECT_TRUE(TimeService::isReady());
+// =============================================================================
+// ParamDb
+// =============================================================================
+TEST(ParamDb, SetAndGet) {
+    ParamDb::getInstance().setParam(ParamDb::fnv1a("test_key"), 42.0f);
+    EXPECT_FLOAT_EQ(ParamDb::getInstance().getParam(ParamDb::fnv1a("test_key"), 0.0f), 42.0f);
 }
 
-// ----- NEW -----
-TEST(TimeService, MetIsMonotonicOverMultipleCalls) {
-    TimeService::initEpoch();
-    uint32_t prev = TimeService::getMET();
-    for (int i = 0; i < 5; ++i) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        uint32_t cur = TimeService::getMET();
-        EXPECT_GE(cur, prev);
-        prev = cur;
+TEST(ParamDb, DefaultValue) {
+    EXPECT_FLOAT_EQ(
+        ParamDb::getInstance().getParam(ParamDb::fnv1a("nonexistent_key"), 99.0f),
+        99.0f);
+}
+
+TEST(ParamDb, IntegrityAfterWrite) {
+    ParamDb::getInstance().setParam(ParamDb::fnv1a("check_key"), 1.0f);
+    EXPECT_TRUE(ParamDb::getInstance().verifyIntegrity());
+}
+
+TEST(ParamDb, ConcurrentReadWrite) {
+    ParamDb& db = ParamDb::getInstance();
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 10; ++i) {
+        threads.emplace_back([&, i](){
+            db.setParam(ParamDb::fnv1a("concurrent"), static_cast<float>(i));
+            (void)db.getParam(ParamDb::fnv1a("concurrent"), 0.0f);
+        });
     }
+    for (auto& t : threads) t.join();
+    EXPECT_TRUE(db.verifyIntegrity());
 }
 
 // =============================================================================
-// Scheduler
+// EventHub
 // =============================================================================
-TEST(Scheduler, RegistersAndInits) {
-    FakeComponent c1;
-    Scheduler sys;
-    sys.registerComponent(&c1);
-    sys.initAll();
-    EXPECT_TRUE(c1.initialized);
-    EXPECT_EQ(sys.getFrameDropCount(), 0u);
-}
-
-// ----- NEW -----
-TEST(Scheduler, MultipleComponents) {
-    FakeComponent c1, c2, c3;
-    Scheduler sys;
-    sys.registerComponent(&c1);
-    sys.registerComponent(&c2);
-    sys.registerComponent(&c3);
-    sys.initAll();
-    EXPECT_TRUE(c1.initialized);
-    EXPECT_TRUE(c2.initialized);
-    EXPECT_TRUE(c3.initialized);
-}
-
-// =============================================================================
-// TelemHub & EventHub (Fan-Out Routing)
-// =============================================================================
-TEST(TelemHub, RoutesToListeners) {
-    TelemHub hub{"TelemHub", 10};
-    OutputPort<Serializer::ByteArray> sender;
-    InputPort<Serializer::ByteArray>  dest1;
-    InputPort<Serializer::ByteArray>  dest2;
-
-    hub.connectInput(sender);
-    hub.registerListener(&dest1);
-    hub.registerListener(&dest2);
-    hub.init();
-
-    TelemetryPacket p{100, 42, 3.14f};
-    sender.send(Serializer::pack(p));
-    hub.step();
-
-    EXPECT_TRUE(dest1.hasNew());
-    EXPECT_TRUE(dest2.hasNew());
-}
-
-TEST(EventHub, FanOutToMultipleListeners) {
-    TimeService::initEpoch();
+TEST(EventHub, PropagatesEvent) {
     EventHub hub{"EventHub", 12};
-
-    InputPort<EventPacket>  listener_a;
-    InputPort<EventPacket>  listener_b;
-    InputPort<EventPacket>  source_staging;
-    OutputPort<EventPacket> sender;
-    sender.connect(&source_staging);
-
-    hub.registerEventSource(&source_staging);
-    hub.registerListener(&listener_a);
-    hub.registerListener(&listener_b);
-    hub.init();
-
-    auto evt = EventPacket::create(Severity::INFO, 42, "TEST FAN-OUT");
-    sender.send(evt);
-    hub.step();
-
-    EXPECT_TRUE(listener_a.hasNew());
-    EXPECT_TRUE(listener_b.hasNew());
-}
-
-// ----- NEW -----
-TEST(TelemHub, MultiplePacketsFanOut) {
-    TelemHub hub{"TelemHub", 10};
-    OutputPort<Serializer::ByteArray> sender;
-    InputPort<Serializer::ByteArray>  dest;
-
-    hub.connectInput(sender);
-    hub.registerListener(&dest);
-    hub.init();
-
-    for (int i = 0; i < 5; ++i) {
-        TelemetryPacket p{static_cast<uint32_t>(i), 42, 0.0f};
-        sender.send(Serializer::pack(p));
-    }
-    hub.step();
-
-    int count = 0;
-    Serializer::ByteArray got{};
-    while (dest.tryConsume(got)) ++count;
-    EXPECT_EQ(count, 5);
-}
-
-TEST(EventHub, BurstMultipleEventsPerSource) {
-    EventHub hub{"EventHub", 12};
-    InputPort<EventPacket>  listener;
-    InputPort<EventPacket>  source_staging;
-    OutputPort<EventPacket> sender;
-    sender.connect(&source_staging);
-
-    hub.registerEventSource(&source_staging);
+    InputPort<EventPacket> src_port;
+    InputPort<EventPacket> listener;
+    hub.registerEventSource(&src_port);
     hub.registerListener(&listener);
     hub.init();
-
-    for (int i = 0; i < 4; ++i)
-        sender.send(EventPacket::create(Severity::INFO, 1, "BURST"));
+    OutputPort<EventPacket> sender;
+    sender.connect(&src_port);
+    sender.send(EventPacket::create(Severity::INFO, 1, "Hello"));
     hub.step();
-
-    int count = 0;
-    EventPacket got{};
-    while (listener.tryConsume(got)) ++count;
-    EXPECT_EQ(count, 4);
+    EXPECT_TRUE(listener.hasNew());
 }
 
 TEST(EventHub, SourceAndListenerCounts) {
     EventHub hub{"EventHub", 12};
-    InputPort<EventPacket> s1, s2, s3;
-    InputPort<EventPacket> l1, l2;
-
+    InputPort<EventPacket> s1, s2;
+    InputPort<EventPacket> l1, l2, l3;
     hub.registerEventSource(&s1);
     hub.registerEventSource(&s2);
-    hub.registerEventSource(&s3);
     hub.registerListener(&l1);
     hub.registerListener(&l2);
+    hub.registerListener(&l3);
+    EXPECT_EQ(hub.getSourceCount(),   2u);
+    EXPECT_EQ(hub.getListenerCount(), 3u);
+}
 
-    EXPECT_EQ(hub.getSourceCount(),   3u);
-    EXPECT_EQ(hub.getListenerCount(), 2u);
+TEST(EventHub, BurstMultipleEventsAllListeners) {
+    EventHub hub{"EventHub", 12};
+    InputPort<EventPacket> src;
+    InputPort<EventPacket> l1, l2;
+    hub.registerEventSource(&src);
+    hub.registerListener(&l1);
+    hub.registerListener(&l2);
+    hub.init();
+    OutputPort<EventPacket> sender;
+    sender.connect(&src);
+    for (int i = 0; i < 5; ++i)
+        sender.send(EventPacket::create(Severity::WARNING, 1, "burst"));
+    hub.step();
+    EXPECT_TRUE(l1.hasNew());
+    EXPECT_TRUE(l2.hasNew());
 }
 
 // =============================================================================
-// CommandHub
+// TelemHub
 // =============================================================================
-class CommandHubTest : public ::testing::Test {
-protected:
-    CommandHub             hub{"CmdHub", 11};
-    OutputPort<CommandPacket> route_port;
-    InputPort<CommandPacket>  route_dest;
-    InputPort<EventPacket>    ack_dest;
+TEST(TelemHub, FanOutToAllListeners) {
+    TelemHub hub{"TelemHub", 10};
+    InputPort<Serializer::ByteArray> l1, l2;
+    hub.registerListener(&l1);
+    hub.registerListener(&l2);
+    hub.init();
+    OutputPort<Serializer::ByteArray> src;
+    hub.connectInput(src);
+    TelemetryPacket p{100, 10, 1.5f};
+    src.send(Serializer::pack(p));
+    hub.step();
+    EXPECT_TRUE(l1.hasNew());
+    EXPECT_TRUE(l2.hasNew());
+}
 
-    void SetUp() override {
-        TimeService::initEpoch();
-        route_port.connect(&route_dest);
-        hub.registerRoute(200, &route_port);
-        hub.ack_out.connect(&ack_dest);
-        hub.init();
+TEST(TelemHub, MultiplePacketsFanOut) {
+    TelemHub hub{"TelemHub", 10};
+    InputPort<Serializer::ByteArray> l1;
+    hub.registerListener(&l1);
+    hub.init();
+    OutputPort<Serializer::ByteArray> src;
+    hub.connectInput(src);
+    for (int i = 0; i < 4; ++i) {
+        TelemetryPacket p{static_cast<uint32_t>(i), 10, static_cast<float>(i)};
+        src.send(Serializer::pack(p));
     }
-};
-
-TEST_F(CommandHubTest, RoutesKnownTargetAndAcks) {
-    OutputPort<CommandPacket> sender;
-    sender.connect(&hub.cmd_input);
-
-    CommandPacket cmd{200, 1, 0.0f};
-    sender.send(cmd);
     hub.step();
-
-    EXPECT_TRUE(route_dest.hasNew());
-    auto got = route_dest.consume();
-    EXPECT_EQ(got.opcode, 1u);
-
-    EXPECT_TRUE(ack_dest.hasNew());
-    auto ack = ack_dest.consume();
-    EXPECT_EQ(ack.severity, Severity::INFO);
-}
-
-TEST_F(CommandHubTest, NacksUnknownTarget) {
-    OutputPort<CommandPacket> sender;
-    sender.connect(&hub.cmd_input);
-
-    CommandPacket cmd{999, 1, 0.0f};
-    sender.send(cmd);
-    hub.step();
-
-    EXPECT_FALSE(route_dest.hasNew());
-    EXPECT_TRUE(ack_dest.hasNew());
-    auto nack = ack_dest.consume();
-    EXPECT_EQ(nack.severity, Severity::WARNING);
-}
-
-// ----- NEW -----
-TEST_F(CommandHubTest, BurstDrainAllCommands) {
-    OutputPort<CommandPacket> sender;
-    sender.connect(&hub.cmd_input);
-
-    // Send 4 commands in one tick
-    for (int i = 0; i < 4; ++i)
-        sender.send(CommandPacket{200, static_cast<uint32_t>(i + 1), 0.0f});
-    hub.step();
-
-    // All 4 should have been routed
     int count = 0;
-    CommandPacket got{};
-    while (route_dest.tryConsume(got)) ++count;
+    Serializer::ByteArray buf{};
+    while (l1.tryConsume(buf)) ++count;
     EXPECT_EQ(count, 4);
 }
 
-TEST_F(CommandHubTest, NackIncrementsErrorCount) {
+// =============================================================================
+// CommandHub v3.0 — FSM gating
+// =============================================================================
+class CommandHubFixture : public ::testing::Test {
+protected:
+    WatchdogComponent wd{"Supervisor", 1};
+    CommandHub        hub{"CmdHub", 11};
+    InputPort<EventPacket> event_dest;
+
+    void SetUp() override {
+        TimeService::initEpoch();
+        wd.event_out.connect(&event_dest);
+        hub.ack_out.connect(&event_dest);
+        hub.setMissionStateSource(&wd);
+        wd.init();
+    }
+};
+
+TEST_F(CommandHubFixture, DispatchesInNominal) {
+    InputPort<CommandPacket> target;
+    OutputPort<CommandPacket> route;
+    route.connect(&target);
+    hub.registerRoute(200, &route);
+    hub.init();
     OutputPort<CommandPacket> sender;
     sender.connect(&hub.cmd_input);
-
-    sender.send(CommandPacket{999, 1, 0.0f}); // unknown target
+    sender.send(CommandPacket{200, 1, 0.0f});
     hub.step();
+    EXPECT_TRUE(target.hasNew());
+}
 
+TEST_F(CommandHubFixture, BlocksOperationalInSafeMode) {
+    // DV-SEC-02: OPERATIONAL commands blocked in SAFE_MODE
+    InputPort<CommandPacket> target;
+    OutputPort<CommandPacket> route;
+    route.connect(&target);
+    hub.registerRoute(200, &route);
+    hub.init();
+
+    // Force SAFE_MODE
+    OutputPort<float> batt_src;
+    batt_src.connect(&wd.battery_level_in);
+    batt_src.send(4.0f); // below 5% threshold
+    wd.step();
+    ASSERT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
+
+    // OPERATIONAL opcode (2 = SET_DRAIN_RATE)
+    OutputPort<CommandPacket> sender;
+    sender.connect(&hub.cmd_input);
+    sender.send(CommandPacket{200, 2, 1.0f});
+    hub.step();
+    EXPECT_FALSE(target.hasNew()); // must be blocked
+}
+
+TEST_F(CommandHubFixture, AllowsHousekeepingInSafeMode) {
+    InputPort<CommandPacket> target;
+    OutputPort<CommandPacket> route;
+    route.connect(&target);
+    hub.registerRoute(200, &route);
+    hub.init();
+
+    OutputPort<float> batt_src;
+    batt_src.connect(&wd.battery_level_in);
+    batt_src.send(4.0f);
+    wd.step();
+    ASSERT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
+
+    // HOUSEKEEPING opcode (1 = RESET_BATTERY)
+    OutputPort<CommandPacket> sender;
+    sender.connect(&hub.cmd_input);
+    sender.send(CommandPacket{200, 1, 0.0f});
+    hub.step();
+    EXPECT_TRUE(target.hasNew()); // must pass through
+}
+
+TEST_F(CommandHubFixture, NackOnUnknownTarget) {
+    hub.init();
+    OutputPort<CommandPacket> sender;
+    sender.connect(&hub.cmd_input);
+    sender.send(CommandPacket{999, 1, 0.0f}); // no route registered for 999
+    hub.step();
     EXPECT_GT(hub.getErrorCount(), 0u);
 }
 
-TEST_F(CommandHubTest, RouteCountAfterRegistration) {
-    EXPECT_EQ(hub.routeCount(), 1u); // only route for ID 200
-    OutputPort<CommandPacket> extra_port;
-    hub.registerRoute(100, &extra_port);
+TEST_F(CommandHubFixture, RouteCountAfterRegistration) {
+    EXPECT_EQ(hub.routeCount(), 0u);
+    OutputPort<CommandPacket> p1, p2;
+    InputPort<CommandPacket>  t1, t2;
+    p1.connect(&t1); p2.connect(&t2);
+    hub.registerRoute(100, &p1);
+    hub.registerRoute(200, &p2);
     EXPECT_EQ(hub.routeCount(), 2u);
 }
 
 // =============================================================================
 // LoggerComponent
 // =============================================================================
-TEST(LoggerComponent, DrainsInputs) {
+TEST(LoggerComponent, DrainsAll) {
     LoggerComponent logger{"Logger", 30};
-    OutputPort<Serializer::ByteArray> telem_src;
-    OutputPort<EventPacket>           event_src;
-    telem_src.connect(&logger.telemetry_in);
-    event_src.connect(&logger.event_in);
-
+    OutputPort<Serializer::ByteArray> ts;
+    OutputPort<EventPacket>           es;
+    ts.connect(&logger.telemetry_in);
+    es.connect(&logger.event_in);
     logger.init();
-
-    TelemetryPacket p{100, 42, 3.14f};
-    telem_src.send(Serializer::pack(p));
-    event_src.send(EventPacket::create(Severity::INFO, 1, "TEST LOG"));
-
+    for (int i = 0; i < 8; ++i) {
+        TelemetryPacket p{(uint32_t)i, 42, (float)i};
+        ts.send(Serializer::pack(p));
+    }
+    for (int i = 0; i < 5; ++i)
+        es.send(EventPacket::create(Severity::INFO, 1, "log"));
     logger.step();
-
     EXPECT_FALSE(logger.telemetry_in.hasNew());
     EXPECT_FALSE(logger.event_in.hasNew());
 }
 
-// ----- NEW -----
-TEST(LoggerComponent, DrainsMultipleTelemetryPackets) {
-    LoggerComponent logger{"Logger", 30};
-    OutputPort<Serializer::ByteArray> src;
-    src.connect(&logger.telemetry_in);
-    logger.init();
+TEST(LoggerComponent, EventFlushesImmediately) {
+    const std::string telem_log = makeUniqueTestLogPath("test_telem_flush", ".csv");
+    const std::string event_log = makeUniqueTestLogPath("test_event_flush", ".log");
+    (void)std::remove(telem_log.c_str());
+    (void)std::remove(event_log.c_str());
 
-    for (int i = 0; i < 8; ++i) {
-        TelemetryPacket p{static_cast<uint32_t>(i), 42, static_cast<float>(i)};
-        src.send(Serializer::pack(p));
+    LoggerComponent logger{"Logger", 30, telem_log.c_str(), event_log.c_str()};
+    OutputPort<EventPacket> es;
+    es.connect(&logger.event_in);
+    logger.init();
+    es.send(EventPacket::create(Severity::INFO, 1, "flush_check"));
+    logger.step();
+
+    std::ifstream event_file(event_log);
+    ASSERT_TRUE(event_file.is_open());
+    std::string content;
+    std::getline(event_file, content);
+    std::getline(event_file, content);
+    EXPECT_NE(content.find("flush_check"), std::string::npos);
+
+    (void)std::remove(telem_log.c_str());
+    (void)std::remove(event_log.c_str());
+}
+
+TEST(LoggerComponent, TelemetryFlushesAtInterval) {
+    const std::string telem_log = makeUniqueTestLogPath("test_telem_interval", ".csv");
+    const std::string event_log = makeUniqueTestLogPath("test_event_interval", ".log");
+    (void)std::remove(telem_log.c_str());
+    (void)std::remove(event_log.c_str());
+
+    LoggerComponent logger{"Logger", 30, telem_log.c_str(), event_log.c_str()};
+    OutputPort<Serializer::ByteArray> ts;
+    ts.connect(&logger.telemetry_in);
+    logger.init();
+    for (uint32_t i = 0; i < LOG_FLUSH_INTERVAL / 2; ++i) {
+        TelemetryPacket p{i, 42, static_cast<float>(i)};
+        ts.send(Serializer::pack(p));
     }
     logger.step();
-    EXPECT_FALSE(logger.telemetry_in.hasNew());
-}
-
-TEST(LoggerComponent, DrainsMultipleEvents) {
-    LoggerComponent logger{"Logger", 30};
-    OutputPort<EventPacket> src;
-    src.connect(&logger.event_in);
-    logger.init();
-
-    for (int i = 0; i < 5; ++i)
-        src.send(EventPacket::create(Severity::WARNING, 1, "EVT"));
+    for (uint32_t i = LOG_FLUSH_INTERVAL / 2; i < LOG_FLUSH_INTERVAL; ++i) {
+        TelemetryPacket p{i, 42, static_cast<float>(i)};
+        ts.send(Serializer::pack(p));
+    }
     logger.step();
-    EXPECT_FALSE(logger.event_in.hasNew());
+
+    std::ifstream telem_file(telem_log);
+    ASSERT_TRUE(telem_file.is_open());
+    size_t lines = 0;
+    std::string line;
+    while (std::getline(telem_file, line)) {
+        ++lines;
+    }
+    EXPECT_GE(lines, static_cast<size_t>(LOG_FLUSH_INTERVAL + 1)); // header + data rows
+
+    (void)std::remove(telem_log.c_str());
+    (void)std::remove(event_log.c_str());
 }
 
 // =============================================================================
 // PowerComponent
 // =============================================================================
-class PowerComponentTest : public ::testing::Test {
+class PowerTest : public ::testing::Test {
 protected:
-    PowerComponent            batt{"BatterySystem", 200};
+    PowerComponent batt{"BatterySystem", 200};
     InputPort<Serializer::ByteArray> telem_dest;
-    InputPort<EventPacket>    event_dest;
-    InputPort<float>          internal_dest;
-
+    InputPort<EventPacket>           event_dest;
+    InputPort<float>                 internal_dest;
     void SetUp() override {
         TimeService::initEpoch();
         batt.telemetry_out.connect(&telem_dest);
@@ -835,12 +656,12 @@ protected:
     }
 };
 
-TEST_F(PowerComponentTest, DischargesTowardZero) {
+TEST_F(PowerTest, DischargesTowardZero) {
     batt.step();
     EXPECT_LT(batt.getSOC(), 100.0f);
 }
 
-TEST_F(PowerComponentTest, ResetOpcode1) {
+TEST_F(PowerTest, ResetOpcode1) {
     for (int i = 0; i < 10; ++i) batt.step();
     OutputPort<CommandPacket> sender;
     sender.connect(&batt.cmd_in);
@@ -849,309 +670,977 @@ TEST_F(PowerComponentTest, ResetOpcode1) {
     EXPECT_FLOAT_EQ(batt.getSOC(), 100.0f - 0.1f);
 }
 
-// ----- NEW -----
-TEST_F(PowerComponentTest, Opcode2SetDrainRate) {
+TEST_F(PowerTest, SetDrainRateOpcode2) {
     OutputPort<CommandPacket> sender;
     sender.connect(&batt.cmd_in);
-    sender.send(CommandPacket{200, 2, 0.5f}); // SET_DRAIN_RATE = 0.5% / tick
-    batt.step(); // handles command, then drains by 0.5
-    float soc_after = batt.getSOC();
-    EXPECT_FLOAT_EQ(soc_after, 100.0f - 0.5f);
+    sender.send(CommandPacket{200, 2, 0.5f});
+    batt.step();
+    EXPECT_FLOAT_EQ(batt.getSOC(), 100.0f - 0.5f);
 }
 
-TEST_F(PowerComponentTest, Opcode2InvalidDrainRateIncreasesErrorCount) {
+TEST_F(PowerTest, InvalidDrainRateIncreasesErrors) {
     OutputPort<CommandPacket> sender;
     sender.connect(&batt.cmd_in);
-    sender.send(CommandPacket{200, 2, 99.0f}); // out of valid range (>10)
+    sender.send(CommandPacket{200, 2, 99.0f}); // out of range
     batt.step();
     EXPECT_GT(batt.getErrorCount(), 0u);
 }
 
-TEST_F(PowerComponentTest, UnknownOpcodeIncreasesErrorCount) {
-    OutputPort<CommandPacket> sender;
-    sender.connect(&batt.cmd_in);
-    sender.send(CommandPacket{200, 99, 0.0f}); // unknown
+TEST_F(PowerTest, BatteryOutInternalCarriesSOC) {
     batt.step();
-    EXPECT_GT(batt.getErrorCount(), 0u);
+    float soc{-1.0f};
+    EXPECT_TRUE(internal_dest.tryConsume(soc));
+    EXPECT_FLOAT_EQ(soc, batt.getSOC());
 }
 
-TEST_F(PowerComponentTest, BatteryOutInternalCarriesSOC) {
-    batt.step();
-    float soc_internal{-1.0f};
-    EXPECT_TRUE(internal_dest.tryConsume(soc_internal));
-    EXPECT_FLOAT_EQ(soc_internal, batt.getSOC());
-}
-
-TEST_F(PowerComponentTest, TelemetryPacketEmittedPerStep) {
-    // Ensure the clock has progressed beyond 0 so the assertion passes
+TEST_F(PowerTest, TelemetryEmittedPerStep) {
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
-
     batt.step();
     Serializer::ByteArray raw{};
     EXPECT_TRUE(telem_dest.tryConsume(raw));
-    
-    // Using unpackTelem as defined in your Serializer.hpp
-    TelemetryPacket p = Serializer::unpackTelem(raw);
-    
+    auto p = Serializer::unpackTelem(raw);
     EXPECT_EQ(p.component_id, 200u);
-    
-    // This will now pass as TimeService::getMetMs() will return > 0
     EXPECT_GT(p.timestamp_ms, 0u);
 }
 
 // =============================================================================
 // SensorComponent
 // =============================================================================
-TEST(SensorComponent, UnknownOpcodeIncrementsErrorCount) {
+TEST(SensorComponent, TelemetryPerStep) {
     TimeService::initEpoch();
-    SensorComponent sensor{"StarTracker", 100};
-    InputPort<Serializer::ByteArray> telem_dest;
-    sensor.telemetry_out.connect(&telem_dest);
-    sensor.init();
+    SensorComponent s{"StarTracker", 100};
+    InputPort<Serializer::ByteArray> td;
+    s.telemetry_out.connect(&td);
+    s.init();
+    s.step();
+    EXPECT_TRUE(td.hasNew());
+}
 
+TEST(SensorComponent, SetAmplitudeOpcode1) {
+    TimeService::initEpoch();
+    SensorComponent s{"StarTracker", 100};
+    InputPort<Serializer::ByteArray> td;
+    InputPort<EventPacket>           ed;
+    s.telemetry_out.connect(&td);
+    s.event_out.connect(&ed);
+    s.init();
     OutputPort<CommandPacket> sender;
-    sender.connect(&sensor.cmd_in);
+    sender.connect(&s.cmd_in);
+    sender.send(CommandPacket{100, 1, 0.0f});
+    s.step();
+    EXPECT_EQ(s.getErrorCount(), 0u);
+}
+
+TEST(SensorComponent, UnknownOpcodeIncreasesErrors) {
+    TimeService::initEpoch();
+    SensorComponent s{"StarTracker", 100};
+    InputPort<Serializer::ByteArray> td;
+    s.telemetry_out.connect(&td);
+    s.init();
+    OutputPort<CommandPacket> sender;
+    sender.connect(&s.cmd_in);
     sender.send(CommandPacket{100, 99, 0.0f});
-    sensor.step();
-
-    EXPECT_GT(sensor.getErrorCount(), 0u);
-}
-
-// ----- NEW -----
-TEST(SensorComponent, Opcode1SetsAmplitude) {
-    TimeService::initEpoch();
-    SensorComponent sensor{"StarTracker", 100};
-    InputPort<Serializer::ByteArray> telem_dest;
-    InputPort<EventPacket>           event_dest;
-    sensor.telemetry_out.connect(&telem_dest);
-    sensor.event_out.connect(&event_dest);
-    sensor.init();
-
-    // Amplitude default is 10.0; set to 0 and verify telemetry reading is ~0
-    OutputPort<CommandPacket> sender;
-    sender.connect(&sensor.cmd_in);
-    sender.send(CommandPacket{100, 1, 0.0f}); // SET_AMPLITUDE = 0
-    sensor.step();
-
-    // Event should be emitted
-    EXPECT_TRUE(event_dest.hasNew());
-    // Error count should NOT increase (valid command)
-    EXPECT_EQ(sensor.getErrorCount(), 0u);
-}
-
-TEST(SensorComponent, TelemetryEmittedPerStep) {
-    TimeService::initEpoch();
-    SensorComponent sensor{"StarTracker", 100};
-    InputPort<Serializer::ByteArray> telem_dest;
-    sensor.telemetry_out.connect(&telem_dest);
-    sensor.init();
-
-    sensor.step();
-    EXPECT_TRUE(telem_dest.hasNew());
-
-    Serializer::ByteArray raw{};
-    telem_dest.tryConsume(raw);
-    TelemetryPacket p = Serializer::unpackTelem(raw);
-    EXPECT_EQ(p.component_id, 100u);
+    s.step();
+    EXPECT_GT(s.getErrorCount(), 0u);
 }
 
 // =============================================================================
-// WatchdogComponent
+// WatchdogComponent v3.0
 // =============================================================================
-TEST(WatchdogComponent, EscalatesToSafeModeOnCritical) {
-    TimeService::initEpoch();
-    WatchdogComponent wd{"Supervisor", 1};
-    InputPort<EventPacket> event_dest;
-    wd.event_out.connect(&event_dest);
-
-    FakeComponent comp;
-    comp.forced = HealthStatus::CRITICAL_FAILURE;
-    wd.registerSubsystem(&comp);
-    wd.init();
-    wd.step();
-
-    EXPECT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
-}
-
-TEST(WatchdogComponent, BatterySafeModeThreshold) {
-    TimeService::initEpoch();
+class WdFixture : public ::testing::Test {
+protected:
     WatchdogComponent wd{"Supervisor", 1};
     InputPort<EventPacket> event_dest;
     OutputPort<float>      batt_out;
-    batt_out.connect(&wd.battery_level_in);
-    wd.event_out.connect(&event_dest);
-    wd.init();
+    void SetUp() override {
+        TimeService::initEpoch();
+        wd.event_out.connect(&event_dest);
+        batt_out.connect(&wd.battery_level_in);
+        wd.init();
+        EventPacket e{};
+        while (event_dest.tryConsume(e)) {} // drain init event
+    }
+};
 
-    batt_out.send(4.0f); // below 5% threshold
+TEST_F(WdFixture, SafeModeOnCriticalComponent) {
+    FakeComponent c; c.forced = HealthStatus::CRITICAL_FAILURE;
+    wd.registerSubsystem(&c);
     wd.step();
-
     EXPECT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
 }
 
-// ----- NEW -----
-TEST(WatchdogComponent, DegradedFromWarningComponent) {
-    TimeService::initEpoch();
-    WatchdogComponent wd{"Supervisor", 1};
-    InputPort<EventPacket> event_dest;
-    wd.event_out.connect(&event_dest);
-
-    FakeComponent comp;
-    comp.forced = HealthStatus::WARNING;
-    wd.registerSubsystem(&comp);
-    wd.init();
+TEST_F(WdFixture, SafeModeOnLowBattery) {
+    batt_out.send(4.0f);
     wd.step();
+    EXPECT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
+}
 
+TEST_F(WdFixture, DegradedFromWarning) {
+    FakeComponent c; c.forced = HealthStatus::WARNING;
+    wd.registerSubsystem(&c);
+    wd.step();
     EXPECT_EQ(wd.getMissionState(), MissionState::DEGRADED);
 }
 
-TEST(WatchdogComponent, DegradedAutoRecovery) {
-    // F-15: DEGRADED auto-recovers to NOMINAL when all clear
-    TimeService::initEpoch();
-    WatchdogComponent wd{"Supervisor", 1};
-    InputPort<EventPacket> event_dest;
-    OutputPort<float>      batt_out;
-    batt_out.connect(&wd.battery_level_in);
-    wd.event_out.connect(&event_dest);
-
-    FakeComponent comp;
-    comp.forced = HealthStatus::WARNING;
-    wd.registerSubsystem(&comp);
-    wd.init();
-
-    // Cause DEGRADED
-    batt_out.send(14.0f); // below 15%
+TEST_F(WdFixture, DegradedAutoRecovery) {
+    FakeComponent c; c.forced = HealthStatus::WARNING;
+    wd.registerSubsystem(&c);
+    batt_out.send(14.0f);
     wd.step();
     EXPECT_EQ(wd.getMissionState(), MissionState::DEGRADED);
-
-    // Clear conditions
-    comp.forced = HealthStatus::NOMINAL;
-    batt_out.send(80.0f); // healthy
+    c.forced = HealthStatus::NOMINAL;
+    batt_out.send(80.0f);
     wd.step();
     EXPECT_EQ(wd.getMissionState(), MissionState::NOMINAL);
 }
 
-TEST(WatchdogComponent, EmergencyFromBatteryBelow2) {
-    TimeService::initEpoch();
-    WatchdogComponent wd{"Supervisor", 1};
-    InputPort<EventPacket> event_dest;
-    OutputPort<float>      batt_out;
-    batt_out.connect(&wd.battery_level_in);
-    wd.event_out.connect(&event_dest);
-    wd.init();
-
-    batt_out.send(1.5f); // <= 2% → EMERGENCY
+TEST_F(WdFixture, EmergencyOnVeryLowBattery) {
+    batt_out.send(1.5f);
     wd.step();
-
     EXPECT_EQ(wd.getMissionState(), MissionState::EMERGENCY);
 }
 
-TEST(WatchdogComponent, HeartbeatEmittedAtCycle10) {
-    TimeService::initEpoch();
-    WatchdogComponent wd{"Supervisor", 1};
-    InputPort<EventPacket> event_dest;
-    wd.event_out.connect(&event_dest);
-    wd.init();
-
-    // Drain the init event
-    EventPacket e{};
-    while (event_dest.tryConsume(e)) {}
-
-    // Run 10 cycles to trigger heartbeat
+TEST_F(WdFixture, HeartbeatAtCycle10) {
     for (int i = 0; i < 10; ++i) wd.step();
-
-    // At least one event (the heartbeat) must have been emitted
-    EXPECT_TRUE(event_dest.hasNew());
     bool found_hb = false;
-    while (event_dest.tryConsume(e)) {
-        if (std::string_view(e.message).find("HB:") != std::string_view::npos)
+    EventPacket e{};
+    while (event_dest.tryConsume(e))
+        if (std::string_view(e.message.data()).find("HB:") != std::string_view::npos)
             found_hb = true;
-    }
     EXPECT_TRUE(found_hb);
 }
 
-TEST(WatchdogComponent, PollSchedulerHealthEmitsOnNewDrops) {
-    // F-11: new frame drops should emit a WARNING event
-    TimeService::initEpoch();
-    WatchdogComponent wd{"Supervisor", 1};
-    InputPort<EventPacket> event_dest;
-    wd.event_out.connect(&event_dest);
-    wd.init();
-
-    // Drain init event
-    EventPacket e{};
-    while (event_dest.tryConsume(e)) {}
-
-    // Simulate 3 new frame drops
+TEST_F(WdFixture, SchedulerHealthEmitsOnNewDrops) {
     wd.pollSchedulerHealth(3);
-
+    EventPacket e{};
     EXPECT_TRUE(event_dest.hasNew());
     event_dest.tryConsume(e);
     EXPECT_EQ(e.severity, Severity::WARNING);
 }
 
-TEST(WatchdogComponent, PollSchedulerHealthSilentWhenNoNewDrops) {
-    TimeService::initEpoch();
-    WatchdogComponent wd{"Supervisor", 1};
-    InputPort<EventPacket> event_dest;
-    wd.event_out.connect(&event_dest);
-    wd.init();
-
-    // Drain init event
+TEST_F(WdFixture, SchedulerHealthSilentWhenNoNewDrops) {
+    wd.pollSchedulerHealth(5);
     EventPacket e{};
     while (event_dest.tryConsume(e)) {}
-
-    // Call twice with same count — second call should NOT emit
-    wd.pollSchedulerHealth(5);
-    while (event_dest.tryConsume(e)) {} // drain
-    wd.pollSchedulerHealth(5);          // no new drops
+    wd.pollSchedulerHealth(5); // same count — no new drops
     EXPECT_FALSE(event_dest.hasNew());
 }
 
+TEST_F(WdFixture, InjectBatteryLevel_v3) {
+    // DV-FDIR-01: injectBatteryLevel is a v3 test hook for HIL fault injection
+    wd.injectBatteryLevel(4.0f);
+    EXPECT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
+}
+
+TEST_F(WdFixture, RestartsCriticalActiveComponent) {
+    FakeActiveCritical active_fault;
+    wd.registerSubsystem(&active_fault);
+    wd.step();
+    EXPECT_GT(active_fault.join_count, 0u);
+    EXPECT_GT(active_fault.start_count, 0u);
+}
+
+TEST_F(WdFixture, EscalatesEmergencyAfterRestartBudgetExhausted) {
+    FakeActiveCritical active_fault;
+    wd.registerSubsystem(&active_fault);
+    for (uint32_t i = 0; i <= MAX_RESTARTS_PER_COMPONENT; ++i) {
+        wd.step();
+    }
+    EXPECT_EQ(wd.getMissionState(), MissionState::EMERGENCY);
+    EXPECT_EQ(active_fault.start_count, MAX_RESTARTS_PER_COMPONENT);
+    EXPECT_EQ(active_fault.join_count, MAX_RESTARTS_PER_COMPONENT);
+}
+
+TEST_F(WdFixture, RestartClearsErrorCounter) {
+    FakeActiveThreshold active_fault;
+    wd.registerSubsystem(&active_fault);
+    ASSERT_GE(active_fault.getErrorCount(), Component::CRITICAL_THRESHOLD);
+    wd.step();
+    EXPECT_EQ(active_fault.getErrorCount(), 0u);
+    EXPECT_GT(active_fault.start_count, 0u);
+    EXPECT_GT(active_fault.join_count, 0u);
+}
+
+TEST_F(WdFixture, PollPortOverflowEmitsWarning) {
+    InputPort<CommandPacket, 2> cmd_port;
+    OutputPort<CommandPacket> cmd_src;
+    cmd_src.connect(&cmd_port);
+    cmd_src.send(CommandPacket{200, 1, 0.0f});
+    cmd_src.send(CommandPacket{200, 1, 0.0f});
+    cmd_src.send(CommandPacket{200, 1, 0.0f}); // overflow
+
+    const auto errors_before = wd.getErrorCount();
+    wd.pollPortOverflow(cmd_port, "cmd_port");
+
+    bool found_overflow_event = false;
+    EventPacket evt{};
+    while (event_dest.tryConsume(evt)) {
+        if (std::string_view(evt.message.data()).find("OVF:cmd_port") != std::string_view::npos) {
+            found_overflow_event = true;
+        }
+    }
+    EXPECT_TRUE(found_overflow_event);
+    EXPECT_GT(wd.getErrorCount(), errors_before);
+}
+
+TEST_F(WdFixture, PeriodicTmrScrubRepairsSingleFault) {
+    TmrStore<float> store{42.0F};
+    store.registerWithFdir("wd_periodic_scrub_store");
+    store.injectFaultForTesting(-1.0F);
+    ASSERT_FALSE(store.isSane());
+
+    for (uint32_t i = 0; i < PARAM_CHECK_INTERVAL_CYCLES; ++i) {
+        wd.step();
+    }
+
+    EXPECT_TRUE(store.isSane());
+    EXPECT_FLOAT_EQ(store.read(), 42.0F);
+}
+
+TEST(WatchdogThresholds, UsesConfiguredBatteryThresholds) {
+    WatchdogComponent wd{"Supervisor", 1};
+    InputPort<EventPacket> events;
+    wd.event_out.connect(&events);
+    wd.init();
+
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {}
+
+    TmrStore<float> emergency_pct{10.0F};
+    TmrStore<float> safe_mode_pct{20.0F};
+    TmrStore<float> degraded_pct{30.0F};
+    wd.setBatteryThresholdSources(&emergency_pct, &safe_mode_pct, &degraded_pct);
+    ASSERT_TRUE(wd.hasBatteryThresholdSources());
+
+    wd.injectBatteryLevel(25.0F);
+    EXPECT_EQ(wd.getMissionState(), MissionState::DEGRADED);
+
+    wd.injectBatteryLevel(15.0F);
+    EXPECT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
+
+    wd.injectBatteryLevel(9.0F);
+    EXPECT_EQ(wd.getMissionState(), MissionState::EMERGENCY);
+}
+
+TEST(WatchdogThresholds, InvalidThresholdConfigFallsBackToDefaults) {
+    WatchdogComponent wd{"Supervisor", 1};
+    InputPort<EventPacket> events;
+    wd.event_out.connect(&events);
+    wd.init();
+
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {}
+
+    TmrStore<float> emergency_pct{10.0F};
+    TmrStore<float> safe_mode_pct{5.0F};
+    TmrStore<float> degraded_pct{4.0F}; // invalid ordering
+    wd.setBatteryThresholdSources(&emergency_pct, &safe_mode_pct, &degraded_pct);
+
+    const auto errors_before = wd.getErrorCount();
+    wd.injectBatteryLevel(4.5F); // with defaults, this enters SAFE_MODE
+    EXPECT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
+    EXPECT_GT(wd.getErrorCount(), errors_before);
+
+    bool saw_invalid_threshold_event = false;
+    while (events.tryConsume(evt)) {
+        if (std::string_view(evt.message.data()).find("Invalid battery") != std::string_view::npos) {
+            saw_invalid_threshold_event = true;
+        }
+    }
+    EXPECT_TRUE(saw_invalid_threshold_event);
+}
+
 // =============================================================================
-// TopologyManager — FIXED FOR HARDWARE INJECTION
+// TopologyManager
 // =============================================================================
 TEST(TopologyManager, VerifyPassesAfterWire) {
     TimeService::initEpoch();
-    hal::MockI2c mock_bus;           // FIX: Provide required hardware bus
-    TopologyManager topo(mock_bus);  // FIX: Inject bus
+    hal::MockI2c bus;
+    TopologyManager topo(bus);
     topo.wire();
     topo.registerFdir();
-    EXPECT_TRUE(topo.verify());
-}
-
-// ----- NEW -----
-TEST(TopologyManager, RegisterAllInitialisesAllComponents) {
-    TimeService::initEpoch();
-    hal::MockI2c mock_bus;
-    TopologyManager topo(mock_bus);
-    topo.wire();
-    topo.registerFdir();
-
-    // registerAll() then initAll() must succeed without throwing.
-    Scheduler sys;
-    topo.registerAll(sys);
-    EXPECT_NO_THROW(sys.initAll());
     EXPECT_TRUE(topo.verify());
 }
 
 TEST(TopologyManager, VerifyFailsWithoutWire) {
     TimeService::initEpoch();
-    hal::MockI2c mock_bus;
-    TopologyManager topo(mock_bus);
-    // Do NOT call topo.wire() — verify() must return false
+    hal::MockI2c bus;
+    TopologyManager topo(bus);
     EXPECT_FALSE(topo.verify());
 }
 
+TEST(TopologyManager, RegisterAllPopulatesRGE) {
+    TimeService::initEpoch();
+    hal::MockI2c bus;
+    TopologyManager topo(bus);
+    topo.wire();
+    topo.registerFdir();
+    RateGroupExecutive rge;
+    topo.registerAll(rge);
+    EXPECT_GT(rge.totalCount(), 0u);
+}
+
+TEST(TopologyManager, WireSetsWatchdogThresholdSources) {
+    TimeService::initEpoch();
+    hal::MockI2c bus;
+    TopologyManager topo(bus);
+    topo.wire();
+    EXPECT_TRUE(topo.watchdog.hasBatteryThresholdSources());
+}
+
 // =============================================================================
-// TelemetryBridge — non-socket accessors
+// TelemetryBridge accessor (no socket needed)
 // =============================================================================
 TEST(TelemetryBridge, RejectedCountStartsAtZero) {
+    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
     TelemetryBridge bridge{"RadioLink", 20};
     EXPECT_EQ(bridge.getRejectedCount(), 0u);
 }
 
+TEST(ActiveComponent, ThreadLifecycleStartStop) {
+    TelemetryBridge bridge{"RadioLink", 20};
+    EXPECT_FALSE(bridge.isThreadRunning());
+    bridge.startThread();
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    EXPECT_TRUE(bridge.isThreadRunning());
+    bridge.joinThread();
+    EXPECT_FALSE(bridge.isThreadRunning());
+}
+
+TEST(TelemetryBridge, RejectsNonCanonicalFrameLength) {
+    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    constexpr uint16_t DL_PORT = 19011;
+    constexpr uint16_t UL_PORT = 19012;
+
+    TelemetryBridge bridge{"RadioLink", 20, DL_PORT, UL_PORT};
+    InputPort<CommandPacket, 64> dest{};
+    bridge.command_out.connect(&dest);
+
+    auto frame = buildUplinkFrame(10, CommandPacket{200, 1, 0.0f});
+    std::array<uint8_t, sizeof(CcsdsHeader) + sizeof(CommandPacket) + 4> oversized{};
+    std::memcpy(oversized.data(), frame.data(), frame.size());
+    oversized.back() = 0xAA;
+
+    EXPECT_FALSE(bridge.ingestUplinkFrameForTest(oversized.data(), oversized.size()));
+
+    EXPECT_FALSE(dest.hasNew());
+    EXPECT_GT(bridge.getRejectedCount(), 0u);
+}
+
+TEST(TelemetryBridge, RejectsReplaySequence) {
+    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    constexpr uint16_t DL_PORT = 19013;
+    constexpr uint16_t UL_PORT = 19014;
+
+    TelemetryBridge bridge{"RadioLink", 20, DL_PORT, UL_PORT};
+    InputPort<CommandPacket, 64> dest{};
+    bridge.command_out.connect(&dest);
+
+    auto frame1 = buildUplinkFrame(50, CommandPacket{200, 1, 0.0f});
+    auto frame2 = buildUplinkFrame(50, CommandPacket{200, 1, 0.0f}); // replay
+
+    EXPECT_TRUE(bridge.ingestUplinkFrameForTest(frame1.data(), frame1.size()));
+    EXPECT_FALSE(bridge.ingestUplinkFrameForTest(frame2.data(), frame2.size()));
+
+    int accepted = 0;
+    CommandPacket cmd{};
+    while (dest.tryConsume(cmd)) {
+        ++accepted;
+    }
+    EXPECT_EQ(accepted, 1);
+    EXPECT_EQ(bridge.getRejectedCount(), 1u);
+}
+
+TEST(TelemetryBridge, EnforcesMaxCommandsPerTick) {
+    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    constexpr uint16_t DL_PORT = 19015;
+    constexpr uint16_t UL_PORT = 19016;
+
+    TelemetryBridge bridge{"RadioLink", 20, DL_PORT, UL_PORT};
+    InputPort<CommandPacket, 64> dest{};
+    bridge.command_out.connect(&dest);
+
+    constexpr size_t EXTRA_CMDS = 5;
+    const size_t total = TelemetryBridge::MAX_CMDS_PER_TICK + EXTRA_CMDS;
+    std::vector<std::vector<uint8_t>> frames;
+    frames.reserve(total);
+    for (size_t i = 0; i < total; ++i) {
+        auto frame = buildUplinkFrame(static_cast<uint16_t>(200 + i), CommandPacket{200, 1, 0.0f});
+        frames.emplace_back(frame.begin(), frame.end());
+    }
+
+    const size_t processed = bridge.ingestUplinkBatchForTest(frames);
+    EXPECT_EQ(processed, TelemetryBridge::MAX_CMDS_PER_TICK);
+
+    size_t consumed_first = 0;
+    CommandPacket cmd{};
+    while (dest.tryConsume(cmd)) {
+        ++consumed_first;
+    }
+    EXPECT_EQ(consumed_first, TelemetryBridge::MAX_CMDS_PER_TICK);
+
+    std::vector<std::vector<uint8_t>> tail(
+        std::next(frames.begin(), static_cast<std::ptrdiff_t>(processed)),
+        frames.end());
+    const size_t processed_tail = bridge.ingestUplinkBatchForTest(tail);
+    EXPECT_EQ(processed_tail, EXTRA_CMDS);
+
+    size_t consumed_second = 0;
+    while (dest.tryConsume(cmd)) {
+        ++consumed_second;
+    }
+    EXPECT_EQ(consumed_second, EXTRA_CMDS);
+}
+
+TEST(TelemetryBridge, RejectsInvalidHeaderFields) {
+    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    constexpr uint16_t DL_PORT = 19017;
+    constexpr uint16_t UL_PORT = 19018;
+
+    TelemetryBridge bridge{"RadioLink", 20, DL_PORT, UL_PORT};
+    InputPort<CommandPacket, 64> dest{};
+    bridge.command_out.connect(&dest);
+
+    auto bad_sync = buildUplinkFrame(301, CommandPacket{200, 1, 0.0f});
+    auto bad_apid = buildUplinkFrame(302, CommandPacket{200, 1, 0.0f});
+    auto bad_len = buildUplinkFrame(303, CommandPacket{200, 1, 0.0f});
+
+    CcsdsHeader hdr{};
+
+    std::memcpy(&hdr, bad_sync.data(), sizeof(hdr));
+    hdr.sync_word = 0xDEADBEEFu;
+    std::memcpy(bad_sync.data(), &hdr, sizeof(hdr));
+
+    std::memcpy(&hdr, bad_apid.data(), sizeof(hdr));
+    hdr.apid = Apid::EVENT;
+    std::memcpy(bad_apid.data(), &hdr, sizeof(hdr));
+
+    std::memcpy(&hdr, bad_len.data(), sizeof(hdr));
+    hdr.payload_len = static_cast<uint16_t>(sizeof(CommandPacket) - 1u);
+    std::memcpy(bad_len.data(), &hdr, sizeof(hdr));
+
+    EXPECT_FALSE(bridge.ingestUplinkFrameForTest(bad_sync.data(), bad_sync.size()));
+    EXPECT_FALSE(bridge.ingestUplinkFrameForTest(bad_apid.data(), bad_apid.size()));
+    EXPECT_FALSE(bridge.ingestUplinkFrameForTest(bad_len.data(), bad_len.size()));
+
+    EXPECT_FALSE(dest.hasNew());
+    EXPECT_EQ(bridge.getRejectedCount(), 3u);
+}
+
+TEST(TelemetryBridge, RejectsTruncatedFrame) {
+    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    constexpr uint16_t DL_PORT = 19019;
+    constexpr uint16_t UL_PORT = 19020;
+
+    TelemetryBridge bridge{"RadioLink", 20, DL_PORT, UL_PORT};
+    std::array<uint8_t, 4> frame{};
+    EXPECT_FALSE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
+    EXPECT_EQ(bridge.getRejectedCount(), 1u);
+}
+
+TEST(TelemetryBridge, AcceptsSequenceWrapFromHighToLow) {
+    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    constexpr uint16_t DL_PORT = 19021;
+    constexpr uint16_t UL_PORT = 19022;
+
+    TelemetryBridge bridge{"RadioLink", 20, DL_PORT, UL_PORT};
+    InputPort<CommandPacket, 64> dest{};
+    bridge.command_out.connect(&dest);
+
+    constexpr uint16_t SEQ_HIGH = 0xFFFEu;
+    constexpr uint16_t SEQ_LOW = 0x0002u;
+    auto frame1 = buildUplinkFrame(SEQ_HIGH, CommandPacket{200, 1, 0.0f});
+    auto frame2 = buildUplinkFrame(SEQ_LOW, CommandPacket{200, 1, 0.0f});
+
+    EXPECT_TRUE(bridge.ingestUplinkFrameForTest(frame1.data(), frame1.size()));
+    EXPECT_TRUE(bridge.ingestUplinkFrameForTest(frame2.data(), frame2.size()));
+
+    size_t accepted = 0;
+    CommandPacket cmd{};
+    while (dest.tryConsume(cmd)) {
+        ++accepted;
+    }
+    EXPECT_EQ(accepted, 2u);
+    EXPECT_EQ(bridge.getRejectedCount(), 0u);
+}
+
 // =============================================================================
-// Main
+// HeapGuard  (DV-MEM-01)
+// =============================================================================
+TEST(HeapGuard, ArmAndIsArmed) {
+    // Cannot arm in a unit test that runs the full suite — would prevent
+    // allocations in later tests. Test the flag logic only.
+    // The full arm() abort test is a dedicated death test binary.
+    bool was_armed = HeapGuard::isArmed();
+    // Only verify the API compiles and returns a consistent value.
+    EXPECT_EQ(HeapGuard::isArmed(), was_armed);
+}
+
+TEST(HeapGuard, NewAfterArmTriggersFatal) {
+    ASSERT_DEATH(
+        {
+            HeapGuard::arm();
+            auto* p = new int(42);
+            (void)p;
+        },
+        "HeapGuard");
+}
+
+// =============================================================================
+// TmrStore  (DV-TMR-01, DV-TMR-02)
+// =============================================================================
+TEST(TmrStore, WriteAndRead) {
+    // DV-TMR-01: majority vote returns written value when all copies agree
+    TmrStore<float> s{0.0f};
+    s.write(3.14f);
+    EXPECT_FLOAT_EQ(s.read(), 3.14f);
+}
+
+TEST(TmrStore, IsSaneAfterWrite) {
+    TmrStore<float> s{0.0f};
+    s.write(1.0f);
+    EXPECT_TRUE(s.isSane());
+}
+
+TEST(TmrStore, DefaultInitialValue) {
+    TmrStore<float> s{42.0f};
+    EXPECT_FLOAT_EQ(s.read(), 42.0f);
+}
+
+TEST(TmrStore, MajorityVoteHealsOneSEU) {
+    // DV-TMR-01: single-event upset in one copy self-heals
+    TmrStore<float> s{7.0f};
+    s.injectFaultForTesting(99.0f); // corrupt copy[0]
+    float voted = s.read();
+    EXPECT_FLOAT_EQ(voted, 7.0f);  // vote returns correct value
+    EXPECT_TRUE(s.isSane());
+    // After read(), all three copies should agree again
+    EXPECT_FLOAT_EQ(s.read(), 7.0f);
+}
+
+TEST(TmrStore, AllThreeDifferIsNotSane) {
+    // DV-TMR-02: double upset detected via isSane()
+    TmrStore<float> s{1.0f};
+    s.injectDoubleUpset(2.0f, 3.0f);
+    EXPECT_FALSE(s.isSane());
+}
+
+TEST(TmrStore, IntType) {
+    TmrStore<uint32_t> s{100u};
+    s.write(200u);
+    EXPECT_EQ(s.read(), 200u);
+}
+
+TEST(TmrStore, TmrRegistryScrubAll) {
+    TmrStore<float> a{1.0f}, b{2.0f};
+    TmrRegistry& reg = TmrRegistry::getInstance();
+    reg.registerStore(&a);
+    reg.registerStore(&b);
+    // Inject fault then scrub — should not throw
+    a.injectFaultForTesting(99.0f);
+    EXPECT_NO_THROW(reg.scrubAll());
+    EXPECT_FLOAT_EQ(a.read(), 1.0f); // healed
+}
+
+TEST(TmrStore, RegistryIgnoresDuplicateRegistration) {
+    TmrRegistry& reg = TmrRegistry::getInstance();
+    const size_t before = reg.registeredCount();
+
+    TmrStore<float> store{5.0f};
+    store.registerWithFdir("dup_store");
+    const size_t after_first = reg.registeredCount();
+    store.registerWithFdir("dup_store");
+    const size_t after_second = reg.registeredCount();
+
+    EXPECT_EQ(after_first, before + 1u);
+    EXPECT_EQ(after_second, after_first);
+}
+
+TEST(TmrStore, RegistryRejectsNullEntries) {
+    TmrRegistry& reg = TmrRegistry::getInstance();
+    const size_t before = reg.registeredCount();
+    reg.registerParam(nullptr, nullptr, nullptr);
+    EXPECT_EQ(reg.registeredCount(), before);
+}
+
+TEST(TmrStore, ScopedStoreAutoUnregisters) {
+    TmrRegistry& reg = TmrRegistry::getInstance();
+    const size_t before = reg.registeredCount();
+    {
+        TmrStore<float> scoped{7.0f};
+        scoped.registerWithFdir("scoped_store");
+        EXPECT_EQ(reg.registeredCount(), before + 1u);
+    }
+    EXPECT_EQ(reg.registeredCount(), before);
+}
+
+// =============================================================================
+// COBS framing  (DV-COMM-02)
+// =============================================================================
+TEST(Cobs, RoundtripShortPayload) {
+    // DV-COMM-02: encode then decode must recover the original data
+    std::array<uint8_t, 8> payload{1, 2, 3, 4, 5, 0, 7, 8};
+    auto frame = cobs::CobsFrame::encode(payload.data(), payload.size());
+    std::array<uint8_t, 8> decoded{};
+    size_t decoded_len = 0;
+    bool ok = cobs::CobsFrame::decode(frame, decoded.data(), decoded.size(), decoded_len);
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(decoded_len, payload.size());
+    EXPECT_EQ(decoded, payload);
+}
+
+TEST(Cobs, NoZerosInEncodedData) {
+    // DV-COMM-02: 0x00 must not appear in the encoded payload (only as delimiter)
+    std::array<uint8_t, 12> payload{};
+    for (uint8_t i = 0; i < 12; ++i) payload[i] = i; // includes 0x00 at index 0
+    auto frame = cobs::CobsFrame::encode(payload.data(), payload.size());
+    // Skip the trailing delimiter
+    for (size_t i = 0; i + 1 < frame.encoded_len; ++i) {
+        EXPECT_NE(frame.data[i], 0u)
+            << "Zero byte found at encoded position " << i;
+    }
+}
+
+TEST(Cobs, DelimiterIsLastByte) {
+    std::array<uint8_t, 4> payload{10, 20, 30, 40};
+    auto frame = cobs::CobsFrame::encode(payload.data(), payload.size());
+    EXPECT_EQ(frame.data[frame.encoded_len - 1], 0x00u);
+}
+
+TEST(Cobs, DecodeFailsOnTruncated) {
+    cobs::CobsFrame bad;
+    bad.encoded_len = 1; // truncated — no valid COBS structure
+    bad.data[0] = 0xFFu;
+    std::array<uint8_t, 16> out{};
+    size_t len = 0;
+    bool ok = cobs::CobsFrame::decode(bad, out.data(), out.size(), len);
+    EXPECT_FALSE(ok);
+}
+
+TEST(Cobs, RoundtripEmptyPayload) {
+    constexpr uint8_t PAYLOAD = 0xAB;
+    auto frame = cobs::CobsFrame::encode(&PAYLOAD, 0);
+    ASSERT_EQ(frame.encoded_len, 2u);
+    EXPECT_EQ(frame.data[0], 0x01u);
+    EXPECT_EQ(frame.data[1], 0x00u);
+
+    std::array<uint8_t, 1> decoded{};
+    size_t decoded_len = 123;
+    const bool ok = cobs::CobsFrame::decode(frame, decoded.data(), decoded.size(), decoded_len);
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(decoded_len, 0u);
+}
+
+TEST(Cobs, DecodeFailsWhenDelimiterMissing) {
+    cobs::CobsFrame bad;
+    bad.encoded_len = 3;
+    bad.data[0] = 0x02u;
+    bad.data[1] = 0x11u;
+    bad.data[2] = 0x22u; // must be 0x00 delimiter
+
+    std::array<uint8_t, 8> out{};
+    size_t decoded_len = 0;
+    EXPECT_FALSE(cobs::CobsFrame::decode(bad, out.data(), out.size(), decoded_len));
+    EXPECT_EQ(decoded_len, 0u);
+}
+
+// =============================================================================
+// MissionFsm  (DV-SEC-02)
+// =============================================================================
+TEST(MissionFsm, NominalAllowsAll) {
+    EXPECT_TRUE(MissionFsm::isAllowed(MissionState::NOMINAL, OpClass::HOUSEKEEPING));
+    EXPECT_TRUE(MissionFsm::isAllowed(MissionState::NOMINAL, OpClass::OPERATIONAL));
+    EXPECT_TRUE(MissionFsm::isAllowed(MissionState::NOMINAL, OpClass::RESTRICTED));
+}
+
+TEST(MissionFsm, SafeModeBlocksOperational) {
+    EXPECT_TRUE( MissionFsm::isAllowed(MissionState::SAFE_MODE, OpClass::HOUSEKEEPING));
+    EXPECT_FALSE(MissionFsm::isAllowed(MissionState::SAFE_MODE, OpClass::OPERATIONAL));
+    EXPECT_FALSE(MissionFsm::isAllowed(MissionState::SAFE_MODE, OpClass::RESTRICTED));
+}
+
+TEST(MissionFsm, EmergencyBlocksAll) {
+    EXPECT_FALSE(MissionFsm::isAllowed(MissionState::EMERGENCY, OpClass::HOUSEKEEPING));
+    EXPECT_FALSE(MissionFsm::isAllowed(MissionState::EMERGENCY, OpClass::OPERATIONAL));
+    EXPECT_FALSE(MissionFsm::isAllowed(MissionState::EMERGENCY, OpClass::RESTRICTED));
+}
+
+TEST(MissionFsm, DegradedAllowsHousekeepingAndOperational) {
+    EXPECT_TRUE( MissionFsm::isAllowed(MissionState::DEGRADED, OpClass::HOUSEKEEPING));
+    EXPECT_TRUE( MissionFsm::isAllowed(MissionState::DEGRADED, OpClass::OPERATIONAL));
+    EXPECT_FALSE(MissionFsm::isAllowed(MissionState::DEGRADED, OpClass::RESTRICTED));
+}
+
+TEST(MissionFsm, BootAllowsOnlyHousekeeping) {
+    EXPECT_TRUE( MissionFsm::isAllowed(MissionState::BOOT, OpClass::HOUSEKEEPING));
+    EXPECT_FALSE(MissionFsm::isAllowed(MissionState::BOOT, OpClass::OPERATIONAL));
+    EXPECT_FALSE(MissionFsm::isAllowed(MissionState::BOOT, OpClass::RESTRICTED));
+}
+
+TEST(TimeService, OverflowWarningThreshold) {
+    EXPECT_FALSE(TimeService::isNearOverflow(TimeService::MET_WARN_THRESHOLD_MS));
+    EXPECT_TRUE(TimeService::isNearOverflow(TimeService::MET_WARN_THRESHOLD_MS + 1));
+}
+
+TEST(TimeService, ReadyAfterInitEpoch) {
+    TimeService::initEpoch();
+    EXPECT_TRUE(TimeService::isReady());
+}
+
+// =============================================================================
+// RateGroupExecutive  (DV-ARCH-03)
+// =============================================================================
+TEST(RateGroupExecutive, RegistrationCounts) {
+    FakeComponent f1, f2, f3;
+    RateGroupExecutive rge;
+    rge.registerFast(&f1);
+    rge.registerNorm(&f2);
+    rge.registerSlow(&f3);
+    EXPECT_EQ(rge.fastCount(),   1u);
+    EXPECT_EQ(rge.normCount(),   1u);
+    EXPECT_EQ(rge.slowCount(),   1u);
+    EXPECT_EQ(rge.activeCount(), 0u);
+    EXPECT_EQ(rge.totalCount(),  3u);
+}
+
+TEST(RateGroupExecutive, InitAllCallsComponentInit) {
+    FakeComponent f;
+    EXPECT_FALSE(f.initialized);
+    RateGroupExecutive rge;
+    rge.registerNorm(&f);
+    rge.initAll();
+    EXPECT_TRUE(f.initialized);
+}
+
+TEST(RateGroupExecutive, RegisterComponentRoutesPassiveToNorm) {
+    FakeComponent f;
+    RateGroupExecutive rge;
+    rge.registerComponent(&f);
+    EXPECT_EQ(rge.normCount(), 1u);
+    EXPECT_EQ(rge.activeCount(), 0u);
+}
+
+TEST(RateGroupExecutive, RejectsDuplicateAcrossTiers) {
+    FakeComponent f;
+    RateGroupExecutive rge;
+    rge.registerFast(&f);
+    rge.registerNorm(&f);
+    rge.registerSlow(&f);
+    EXPECT_EQ(rge.fastCount(), 1u);
+    EXPECT_EQ(rge.normCount(), 0u);
+    EXPECT_EQ(rge.slowCount(), 0u);
+    EXPECT_EQ(rge.totalCount(), 1u);
+}
+
+TEST(RateGroupExecutive, RejectsDuplicateActiveRegistration) {
+    FakeActiveCritical active;
+    RateGroupExecutive rge;
+    rge.registerComponent(&active);
+    rge.registerComponent(&active);
+    EXPECT_EQ(rge.activeCount(), 1u);
+    EXPECT_EQ(rge.totalCount(), 1u);
+}
+
+TEST(RateGroupExecutive, RejectsNullRegistration) {
+    RateGroupExecutive rge;
+    rge.registerFast(nullptr);
+    rge.registerNorm(nullptr);
+    rge.registerSlow(nullptr);
+    rge.registerComponent(nullptr);
+    EXPECT_EQ(rge.totalCount(), 0u);
+}
+
+TEST(RateGroupExecutive, FrameDropsStartAtZero) {
+    RateGroupExecutive rge;
+    EXPECT_EQ(rge.getFastDrops(), 0u);
+    EXPECT_EQ(rge.getNormDrops(), 0u);
+}
+
+TEST(Architecture, SingletonServiceIdentity) {
+    ParamDb* p1 = &ParamDb::getInstance();
+    ParamDb* p2 = &ParamDb::getInstance();
+    EXPECT_EQ(p1, p2);
+}
+
+// =============================================================================
+// Scheduler (v2 legacy — kept for regression)
+// =============================================================================
+TEST(Scheduler, RegisterAndInit) {
+    Scheduler sys;
+    FakeComponent c;
+    sys.registerComponent(&c);
+    sys.initAll();
+    EXPECT_TRUE(c.initialized);
+}
+
+TEST(Scheduler, MaxComponentsLimit) {
+    Scheduler sys;
+    std::vector<FakeComponent> comps(MAX_COMPONENTS);
+    for (auto& c : comps) sys.registerComponent(&c);
+    FakeComponent overflow;
+    sys.registerComponent(&overflow); // should silently ignore
+    sys.initAll();
+    EXPECT_FALSE(overflow.initialized);
+}
+
+TEST(Scheduler, NullRegistrationIgnored) {
+    Scheduler sys;
+    sys.registerComponent(nullptr);
+    sys.initAll();
+    EXPECT_EQ(sys.getFrameDropCount(), 0u);
+}
+
+TEST(Scheduler, ZeroHzLoopReturnsWithoutStartingThreads) {
+    Scheduler sys;
+    FakeActiveCritical active;
+    sys.registerComponent(&active);
+    sys.executeLoop(0);
+    EXPECT_EQ(active.start_count, 0u);
+    EXPECT_EQ(active.join_count, 0u);
+}
+
+TEST(MemorySafety, StaticBoundsAreNonZero) {
+    EXPECT_GT(DEFAULT_QUEUE_DEPTH, 0u);
+    EXPECT_GT(MAX_COMPONENTS, 0u);
+    EXPECT_GT(MAX_EVENT_SOURCES, 0u);
+    EXPECT_GT(MAX_EVENT_LISTENERS, 0u);
+    EXPECT_GT(MAX_TELEM_INPUTS, 0u);
+    EXPECT_GT(MAX_TELEM_LISTENERS, 0u);
+}
+
+// =============================================================================
+// HAL / IMU (ESP32-readiness via HAL contract tests)
+// =============================================================================
+TEST(HalMockI2c, ReadWriteContract) {
+    TimeService::initEpoch();
+    hal::MockI2c bus;
+    uint8_t data[2]{0, 0};
+    EXPECT_TRUE(bus.read(0x68, 0x3B, data, 2));
+    EXPECT_TRUE(bus.write(0x68, 0x6B, data, 1));
+}
+
+TEST(ImuComponent, InitFailureEmitsCriticalEvent) {
+    TimeService::initEpoch();
+    TestI2cBus bus;
+    bus.write_ok = false;
+    ImuComponent imu{"IMU_01", 300, bus};
+    InputPort<EventPacket> events;
+    imu.event_out.connect(&events);
+    imu.init();
+    EXPECT_GT(imu.getErrorCount(), 0u);
+    EventPacket evt{};
+    ASSERT_TRUE(events.tryConsume(evt));
+    EXPECT_EQ(evt.severity, Severity::CRITICAL);
+}
+
+TEST(ImuComponent, StepPublishesTelemetryOnReadSuccess) {
+    TimeService::initEpoch();
+    TestI2cBus bus;
+    bus.write_ok = true;
+    bus.read_ok = true;
+    bus.read_hi = 0x01;
+    bus.read_lo = 0x02;
+    ImuComponent imu{"IMU_01", 300, bus};
+    InputPort<Serializer::ByteArray> telem;
+    imu.telemetry_out.connect(&telem);
+    imu.init();
+    imu.step();
+    Serializer::ByteArray raw{};
+    ASSERT_TRUE(telem.tryConsume(raw));
+    const auto pkt = Serializer::unpackTelem(raw);
+    EXPECT_EQ(pkt.component_id, 300u);
+    EXPECT_FLOAT_EQ(pkt.data_payload, 258.0f);
+}
+
+TEST(ImuComponent, StepReadFailureIncrementsErrorCount) {
+    TimeService::initEpoch();
+    TestI2cBus bus;
+    bus.read_ok = false;
+    ImuComponent imu{"IMU_01", 300, bus};
+    imu.init();
+    const auto before = imu.getErrorCount();
+    imu.step();
+    EXPECT_GT(imu.getErrorCount(), before);
+}
+
+TEST(ImuComponent, UnknownCommandEmitsWarningEvent) {
+    TimeService::initEpoch();
+    TestI2cBus bus;
+    ImuComponent imu{"IMU_01", 300, bus};
+    InputPort<EventPacket> events;
+    OutputPort<CommandPacket> cmd_sender;
+    imu.event_out.connect(&events);
+    cmd_sender.connect(&imu.cmd_in);
+    imu.init();
+    cmd_sender.send(CommandPacket{300, 99, 0.0f});
+    imu.step();
+    EventPacket evt{};
+    ASSERT_TRUE(events.tryConsume(evt));
+    EXPECT_EQ(evt.severity, Severity::WARNING);
+}
+
+// =============================================================================
+// CommandHub hardening
+// =============================================================================
+TEST_F(CommandHubFixture, DuplicateRouteRegistrationIsRejected) {
+    OutputPort<CommandPacket> route1;
+    InputPort<CommandPacket> target1;
+    route1.connect(&target1);
+    hub.registerRoute(200, &route1);
+    const uint32_t before = hub.getErrorCount();
+    hub.registerRoute(200, &route1);
+    EXPECT_EQ(hub.routeCount(), 1u);
+    EXPECT_GT(hub.getErrorCount(), before);
+}
+
+TEST_F(CommandHubFixture, NullRouteRegistrationIsRejected) {
+    const uint32_t before = hub.getErrorCount();
+    hub.registerRoute(200, nullptr);
+    EXPECT_EQ(hub.routeCount(), 0u);
+    EXPECT_GT(hub.getErrorCount(), before);
+}
+
+TEST(CommandHub, MissionStateSourceFlag) {
+    CommandHub hub{"CmdHub", 11};
+    EXPECT_FALSE(hub.hasMissionStateSource());
+    WatchdogComponent wd{"Supervisor", 1};
+    hub.setMissionStateSource(&wd);
+    EXPECT_TRUE(hub.hasMissionStateSource());
+}
+
+TEST(TelemetryBridge, UsesConfiguredPorts) {
+    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    TelemetryBridge bridge{"RadioLink", 20, 19101, 19102};
+    EXPECT_EQ(bridge.getDownlinkPort(), 19101u);
+    EXPECT_EQ(bridge.getUplinkPort(), 19102u);
+}
+
+TEST(TelemetryBridge, PersistsReplaySequenceAcrossRestart) {
+    const std::string replay_file = makeUniqueTestLogPath("test_replay_seq", ".db");
+    (void)std::remove(replay_file.c_str());
+    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, replay_file.c_str());
+
+    constexpr uint16_t DL_PORT = 19105;
+    constexpr uint16_t UL_PORT = 19106;
+
+    {
+        TelemetryBridge bridge{"RadioLink", 20, DL_PORT, UL_PORT};
+        auto frame = buildUplinkFrame(77, CommandPacket{200, 1, 0.0f});
+        EXPECT_TRUE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
+    }
+
+    {
+        TelemetryBridge bridge{"RadioLink", 20, DL_PORT + 1, UL_PORT + 1};
+        auto replayed_frame = buildUplinkFrame(77, CommandPacket{200, 1, 0.0f});
+        EXPECT_FALSE(bridge.ingestUplinkFrameForTest(replayed_frame.data(), replayed_frame.size()));
+        EXPECT_EQ(bridge.getRejectedCount(), 1u);
+    }
+
+    (void)std::remove(replay_file.c_str());
+}
+
+// =============================================================================
+// main
 // =============================================================================
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);

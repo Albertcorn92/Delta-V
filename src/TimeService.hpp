@@ -22,6 +22,9 @@ namespace deltav {
 
 class TimeService {
 public:
+    static constexpr uint64_t MET_WARN_THRESHOLD_MS = 0xF000'0000ULL;
+    static constexpr uint64_t MET_WRAP_MASK         = 0xFFFF'FFFFULL;
+
     // Called exactly once during main() before Scheduler::initAll().
     static void initEpoch() {
         epoch       = std::chrono::steady_clock::now();
@@ -37,16 +40,17 @@ public:
         uint64_t ms   = static_cast<uint64_t>(duration.count());
 
         // Warn once when approaching uint32_t overflow (~46-day mark).
-        if (!overflow_warned && ms > 0xF000'0000ULL) {
+        if (!overflow_warned && isNearOverflow(ms)) {
             overflow_warned = true;
             std::cerr << "[TimeService] WARNING: MET approaching uint32_t overflow "
                          "(~46 days). Upgrade to uint64_t for long-duration missions.\n";
         }
 
-        return static_cast<uint32_t>(ms & 0xFFFF'FFFFUL);
+        return static_cast<uint32_t>(ms & MET_WRAP_MASK);
     }
 
     static bool isReady() { return initialized; }
+    static bool isNearOverflow(uint64_t met_ms) { return met_ms > MET_WARN_THRESHOLD_MS; }
 
 private:
     static inline std::chrono::steady_clock::time_point epoch =

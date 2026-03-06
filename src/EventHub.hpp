@@ -39,7 +39,7 @@ public:
             while (inputs[i]->tryConsume(evt)) {
                 // Broadcast to ALL registered listeners
                 for (size_t j = 0; j < listener_count; ++j) {
-                    listeners[j]->receive(evt);
+                    listeners[j].send(evt);
                 }
             }
         }
@@ -56,9 +56,10 @@ public:
     }
 
     // Register a listener that receives every event (fan-out broadcast)
-    void registerListener(IInputPort<EventPacket>* dest) {
+    void registerListener(InputPort<EventPacket>* dest) {
         if (listener_count < MAX_EVENT_LISTENERS) {
-            listeners[listener_count++] = dest;
+            listeners[listener_count].connect(dest);
+            ++listener_count;
         } else {
             std::cerr << "[FATAL] EventHub: exceeded MAX_EVENT_LISTENERS ("
                       << MAX_EVENT_LISTENERS << "). Increase limit.\n";
@@ -70,7 +71,7 @@ public:
 
 private:
     std::array<InputPort<EventPacket>*,  MAX_EVENT_SOURCES>   inputs{};
-    std::array<IInputPort<EventPacket>*, MAX_EVENT_LISTENERS> listeners{};
+    std::array<OutputPort<EventPacket>, MAX_EVENT_LISTENERS> listeners{};
     size_t input_count{0};
     size_t listener_count{0};
 };

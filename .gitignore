@@ -1,7 +1,15 @@
 venv/
 build/
+build_*/
 bin/
 .DS_Store
 __pycache__/
 *.csv
 *.log
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+*.info
+coverage_html/
+compile_commands.json

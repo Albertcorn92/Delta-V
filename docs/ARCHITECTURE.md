@@ -1,54 +1,146 @@
-ARCHITECTURE.md - DELTA-V Flight Software Framework
-1. Design Philosophy
-The DELTA-V Framework is designed as a Component-Based Software Architecture (CBSA) focused on high-reliability, real-time deterministic execution. It adheres to key principles of DO-178C (Software Considerations in Airborne Systems), ensuring that memory is statically allocated at boot and execution timing is strictly controlled.
+# DELTA-V Flight Software Framework — Architecture Reference  v3.0
 
-2. The Core Execution Model
-The framework utilizes a hybrid execution model to balance high-speed synchronous tasks with low-latency asynchronous I/O.
+---
 
-2.1 The Scheduler (The Heartbeat)
-The Scheduler operates as a cyclic executive. It manages the mission clock via the TimeService and executes "Passive Components" in a single-threaded, deterministic loop. This prevents race conditions in core flight logic.
+## 1. Design Philosophy
 
-2.2 Active vs. Passive Components
-Passive Components: Execute within the main Scheduler thread. Ideal for control loops and state logic where determinism is critical.
+DELTA-V is a Component-Based Software Architecture (CBSA) targeting **DO-178C DAL-B** compliance. Its three foundational rules are:
 
-Active Components: Inherit from ActiveComponent and operate on their own independent POSIX threads. These are used for "blocking" or high-frequency I/O tasks, such as the TelemetryBridge (Radio) and the Watchdog.
+1. **Compile-time correctness over runtime validation.** Wiring errors, type mismatches, and capacity violations are compiler errors, not runtime crashes.
+2. **No heap allocation in flight.** `HeapGuard::arm()` locks the heap after `initAll()`. Any post-init allocation is a fatal abort.
+3. **All faults are observable.** Every error path calls `recordError()`, feeds `EventHub`, and is surfaced to the GDS via the telemetry downlink.
 
-3. Communication Topology: Ports & Hubs
-DELTA-V avoids global variables. Instead, it uses a Publish-Subscribe and Point-to-Point wiring model via InputPort and OutputPort.
+---
 
-3.1 Thread-Safe Data Exchange
-Data passed between an Active thread (like the Radio) and a Passive thread (like the Scheduler) is buffered through the RingBuffer.
+## 2. Execution Model
 
-Lock-Free Design: The RingBuffer uses atomic head/tail pointers to allow one-way communication between threads without using heavy Mutexes, reducing "jitter" in the flight timing.
+### 2.1 The Scheduler (Cyclic Executive)
 
-3.2 System Hubs
-TelemHub: Aggregates telemetry from all components and routes it to the TelemetryBridge and Logger.
+`Scheduler` runs the **passive component loop** in the master thread at a configurable rate (default 1 Hz). Each tick calls `step()` on every passive component in registration order. Frame drops (overruns) are counted and reported to the Watchdog.
 
-CommandHub: Receives uplinked packets, validates opcodes, and routes them to specific hardware targets.
+### 2.2 Active vs. Passive Components
 
-EventHub: Manages system-wide alerts and asynchronous notifications.
+| Class | Thread | Typical Use |
+|---|---|---|
+| `Component` | Master scheduler thread | Control loops, state logic, hubs |
+| `ActiveComponent` | Own `Os::Thread` | I/O-bound tasks (radio, future IMU DMA) |
 
-4. FDIR (Fault Detection, Isolation, and Recovery)
-The WatchdogComponent acts as the system's supervisor.
+`Os::Thread` uses `sleep_until` (absolute deadline) — **not** `sleep_for` — so wakeup times never drift. On FreeRTOS this maps to `vTaskDelayUntil`.
 
-Thread Monitoring: Active components must "check-in" with the Watchdog. If a thread hangs (e.g., a radio driver failure), the Watchdog detects the timeout.
+### 2.3 Rate Groups (Planned — Phase 5)
 
-Telemetry Heartbeat: Monitors critical internal metrics (like Battery Voltage) via dedicated internal ports.
+A future upgrade partitions the passive loop into rate groups (10 Hz attitude, 1 Hz housekeeping, 0.1 Hz logging) via a `RateGroupExecutive`. This is the pattern used by F Prime and JPL's flight software.
 
-Recovery: Upon detecting a failure, the Watchdog issues a high-priority EventPacket to notify the ground station.
+---
 
-5. Memory & Integrity (ParamDb)
-The ParamDb (Parameter Database) is the single source of truth for mission configuration.
+## 3. Communication Topology
 
-Persistence: Parameters are persisted to mission_params.db for recovery after a power cycle (SITL).
+### 3.1 Port Primitives
 
-Integrity Protection: The database utilizes a CRC-32 Checksum algorithm. The system continuously hashes the parameter memory block; if a cosmic ray causes a bit-flip in RAM, the CRC check will fail, and an FDIR event is triggered.
+Every data flow uses typed `InputPort<T>` / `OutputPort<T>` pairs backed by a thread-safe `RingBuffer<T, Capacity>`. The `FlightData` C++20 concept enforces `trivially_copyable + standard_layout` at compile time.
 
-6. Networking Stack (CCSDS)
-The framework implements a subset of the CCSDS (Consultative Committee for Space Data Systems) standard.
+### 3.2 System Hubs
 
-Framing: Every packet is encapsulated in a 10-byte header.
+| Hub | Role |
+|---|---|
+| `TelemHub` | N-to-M telemetry fan-out (sensors → radio + logger) |
+| `CommandHub` | 1-to-N command routing by component ID + MissionFsm gating |
+| `EventHub` | N-to-M event broadcast (any component → radio + logger) |
 
-Sync Word: 0xDEADBEEF is used to identify the start of a frame in a noisy bitstream.
+### 3.3 Thread Safety
 
-Sequence Tracking: Each APID (Application Process ID) maintains an independent counter to allow the Ground Data System to track packet loss.
+`RingBuffer` uses `std::mutex` (not a spinlock — see fix F-01/F-09). Active components push to ports from their own thread; the scheduler drains them in the master thread. The mutex provides the required memory barrier on ARM/Power multi-core targets.
+
+---
+
+## 4. FDIR (Fault Detection, Isolation & Recovery)
+
+`WatchdogComponent` supervises every registered subsystem each scheduler tick:
+
+1. **Battery FDIR** (DV-FDIR-01/02/03): SOC thresholds → DEGRADED / SAFE_MODE / EMERGENCY transitions.
+2. **Software FDIR** (DV-FDIR-03/04): `reportHealth()` polls error counts → WARNING / CRITICAL escalation.
+3. **Restart** (DV-FDIR-04): Up to `MAX_RESTARTS_PER_COMPONENT` (3) automatic thread restarts for `ActiveComponent` failures.
+4. **Recovery** (DV-FDIR-05/F-15): DEGRADED auto-recovers to NOMINAL when all components are healthy and battery > 15%.
+5. **ParamDb CRC** (DV-DATA-01): Verified every 30 cycles.
+6. **TMR Scrub** (DV-TMR-01): `TmrRegistry::scrubAll()` called every 30 cycles to repair SEU-corrupted parameter copies.
+7. **Heartbeat** (DV-FDIR-06): Emitted every 10 cycles for GDS communication-loss detection.
+
+### 4.1 Mission FSM
+
+The `MissionFsm` class provides a static `isAllowed(state, opcode)` function called by `CommandHub` before every dispatch. Restricted opcodes (e.g. high-risk actuator commands) are blocked in `SAFE_MODE` and `EMERGENCY` states.
+
+```
+BOOT → NOMINAL ⇆ DEGRADED → SAFE_MODE → EMERGENCY
+                     ↑___auto-recovery___|
+```
+
+---
+
+## 5. Memory Architecture
+
+### 5.1 Static Allocation Model
+
+All arrays are `std::array<T, N>` with compile-time bounds. After boot, no heap allocation occurs. `HeapGuard` enforces this at runtime as defense-in-depth.
+
+### 5.2 HeapGuard
+
+`HeapGuard::arm()` overrides `operator new` and `operator new[]` globally. Any call after arming calls `HeapGuard::violation()` which prints a diagnostic and calls `std::abort()`. On FreeRTOS, `configTOTAL_HEAP_SIZE` is set to exactly what is allocated during `pvPortMalloc` calls in `init()`.
+
+### 5.3 Triple Modular Redundancy (TmrStore)
+
+Critical floating-point parameters (PID gains, burn durations) are stored in `TmrStore<float>` — three independent memory copies. On `read()`, a majority vote detects single-bit upsets and self-heals. `TmrRegistry::scrubAll()` (called by Watchdog) proactively repairs drift.
+
+---
+
+## 6. Networking / Protocol Stack
+
+```
+Application data
+      │
+      ▼
+CCSDS Header (10B): sync=0x1ACFFC1D | APID | SeqCount | Length
+      │
+      ▼  + CRC-16/CCITT (2B) on downlink
+      │  + strict header/length validation on uplink
+      │
+      ▼
+COBS encoding (byte stuffing for serial sync)
+      │
+      ▼
+UDP socket (port 9001 ↓ / 9002 ↑)
+```
+
+### Sync Word
+
+`0x1ACFFC1D` is the CCSDS standard sync marker (replaces the incorrect `0xDEADBEEF` noted in earlier ARCHITECTURE.md versions).
+
+### COBS
+
+COBS ensures `0x00` is only ever a frame delimiter. After a dropped byte or corrupted frame, the receiver resynchronises at the very next `0x00` byte — typically within one packet period.
+
+---
+
+## 7. Parameter Database (ParamDb)
+
+- FNV-1a 32-bit hash keys (constexpr, computed at compile time)
+- CRC-32 integrity check over all entries
+- Thread-safe insert (mutex-serialised find+insert, lock-free read after init)
+- Critical params duplicated in `TmrStore` for radiation resilience
+
+---
+
+## 8. Hardware Abstraction Layer
+
+`hal::I2cBus` is a pure-virtual interface. `hal::Esp32I2c` provides the physical ESP32-S3 driver; `hal::MockI2c` provides a deterministic SITL simulation with sinusoidal IMU output. Swapping targets requires changing one `#if` block in `I2cDriver.hpp`.
+
+---
+
+## 9. Known Limitations and Planned Upgrades
+
+| Item | Status |
+|---|---|
+| CRC-32 on downlink (CRC-16 currently) | Planned — Phase 5 |
+| Rate group executive (10/1/0.1 Hz tiers) | Planned — Phase 5 |
+| TAI/UTC epoch synchronisation | Planned — Phase 5 |
+| MISRA C++:2023 full compliance | Partially met (enforced by Wconversion, Wshadow, Wformat=2) |
+| Polyspace / Coverity integration | Planned |

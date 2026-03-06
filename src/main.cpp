@@ -1,47 +1,88 @@
 // =============================================================================
-// main.cpp — DELTA-V Flight Software Entry Point
+// main.cpp — DELTA-V Flight Software Entry Point  v4.0
 // =============================================================================
+#include "HeapGuard.hpp"
+#include "I2cDriver.hpp"
 #include "ParamDb.hpp"
-#include "Scheduler.hpp"
+#include "RateGroupExecutive.hpp"
 #include "TimeService.hpp"
 #include "TopologyManager.hpp"
-#include "I2cDriver.hpp" // Added for HAL support
+
+#include <csignal>
+#include <exception>
 #include <iostream>
 
 using namespace deltav;
 
-int main() {
-    std::cout << "=== DELTA-V Flight Software Boot ===\n\n";
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static RateGroupExecutive* g_rge = nullptr;
 
-    // Phase 0: Global services
+static auto on_signal(int /*signum*/) -> void {
+    std::cerr << "\n[Boot] Signal received — initiating clean shutdown.\n";
+    if (g_rge != nullptr) {
+        g_rge->stopAll();
+    }
+}
+
+auto main() -> int {
+    try {
+        std::cout
+        << "\n"
+        << "  ╔══════════════════════════════════════════╗\n"
+        << "  ║     DELTA-V Flight Software  v4.0        ║\n"
+        << "  ║   High-Assurance Autonomy Framework      ║\n"
+        << "  ╚══════════════════════════════════════════╝\n\n";
+
     TimeService::initEpoch();
     ParamDb::getInstance().load();
 
-    // Phase 0.5: Hardware Drivers (HAL)
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
-    hal::Esp32I2c i2c_bus(I2C_NUM_0); 
+    hal::Esp32I2c i2c_bus(I2C_NUM_0);
+    std::cout << "[Boot] HAL: ESP32 I2C hardware driver\n";
 #else
-    hal::MockI2c  i2c_bus; // Used for SITL on macOS
+    hal::MockI2c  i2c_bus;
+    std::cout << "[Boot] HAL: SITL MockI2c (sinusoidal sensor simulation)\n";
 #endif
 
-    // Phase 1: Instantiate and wire topology
-    // We pass the i2c_bus reference so the topology can inject it into components
-    TopologyManager topology(i2c_bus); 
+    TopologyManager topology(i2c_bus);
     topology.wire();
     topology.registerFdir();
 
     if (!topology.verify()) {
-        std::cerr << "[FATAL] Topology verification failed. Aborting boot.\n";
+        std::cerr << "[Boot] FATAL: Topology verification failed. Aborting.\n";
         return 1;
     }
 
-    // Phase 2 & 3: Scheduler
-    Scheduler sys;
-    topology.registerAll(sys);
-    sys.initAll();
-    
-    // 1 Hz master loop — Active components (like TelemBridge) run at their own rates
-    sys.executeLoop(1); 
+    RateGroupExecutive rge;
+    g_rge = &rge;
 
-    return 0;
+    topology.registerAll(rge);
+
+    rge.initAll();
+
+    HeapGuard::arm();
+
+    (void)std::signal(SIGINT,  on_signal);
+    (void)std::signal(SIGTERM, on_signal);
+
+    std::cout << "[Boot] Heap locked — dynamic allocation permanently disabled.\n";
+    std::cout << "[Boot] Rate groups launching:\n";
+    std::cout << "[Boot]   FAST    10 Hz  — " << rge.fastCount()   << " component(s)\n";
+    std::cout << "[Boot]   NORM     1 Hz  — " << rge.normCount()   << " component(s)\n";
+    std::cout << "[Boot]   SLOW   0.1 Hz  — " << rge.slowCount()   << " component(s)\n";
+    std::cout << "[Boot]   ACTIVE own thr — " << rge.activeCount() << " component(s)\n\n";
+
+    rge.startAll(); 
+
+        std::cout << "[Boot] Saving parameter database...\n";
+        ParamDb::getInstance().save();
+        std::cout << "[Boot] Shutdown complete.\n";
+        return 0;
+    } catch (const std::exception& ex) {
+        std::cerr << "[Boot] FATAL: unhandled exception: " << ex.what() << "\n";
+        return 2;
+    } catch (...) {
+        std::cerr << "[Boot] FATAL: unknown unhandled exception.\n";
+        return 3;
+    }
 }

@@ -1,14 +1,6 @@
 #pragma once
 // =============================================================================
-// Scheduler.hpp — DELTA-V Real-Time Executive
-// =============================================================================
-// Manages two execution domains:
-//   1. PASSIVE loop: runs all passive components in the master thread at target_hz
-//   2. ACTIVE threads: each ActiveComponent owns its own Os::Thread (started here)
-//
-// Frame drop tracking: counts how many scheduler ticks overran their deadline.
-// This is critical FDIR data — persistent frame drops indicate the passive
-// component load is too high for the target rate and must be reduced.
+// Scheduler.hpp — DELTA-V Legacy Single-Rate Executive
 // =============================================================================
 #include "Component.hpp"
 #include <array>
@@ -22,9 +14,23 @@ constexpr size_t MAX_COMPONENTS = 32;
 
 class Scheduler {
 public:
-    void registerComponent(Component* comp) {
+    Scheduler() = default;
+    ~Scheduler() = default;
+
+    // DO-178C: Rule of 5
+    Scheduler(const Scheduler&) = delete;
+    auto operator=(const Scheduler&) -> Scheduler& = delete;
+    Scheduler(Scheduler&&) = delete;
+    auto operator=(Scheduler&&) -> Scheduler& = delete;
+
+    auto registerComponent(Component* comp) -> void {
+        if (comp == nullptr) {
+            std::cerr << "[FATAL] Scheduler: null component registration rejected\n";
+            return;
+        }
+
         if (component_count < MAX_COMPONENTS) {
-            schedule[component_count++] = comp;
+            schedule.at(component_count++) = comp;
             std::cout << "[Scheduler] Registered: " << comp->getName()
                       << (comp->isActive() ? " [ACTIVE]" : " [PASSIVE]") << "\n";
         } else {
@@ -33,19 +39,23 @@ public:
         }
     }
 
-    void initAll() {
-        std::cout << "[Scheduler] Initializing " << component_count
-                  << " subsystems...\n";
+    auto initAll() -> void {
+        std::cout << "[Scheduler] Initializing " << component_count << " subsystems...\n";
         for (size_t i = 0; i < component_count; ++i) {
-            schedule[i]->init();
+            schedule.at(i)->init();
         }
         std::cout << "[Scheduler] All systems nominal.\n";
     }
 
-    void executeLoop(uint32_t target_hz) {
+    auto executeLoop(uint32_t target_hz) -> void {
+        if (target_hz == 0) {
+            std::cerr << "[FATAL] Scheduler: target_hz must be > 0\n";
+            return;
+        }
+
         std::cout << "[Scheduler] Starting active threads...\n";
         for (size_t i = 0; i < component_count; ++i) {
-            schedule[i]->startThread();
+            schedule.at(i)->startThread();
         }
 
         std::cout << "[Scheduler] Master loop at " << target_hz
@@ -56,8 +66,8 @@ public:
 
         while (true) {
             for (size_t i = 0; i < component_count; ++i) {
-                if (!schedule[i]->isActive()) {
-                    schedule[i]->step();
+                if (!schedule.at(i)->isActive()) {
+                    schedule.at(i)->step();
                 }
             }
 
@@ -69,19 +79,24 @@ public:
                     std::cerr << "[Scheduler] WARNING: frame drop #" << frame_drops
                               << " — passive load exceeds " << target_hz << " Hz budget\n";
                 }
+                next_wake = now; // Prevent "Death Spiral" catch-up loop
             } else {
                 std::this_thread::sleep_until(next_wake);
             }
         }
     }
 
-    uint64_t getFrameDropCount() const { return frame_drops; }
-
-    ~Scheduler() {
+    // Caller-owned components may outlive or die before Scheduler;
+    // shutdown must be called explicitly while pointers are known-valid.
+    auto shutdown() -> void {
         for (size_t i = 0; i < component_count; ++i) {
-            schedule[i]->joinThread();
+            if (schedule.at(i) != nullptr && schedule.at(i)->isActive()) {
+                schedule.at(i)->joinThread();
+            }
         }
     }
+
+    [[nodiscard]] auto getFrameDropCount() const -> uint64_t { return frame_drops; }
 
 private:
     std::array<Component*, MAX_COMPONENTS> schedule{};

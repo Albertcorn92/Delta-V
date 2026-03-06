@@ -1,48 +1,123 @@
-# DELTA-V Interface Control Document (ICD)
+# DELTA-V Interface Control Document (ICD)  v3.0
 
 ## 1. Overview
-This document defines the data interfaces, network protocols, and binary packet structures used for communication between the DELTA-V Flight Software and the Ground Data System (GDS).
 
-## 2. Network Interface
-All space-to-ground communication operates over asynchronous, non-blocking UDP sockets.
-* **Downlink (Telemetry & Events):** Port `9001`
-* **Uplink (Commands):** Port `9002`
-
-## 3. CCSDS Space Packet Framing
-Every packet transmitted to or from the vehicle is wrapped in a 10-byte aerospace header to ensure data integrity, packet synchronization, and drop-detection.
-
-### 3.1 Primary Header Structure (10 Bytes)
-| Field | Size | Type | Description |
-| :--- | :--- | :--- | :--- |
-| **Sync Word** | 4 Bytes | `uint32_t` | Static identifier (`0xDEADBEEF`) used to lock onto a valid packet. |
-| **APID** | 2 Bytes | `uint16_t` | Application Process ID. Identifies payload type (`10`=Telem, `20`=Event, `30`=Cmd). |
-| **Seq. Count** | 2 Bytes | `uint16_t` | Incrementing counter to detect dropped packets. |
-| **Length** | 2 Bytes | `uint16_t` | Size of the attached payload in bytes. |
+This document defines the data interfaces, network protocols, and binary packet structures for communication between the DELTA-V Flight Software and the Ground Data System (GDS).
 
 ---
 
-## 4. Payload Definitions
-All payloads adhere to strict DO-178C memory layouts with zero compiler padding. 
+## 2. Network Interface
 
-### 4.1 Telemetry Payload (APID 10)
-**Size:** 12 Bytes | **Total Framed Size:** 22 Bytes
-| Field | Size | Type | Description |
-| :--- | :--- | :--- | :--- |
-| **Timestamp** | 4 Bytes | `uint32_t` | Mission Elapsed Time (MET) in milliseconds. |
-| **Component ID** | 4 Bytes | `uint32_t` | ID of the subsystem generating the data. |
-| **Data Payload** | 4 Bytes | `float` | Sensor reading, state of charge, or algorithmic output. |
+All space-to-ground communication uses non-blocking UDP sockets.
 
-### 4.2 Event Payload (APID 20)
-**Size:** 36 Bytes | **Total Framed Size:** 46 Bytes
-| Field | Size | Type | Description |
-| :--- | :--- | :--- | :--- |
-| **Severity** | 4 Bytes | `uint32_t` | Alert level (`1`=Info, `2`=Warning, `3`=Critical). |
-| **Message** | 32 Bytes | `char[32]` | ASCII-encoded system message (Null-terminated). |
+| Direction | Port | Description |
+|---|---|---|
+| Downlink (flight → ground) | 9001 | Telemetry and events |
+| Uplink (ground → flight) | 9002 | Commands |
 
-### 4.3 Command Payload (APID 30)
-**Size:** 12 Bytes | **Total Framed Size:** 22 Bytes
-| Field | Size | Type | Description |
-| :--- | :--- | :--- | :--- |
-| **Target ID** | 4 Bytes | `uint32_t` | Destination subsystem ID. |
-| **Opcode** | 4 Bytes | `uint32_t` | Operation code to execute. |
-| **Argument** | 4 Bytes | `float` | Command parameter (e.g., drain rate, coordinate). |
+---
+
+## 3. Frame Stack
+
+```
+[ CCSDS Primary Header (10B) ]
+[ Payload (variable)          ]
+[ CRC-16/CCITT (2B, downlink) ]
+         │
+         ▼  COBS encoded (serial targets) or raw UDP (SITL)
+```
+
+### Framing Notes
+
+- COBS (`Cobs.hpp`) is applied on serial/RF links to guarantee frame boundary detection after bit errors. On UDP SITL, COBS is optional.
+- The CRC protects the payload only (not the CCSDS header).
+
+---
+
+## 4. CCSDS Primary Header (10 Bytes)
+
+| Field | Bytes | Type | Description |
+|---|---|---|---|
+| **Sync Word** | 4 | `uint32_t` | `0x1ACFFC1D` (CCSDS standard marker) |
+| **APID** | 2 | `uint16_t` | `10`=Telemetry, `20`=Event, `30`=Command |
+| **Seq. Count** | 2 | `uint16_t` | Monotonically incrementing per APID |
+| **Length** | 2 | `uint16_t` | Payload size in bytes |
+
+> **Note:** Earlier versions of this document incorrectly listed the sync word as `0xDEADBEEF`. The authoritative value is `0x1ACFFC1D` as defined in `Types.hpp` and `CCSDS_SYNC_WORD`.
+
+---
+
+## 5. Payload Definitions
+
+All payloads use `#pragma pack(1)` — no compiler padding.
+
+### 5.1 Telemetry Payload (APID 10) — 12 Bytes
+
+| Field | Bytes | Type | Description |
+|---|---|---|---|
+| Timestamp | 4 | `uint32_t` | Mission Elapsed Time in ms |
+| Component ID | 4 | `uint32_t` | Subsystem ID from topology |
+| Data Payload | 4 | `float` | Sensor reading or computed value |
+
+Total framed size: 10 (header) + 12 (payload) + 2 (CRC) = **24 bytes**
+
+### 5.2 Event Payload (APID 20) — 36 Bytes
+
+| Field | Bytes | Type | Description |
+|---|---|---|---|
+| Severity | 4 | `uint32_t` | `1`=INFO, `2`=WARNING, `3`=CRITICAL |
+| Source ID | 4 | `uint32_t` | Component ID that generated the event |
+| Message | 28 | `char[28]` | Null-terminated ASCII string |
+
+> **Note:** Earlier ICD versions listed the message field as 32 bytes. The authoritative size is **28 bytes** as enforced by the `static_assert` in `Types.hpp`.
+
+Total framed size: 10 + 36 + 2 = **48 bytes**
+
+### 5.3 Command Payload (APID 30) — 12 Bytes
+
+| Field | Bytes | Type | Description |
+|---|---|---|---|
+| Target ID | 4 | `uint32_t` | Destination component ID |
+| Opcode | 4 | `uint32_t` | Operation code |
+| Argument | 4 | `float` | Command parameter |
+
+Total framed size: 10 (header) + 12 (payload) = **22 bytes**
+
+---
+
+## 6. Uplink Validation
+
+All command frames must match canonical command framing:
+
+- `[CCSDS Header (10B)] + [CommandPacket (12B)]` exactly
+- sync/APID/payload-length fields must be valid
+- oversized or truncated frames are rejected
+- Replay-state persistence path: `DELTAV_REPLAY_SEQ_FILE`.
+- Replay protection: sequence number must be strictly greater than the last accepted value (with wrap detection at `0xFF00`→`0x0100`)
+
+---
+
+## 7. Mission FSM Command Policy
+
+The flight software enforces the following command dispatch policy (see `MissionFsm.hpp`):
+
+| State | HOUSEKEEPING | OPERATIONAL | RESTRICTED |
+|---|---|---|---|
+| BOOT | ✅ | ❌ | ❌ |
+| NOMINAL | ✅ | ✅ | ✅ |
+| DEGRADED | ✅ | ✅ | ❌ |
+| SAFE_MODE | ✅ | ❌ | ❌ |
+| EMERGENCY | ❌ | ❌ | ❌ |
+
+Commands rejected by the FSM return a NACK event with message `FSM_BLOCKED: OPx in STATE`.
+
+---
+
+## 8. Known GDS Dictionary Gaps
+
+The `dictionary.json` generated by `autocoder.py` does not yet include:
+
+- IMU component (ID 300) and its commands — add to `topology.yaml` and re-run autocoder
+- SET_AMPLITUDE command for StarTracker (ID 100, opcode 1)
+
+These will be addressed in the next autocoder update.

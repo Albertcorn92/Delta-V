@@ -1,19 +1,22 @@
 #pragma once
 // =============================================================================
-// CommandHub.hpp — DELTA-V Command Router
+// CommandHub.hpp — DELTA-V Command Router  v3.0
 // =============================================================================
-// Receives CommandPackets from TelemetryBridge and routes them by target_id
-// to the registered component OutputPort.
+// Changes from v2.x:
+//   - MissionFsm gating: commands blocked by current MissionState (DV-SEC-02)
+//   - setMissionStateSource(): CommandHub holds a pointer to the Watchdog so
+//     it can check getMissionStateRaw() before dispatching each command.
+//   - If the FSM blocks a command, a NACK with "FSM_BLOCKED" is returned and
+//     recordError() is called for FDIR visibility.
 //
-// Fixes applied (v2.1):
-//   F-07: ack_out.send() return value is now checked. If ack_out is not
-//         connected (wiring mistake), the failure is visible via recordError()
-//         rather than silently disappearing. TopologyManager::verify() also
-//         asserts ack_out.isConnected().
+// Fixes retained from v2.1:
+//   F-07: ack_out.send() return value checked.
 // =============================================================================
 #include "Component.hpp"
+#include "MissionFsm.hpp"
 #include "Port.hpp"
 #include "Types.hpp"
+#include "WatchdogComponent.hpp"
 #include <array>
 #include <cstdio>
 
@@ -44,39 +47,74 @@ public:
     }
 
     void registerRoute(uint32_t comp_id, OutputPort<CommandPacket>* port) {
+        if (port == nullptr) {
+            recordError();
+            return;
+        }
+
+        for (size_t i = 0; i < route_count; ++i) {
+            if (routes.at(i).comp_id == comp_id) {
+                recordError();
+                return;
+            }
+        }
+
         if (route_count < MAX_COMMAND_ROUTES) {
-            routes[route_count++] = { comp_id, port };
+            routes.at(route_count++) = { comp_id, port };
+        } else {
+            recordError();
         }
     }
 
-    size_t routeCount() const { return route_count; }
+    // Wire in the Watchdog so FSM state can be checked per-command (DV-SEC-02).
+    // Call this from TopologyManager::wire() after constructing both objects.
+    void setMissionStateSource(WatchdogComponent* wd) { watchdog = wd; }
+
+    [[nodiscard]] auto routeCount() const -> size_t { return route_count; }
+    [[nodiscard]] auto hasMissionStateSource() const -> bool { return watchdog != nullptr; }
 
 private:
     std::array<RouteEntry, MAX_COMMAND_ROUTES> routes{};
-    size_t route_count{0};
+    size_t              route_count{0};
+    WatchdogComponent*  watchdog{nullptr};
 
     void dispatchCommand(const CommandPacket& cmd) {
-        for (size_t i = 0; i < route_count; ++i) {
-            if (routes[i].comp_id == cmd.target_id) {
-                routes[i].port->send(cmd);
+        // --- DV-SEC-02: FSM gating ---
+        if (watchdog != nullptr) {
+            uint8_t state_raw = watchdog->getMissionStateRaw();
+            if (!MissionFsm::isAllowed(state_raw, cmd.opcode)) {
                 char msg[28];
-                std::snprintf(msg, sizeof(msg), "ACK: OP%u->ID%u",
+                (void)std::snprintf(msg, sizeof(msg), "FSM_BLOCKED: OP%u in %s",
+                    cmd.opcode, MissionFsm::stateName(state_raw));
+                if (!ack_out.send(EventPacket::create(Severity::WARNING, getId(), msg))) {
+                    recordError();
+                }
+                recordError(); // FDIR: blocked command is a notable event
+                return;
+            }
+        }
+
+        for (size_t i = 0; i < route_count; ++i) {
+            if (routes.at(i).comp_id == cmd.target_id) {
+                routes.at(i).port->send(cmd);
+                char msg[28];
+                (void)std::snprintf(msg, sizeof(msg), "ACK: OP%u->ID%u",
                     cmd.opcode, cmd.target_id);
-                // F-07: check return value — missing connection is an error
                 if (!ack_out.send(EventPacket::create(Severity::INFO, getId(), msg))) {
-                    recordError(); // ack_out not connected — wiring defect
+                    recordError();
                 }
                 return;
             }
         }
         // Unknown target
         char msg[28];
-        std::snprintf(msg, sizeof(msg), "NACK: ID%u not found", cmd.target_id);
+        (void)std::snprintf(msg, sizeof(msg), "NACK: ID%u not found", cmd.target_id);
         if (!ack_out.send(EventPacket::create(Severity::WARNING, getId(), msg))) {
-            recordError(); // ack_out not connected
+            recordError();
         }
-        recordError(); // FDIR: unroutable command counts as an error
+        recordError(); // DV-FDIR-08
     }
+
 };
 
 } // namespace deltav

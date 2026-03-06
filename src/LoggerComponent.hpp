@@ -23,15 +23,24 @@ constexpr uint32_t LOG_FLUSH_INTERVAL = 20; // flush every N packets
 
 class LoggerComponent : public Component {
 public:
+    static constexpr const char* DEFAULT_TELEM_LOG_PATH = "flight_log.csv";
+    static constexpr const char* DEFAULT_EVENT_LOG_PATH = "flight_events.log";
+
     LoggerComponent(std::string_view comp_name, uint32_t comp_id)
         : Component(comp_name, comp_id) {}
+
+    LoggerComponent(std::string_view comp_name, uint32_t comp_id,
+                    const char* telem_log_path, const char* event_log_path)
+        : Component(comp_name, comp_id),
+          telem_log_path_(telem_log_path),
+          event_log_path_(event_log_path) {}
 
     InputPort<Serializer::ByteArray> telemetry_in;
     InputPort<EventPacket>           event_in;
 
     void init() override {
-        telem_log.open("flight_log.csv", std::ios::out | std::ios::app);
-        event_log.open("flight_events.log", std::ios::out | std::ios::app);
+        telem_log.open(telem_log_path_, std::ios::out | std::ios::app);
+        event_log.open(event_log_path_, std::ios::out | std::ios::app);
         if (telem_log.is_open()) {
             telem_log << "timestamp_ms,component_id,data_payload\n";
         }
@@ -39,7 +48,8 @@ public:
             event_log << "--- SESSION START T+" << TimeService::getMET() << " ---\n";
         }
         std::cout << "[" << getName() << "] FDR online. "
-                     "Telemetry→flight_log.csv | Events→flight_events.log\n";
+                  << "Telemetry→" << telem_log_path_
+                  << " | Events→" << event_log_path_ << "\n";
     }
 
     void step() override {
@@ -66,7 +76,7 @@ public:
                     evt.severity == Severity::WARNING  ? "WARN" : "INFO";
                 event_log << "[T+" << TimeService::getMET() << "]["
                           << sev_str << "][ID" << evt.source_id << "] "
-                          << evt.message << "\n";
+                          << evt.message.data() << "\n";
                 event_log.flush();
             }
         }
@@ -81,6 +91,8 @@ private:
     std::ofstream telem_log;
     std::ofstream event_log;
     uint32_t      telem_packet_count{0};
+    const char*   telem_log_path_{DEFAULT_TELEM_LOG_PATH};
+    const char*   event_log_path_{DEFAULT_EVENT_LOG_PATH};
 };
 
 } // namespace deltav

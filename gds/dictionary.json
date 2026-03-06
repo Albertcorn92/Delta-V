@@ -1,0 +1,61 @@
+{
+    "_meta": {
+        "system": "DeltaV_Flight_Computer",
+        "version": "1.1.0",
+        "sync_word": "0x1acffc1d",
+        "apids": {
+            "telemetry": 10,
+            "event": 20,
+            "command": 30
+        }
+    },
+    "components": {
+        "1": {
+            "name": "Supervisor",
+            "type": "Active"
+        },
+        "10": {
+            "name": "TelemHub",
+            "type": "Passive"
+        },
+        "11": {
+            "name": "CmdHub",
+            "type": "Passive"
+        },
+        "12": {
+            "name": "EventHub",
+            "type": "Passive"
+        },
+        "20": {
+            "name": "RadioLink",
+            "type": "Active"
+        },
+        "30": {
+            "name": "BlackBox",
+            "type": "Passive"
+        },
+        "100": {
+            "name": "StarTracker",
+            "type": "Passive"
+        },
+        "200": {
+            "name": "BatterySystem",
+            "type": "Passive"
+        }
+    },
+    "commands": {
+        "RESET_BATTERY": {
+            "target_id": 200,
+            "opcode": 1,
+            "description": "Resets battery SOC to 100%",
+            "apid": 30
+        },
+        "SET_DRAIN_RATE": {
+            "target_id": 200,
+            "opcode": 2,
+            "description": "Sets the battery discharge rate",
+            "apid": 30
+        }
+    },
+    "params": {}
+}

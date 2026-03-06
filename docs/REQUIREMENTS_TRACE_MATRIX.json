@@ -1,0 +1,375 @@
+{
+  "summary": {
+    "total_requirements": 33,
+    "pass_with_tests": 33,
+    "partial_non_test_only": 0,
+    "missing": 0,
+    "errors": 0
+  },
+  "rows": [
+    {
+      "id": "DV-ARCH-01",
+      "dal": "B",
+      "statement": "Passive components execute in deterministic cyclic scheduling.",
+      "tests": [
+        "RateGroupExecutive.InitAllCallsComponentInit",
+        "Scheduler.RegisterAndInit"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-ARCH-02",
+      "dal": "B",
+      "statement": "Active components run on independent threads at declared rates.",
+      "tests": [
+        "ActiveComponent.ThreadLifecycleStartStop",
+        "ImuComponent.StepPublishesTelemetryOnReadSuccess"
+      ],
+      "other_evidence": [
+        "analysis:src/Os.hpp"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-ARCH-03",
+      "dal": "C",
+      "statement": "Global mutable state restricted to explicit singleton services.",
+      "tests": [
+        "Architecture.SingletonServiceIdentity"
+      ],
+      "other_evidence": [
+        "analysis:docs/ARCHITECTURE.md",
+        "analysis:src/Requirements.hpp"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-COMM-01",
+      "dal": "B",
+      "statement": "CCSDS framing and CRC are applied to flight packets.",
+      "tests": [
+        "Serializer.CRC16ArrayOverload",
+        "Types.PacketSizes"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-COMM-02",
+      "dal": "B",
+      "statement": "COBS framing preserves synchronization properties.",
+      "tests": [
+        "Cobs.DecodeFailsOnTruncated",
+        "Cobs.DelimiterIsLastByte",
+        "Cobs.NoZerosInEncodedData",
+        "Cobs.RoundtripShortPayload"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-COMM-03",
+      "dal": "A",
+      "statement": "Uplink commands use canonical CCSDS command framing.",
+      "tests": [
+        "TelemetryBridge.RejectsNonCanonicalFrameLength"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-COMM-04",
+      "dal": "A",
+      "statement": "Replay command sequences are rejected.",
+      "tests": [
+        "TelemetryBridge.RejectsReplaySequence"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-COMM-05",
+      "dal": "B",
+      "statement": "Uplink command processing is bounded per scheduler tick.",
+      "tests": [
+        "TelemetryBridge.EnforcesMaxCommandsPerTick"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-COMM-06",
+      "dal": "A",
+      "statement": "Replay sequence is persisted and reloaded when configured.",
+      "tests": [
+        "TelemetryBridge.PersistsReplaySequenceAcrossRestart"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-DATA-01",
+      "dal": "A",
+      "statement": "ParamDb integrity is verifiable using checksum.",
+      "tests": [
+        "ParamDb.ConcurrentReadWrite",
+        "ParamDb.IntegrityAfterWrite"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-DATA-02",
+      "dal": "B",
+      "statement": "Critical params stored in TMR with majority vote.",
+      "tests": [
+        "TmrStore.MajorityVoteHealsOneSEU",
+        "TmrStore.WriteAndRead"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-DATA-03",
+      "dal": "B",
+      "statement": "Periodic TMR scrub executed via registry.",
+      "tests": [
+        "TmrStore.TmrRegistryScrubAll",
+        "WdFixture.PeriodicTmrScrubRepairsSingleFault"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-FDIR-01",
+      "dal": "A",
+      "statement": "SAFE_MODE on low battery.",
+      "tests": [
+        "WdFixture.InjectBatteryLevel_v3",
+        "WdFixture.SafeModeOnLowBattery"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-FDIR-02",
+      "dal": "A",
+      "statement": "EMERGENCY mode on very low battery.",
+      "tests": [
+        "WdFixture.EmergencyOnVeryLowBattery"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-FDIR-03",
+      "dal": "B",
+      "statement": "DEGRADED mode on warning health status.",
+      "tests": [
+        "WdFixture.DegradedFromWarning"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-FDIR-04",
+      "dal": "A",
+      "statement": "Automatic restart attempts for critical active components.",
+      "tests": [
+        "WdFixture.RestartsCriticalActiveComponent"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-FDIR-05",
+      "dal": "B",
+      "statement": "Recovery to NOMINAL when conditions normalize.",
+      "tests": [
+        "WdFixture.DegradedAutoRecovery"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-FDIR-06",
+      "dal": "B",
+      "statement": "Periodic heartbeat event emission.",
+      "tests": [
+        "WdFixture.HeartbeatAtCycle10"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-FDIR-07",
+      "dal": "C",
+      "statement": "Scheduler frame drops surfaced into FDIR event stream.",
+      "tests": [
+        "WdFixture.SchedulerHealthEmitsOnNewDrops",
+        "WdFixture.SchedulerHealthSilentWhenNoNewDrops"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-FDIR-08",
+      "dal": "B",
+      "statement": "NACK on unroutable command increments error counter.",
+      "tests": [
+        "CommandHubFixture.DuplicateRouteRegistrationIsRejected",
+        "CommandHubFixture.NackOnUnknownTarget",
+        "CommandHubFixture.NullRouteRegistrationIsRejected"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-FDIR-09",
+      "dal": "B",
+      "statement": "Battery thresholds are sourced from TMR and invalid configs fail safe.",
+      "tests": [
+        "WatchdogThresholds.InvalidThresholdConfigFallsBackToDefaults",
+        "WatchdogThresholds.UsesConfiguredBatteryThresholds"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-LOG-01",
+      "dal": "C",
+      "statement": "Telemetry and events logged on separate channels.",
+      "tests": [
+        "LoggerComponent.DrainsAll"
+      ],
+      "other_evidence": [
+        "analysis:src/LoggerComponent.hpp"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-LOG-02",
+      "dal": "C",
+      "statement": "Event log flush policy is enforced.",
+      "tests": [
+        "LoggerComponent.EventFlushesImmediately",
+        "LoggerComponent.TelemetryFlushesAtInterval"
+      ],
+      "other_evidence": [
+        "analysis:src/LoggerComponent.hpp"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-MEM-01",
+      "dal": "A",
+      "statement": "No dynamic allocation succeeds after HeapGuard is armed.",
+      "tests": [
+        "HeapGuard.ArmAndIsArmed",
+        "HeapGuard.NewAfterArmTriggersFatal"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-MEM-02",
+      "dal": "A",
+      "statement": "Static arrays are compile-time bounded.",
+      "tests": [
+        "MemorySafety.StaticBoundsAreNonZero"
+      ],
+      "other_evidence": [
+        "analysis:src/Port.hpp",
+        "analysis:src/Types.hpp"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-MEM-03",
+      "dal": "B",
+      "statement": "RingBuffer overflow is counted and observable.",
+      "tests": [
+        "RingBuffer.DrainOverflowCount",
+        "RingBuffer.OverflowCounted"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-SEC-01",
+      "dal": "A",
+      "statement": "Malformed uplink header fields are rejected.",
+      "tests": [
+        "TelemetryBridge.RejectsInvalidHeaderFields"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-SEC-02",
+      "dal": "B",
+      "statement": "Mission FSM gates command dispatch.",
+      "tests": [
+        "CommandHubFixture.BlocksOperationalInSafeMode",
+        "MissionFsm.SafeModeBlocksOperational"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-SEC-03",
+      "dal": "A",
+      "statement": "Truncated or oversized uplink frames are rejected.",
+      "tests": [
+        "TelemetryBridge.RejectsNonCanonicalFrameLength",
+        "TelemetryBridge.RejectsTruncatedFrame"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-TIME-01",
+      "dal": "B",
+      "statement": "Absolute deadline scheduling prevents drift accumulation.",
+      "tests": [
+        "ActiveComponent.ThreadLifecycleStartStop"
+      ],
+      "other_evidence": [
+        "analysis:src/Os.hpp"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-TIME-02",
+      "dal": "C",
+      "statement": "One-time warning near MET overflow threshold.",
+      "tests": [
+        "TimeService.OverflowWarningThreshold"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-TMR-01",
+      "dal": "A",
+      "statement": "Single-upset divergence is repaired by majority vote.",
+      "tests": [
+        "TmrStore.MajorityVoteHealsOneSEU"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-TMR-02",
+      "dal": "B",
+      "statement": "Double upset is detectable and handled best-effort.",
+      "tests": [
+        "TmrStore.AllThreeDifferIsNotSane"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    }
+  ],
+  "errors": []
+}

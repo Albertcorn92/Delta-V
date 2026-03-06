@@ -1,7 +1,7 @@
 {
     "_meta": {
         "system": "DeltaV_Flight_Computer",
-        "version": "1.1.0",
+        "version": "4.0.0",
         "sync_word": "0x1acffc1d",
         "apids": {
             "telemetry": 10,
@@ -12,50 +12,114 @@
     "components": {
         "1": {
             "name": "Supervisor",
-            "type": "Active"
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "WatchdogComponent"
         },
         "10": {
             "name": "TelemHub",
-            "type": "Passive"
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "TelemHub"
         },
         "11": {
             "name": "CmdHub",
-            "type": "Passive"
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "CommandHub"
         },
         "12": {
             "name": "EventHub",
-            "type": "Passive"
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "EventHub"
         },
         "20": {
             "name": "RadioLink",
-            "type": "Active"
+            "type": "Active",
+            "rate_group": "norm",
+            "class": "TelemetryBridge"
         },
         "30": {
             "name": "BlackBox",
-            "type": "Passive"
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "LoggerComponent"
         },
         "100": {
             "name": "StarTracker",
-            "type": "Passive"
+            "type": "Passive",
+            "rate_group": "fast",
+            "class": "SensorComponent"
         },
         "200": {
             "name": "BatterySystem",
-            "type": "Passive"
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "PowerComponent"
+        },
+        "300": {
+            "name": "IMU_01",
+            "type": "Passive",
+            "rate_group": "fast",
+            "class": "ImuComponent"
         }
     },
     "commands": {
         "RESET_BATTERY": {
             "target_id": 200,
             "opcode": 1,
-            "description": "Resets battery SOC to 100%",
+            "op_class": "HOUSEKEEPING",
+            "description": "Resets battery SOC to 100% (simulation reset)",
             "apid": 30
         },
         "SET_DRAIN_RATE": {
             "target_id": 200,
             "opcode": 2,
-            "description": "Sets the battery discharge rate",
+            "op_class": "OPERATIONAL",
+            "description": "Sets battery discharge rate. arg: 0.0\u201310.0 (%/tick)",
+            "apid": 30
+        },
+        "SET_STAR_AMPLITUDE": {
+            "target_id": 100,
+            "opcode": 1,
+            "op_class": "OPERATIONAL",
+            "description": "Sets star tracker simulation sine amplitude. arg: float",
+            "apid": 30
+        },
+        "IMU_RECALIBRATE": {
+            "target_id": 300,
+            "opcode": 1,
+            "op_class": "OPERATIONAL",
+            "description": "Triggers IMU self-calibration sequence. arg: unused (0.0)",
             "apid": 30
         }
     },
-    "params": {}
+    "params": {
+        "safe_mode_battery_pct": {
+            "default": 5.0,
+            "tmr": true,
+            "description": "Battery SOC % that triggers SAFE_MODE (DV-FDIR-01)"
+        },
+        "degraded_battery_pct": {
+            "default": 15.0,
+            "tmr": true,
+            "description": "Battery SOC % that triggers DEGRADED state (DV-FDIR-03)"
+        },
+        "emergency_battery_pct": {
+            "default": 2.0,
+            "tmr": true,
+            "description": "Battery SOC % that triggers EMERGENCY state (DV-FDIR-02)"
+        },
+        "star_amplitude": {
+            "default": 10.0,
+            "tmr": false,
+            "description": "Star tracker simulation sine wave amplitude"
+        },
+        "imu_sample_gain": {
+            "default": 1.0,
+            "tmr": false,
+            "description": "IMU accelerometer scaling factor"
+        }
+    }
 }

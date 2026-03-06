@@ -1,41 +1,171 @@
-DEVELOPER_GUIDE.md - DELTA-V User Manual
-1. Introduction
-Welcome to the DELTA-V development environment. This guide will walk you through creating a custom Flight Software (FSW) component, wiring it into the system, and exposing it to the Ground Data System (GDS).
+# DELTA-V Developer Guide  v3.0
 
-2. Creating a Custom Component
-Every subsystem in DELTA-V is a class that inherits from deltav::Component.
+---
 
-Step 1: Define your Component
-Create a new header file (e.g., src/ThermalComponent.hpp). You will need to inherit from the base Component class, define your Input and Output ports, and override the init() and step() functions.
+## 1. Introduction
 
-Inside the step() function, you should place your cyclic logic—such as reading sensor data or checking for incoming commands via cmd_in.consume(). To send telemetry, you simply populate a TelemetryPacket struct and call telem_out.send(p).
+This guide covers creating custom flight software components, integrating them into the DELTA-V topology, and verifying them against the framework's DO-178C-influenced requirements. If you are new to the project, read `ARCHITECTURE.md` first.
 
-3. The Blueprint: topology.yaml
-To make the ground system aware of your new component and its commands, you must update the topology.yaml file in the root directory. Add your component name and ID to the components list. If your component accepts commands, add those to the commands list with a unique opcode and the matching target_id.
+---
 
-4. The Autocoder Pipeline
-After updating the YAML file, you must run the autocoder to synchronize the C++ types and the Ground Dictionary. Run the following command in your terminal:
+## 2. Creating a Component
 
-python3 autocoder.py
+### 2.1 Scaffold with dv-util
 
-This will update src/Types.hpp and dictionary.json automatically. Never edit these files by hand.
+```bash
+# Passive component (runs in the scheduler master thread)
+python3 tools/dv-util.py add-component ThermalControl
 
-5. System Integration (main.cpp)
-Finally, you must instantiate your component in your main.cpp. There are four standard steps for integration:
+# Active component (runs on its own Os::Thread)
+python3 tools/dv-util.py add-component ThermalControl --active
+```
 
-Instantiate: Create the object with a name and ID.
+This creates `src/ThermalControlComponent.hpp` with all boilerplate pre-filled.
 
-Wire Telemetry: Use telem_hub.connectInput() to pipe your component's telemetry to the radio.
+### 2.2 Component Checklist
 
-Register Commands: Connect an OutputPort from the CommandHub to your component's input port.
+Every component must:
 
-Schedule: Call sys.registerComponent() to add it to the 1Hz execution loop.
+- Inherit from `deltav::Component` (passive) or `deltav::ActiveComponent` (threaded)
+- Call `recordError()` on every fault path — this feeds FDIR
+- Drain `cmd_in` fully on every `step()` call (use `while (cmd_in.tryConsume(cmd))`)
+- Use `TimeService::getMET()` for all timestamps — never `std::chrono` directly
+- Handle the `default:` case in `handleCommand()` with `recordError()` + event emission
 
-6. Testing with the GDS
-To see your data live:
+### 2.3 Ports
 
-Compile & Run FSW: Use CMake to build and run the flight_software executable.
+| Port type | Direction | Typical use |
+|---|---|---|
+| `InputPort<CommandPacket>` | Inbound | Commands from CommandHub |
+| `OutputPort<Serializer::ByteArray>` | Outbound | Telemetry to TelemHub |
+| `OutputPort<EventPacket>` | Outbound | Events to EventHub |
 
-Launch Dashboard: Run streamlit run gds_dash.py in a separate terminal.
+Overflow is automatically tracked by the `RingBuffer`. Wire critical ports into `WatchdogComponent::pollPortOverflow()` for FDIR visibility.
 
-Your new subsystem will automatically appear in the Telemetry Analytics and the Raw Buffer without any further Python coding required.
+---
+
+## 3. Updating topology.yaml
+
+```yaml
+components:
+  - id: 400                    # Must be unique across all components
+    name: "ThermalControl"
+    class: "ThermalControlComponent"
+    instance: "thermal"
+    type: "Passive"
+
+commands:
+  - name: "SET_HEATER_TARGET"
+    target_id: 400
+    opcode: 1
+    description: "Set target temperature in degrees C"
+```
+
+Run the autocoder after every topology change:
+
+```bash
+python3 tools/autocoder.py
+```
+
+This regenerates `src/Types.hpp` (packet definitions) and `dictionary.json` (GDS dictionary). **Never edit these files by hand.**
+
+---
+
+## 4. Requirements and Test Traceability
+
+Every significant behaviour must have a requirement ID from `src/Requirements.hpp`. Reference it in your unit test:
+
+```cpp
+// Verifies DV-FDIR-01: system enters SAFE_MODE when battery < 5%
+TEST(WatchdogComponent, BatterySafeModeThreshold) {
+    ...
+}
+```
+
+This is how high-assurance projects survive design reviews. When a reviewer asks "why does this code exist?", the answer is `DV-FDIR-01` and the unit test is the proof.
+
+---
+
+## 5. Protecting Critical Parameters with TMR
+
+For parameters used in safety-critical calculations:
+
+```cpp
+#include "TmrStore.hpp"
+
+// Declare a TMR-protected gain
+TmrStore<float> kp_gain{1.5f};
+
+// Register with the scrubber (call once in init())
+TmrRegistry::getInstance().registerStore("kp_gain", &kp_gain);
+
+// Use in step() — always read through vote()
+float kp = kp_gain.read();
+```
+
+The Watchdog calls `TmrRegistry::scrubAll()` every 30 scheduler cycles to repair any SEU-corrupted copies.
+
+---
+
+## 6. Fault Injection Testing
+
+The `WatchdogComponent::injectBatteryLevel()` hook allows tests to drive the mission FSM without waiting for real battery discharge:
+
+```cpp
+// In a unit test or HIL test script:
+topology.watchdog.injectBatteryLevel(4.0f);  // triggers SAFE_MODE
+EXPECT_EQ(topology.watchdog.getMissionState(), MissionState::SAFE_MODE);
+
+topology.watchdog.injectBatteryLevel(1.0f);  // triggers EMERGENCY
+EXPECT_EQ(topology.watchdog.getMissionState(), MissionState::EMERGENCY);
+```
+
+For I2C fault injection, subclass `hal::MockI2c` and override `read()` to return `false` after N calls:
+
+```cpp
+class FaultI2c : public deltav::hal::MockI2c {
+    int calls = 0;
+    bool read(...) override {
+        if (++calls > 5) return false; // simulate bus failure
+        return MockI2c::read(...);
+    }
+};
+```
+
+---
+
+## 7. Build Targets
+
+| Target | Command | Purpose |
+|---|---|---|
+| Flight binary | `cmake --build . --target flight_software` | SITL executable |
+| Unit tests | `cmake --build . --target run_tests` | GTest suite |
+| Coverage report | `cmake --build . --target coverage` | lcov HTML report |
+| Static analysis | `cmake --build . --target tidy` | clang-tidy |
+
+---
+
+## 8. GDS Workflow
+
+1. Start flight software: `./build/flight_software`
+2. Start GDS: `streamlit run gds/gds_dash.py`
+3. Use the sidebar to select and send commands — the dictionary auto-loads from `dictionary.json`
+4. Events appear in `flight_events.log` and the GDS event panel
+5. Telemetry is logged to `flight_log.csv` and plotted in real time
+
+---
+
+## 9. Adding a Command to the FSM Policy
+
+If your new command is safety-critical (should be blocked in `SAFE_MODE`), add it to `src/MissionFsm.hpp`:
+
+```cpp
+constexpr std::array<OpcodePolicy, N> OPCODE_TABLE = {{
+    ...
+    { 50, OpClass::RESTRICTED },  // MY_NEW_COMMAND — blocked in SAFE_MODE/EMERGENCY
+}};
+```
+
+`OpClass::HOUSEKEEPING` = allowed in all states.
+`OpClass::OPERATIONAL` = blocked in SAFE_MODE and EMERGENCY.
+`OpClass::RESTRICTED` = allowed in NOMINAL only.

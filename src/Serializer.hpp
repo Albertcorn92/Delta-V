@@ -12,6 +12,7 @@
 #include <array>
 #include <bit>
 #include <cstdint>
+#include <cstddef>
 #include "Types.hpp"
 
 namespace deltav {
@@ -23,27 +24,34 @@ public:
     using CommandBytes = std::array<uint8_t, sizeof(CommandPacket)>;   // 12 B
     using EventBytes   = std::array<uint8_t, sizeof(EventPacket)>;     // 36 B
 
+    // DO-178C: Named constants for CRC algorithm
+    static constexpr uint32_t CRC_INITIAL_VAL = 0xFFFFu;
+    static constexpr uint32_t CRC_POLY        = 0x1021u;
+    static constexpr uint32_t CRC_HIGH_BIT    = 0x8000u;
+    static constexpr uint32_t CRC_MASK        = 0xFFFFu;
+    static constexpr size_t   BITS_PER_BYTE   = 8;
+
     // --- TelemetryPacket ---
-    static constexpr TelemBytes pack(const TelemetryPacket& p) {
+    [[nodiscard]] static constexpr auto pack(const TelemetryPacket& p) -> TelemBytes {
         return std::bit_cast<TelemBytes>(p);
     }
-    static constexpr TelemetryPacket unpackTelem(const TelemBytes& b) {
+    [[nodiscard]] static constexpr auto unpackTelem(const TelemBytes& b) -> TelemetryPacket {
         return std::bit_cast<TelemetryPacket>(b);
     }
 
     // --- CommandPacket ---
-    static constexpr CommandBytes pack(const CommandPacket& p) {
+    [[nodiscard]] static constexpr auto pack(const CommandPacket& p) -> CommandBytes {
         return std::bit_cast<CommandBytes>(p);
     }
-    static constexpr CommandPacket unpackCommand(const CommandBytes& b) {
+    [[nodiscard]] static constexpr auto unpackCommand(const CommandBytes& b) -> CommandPacket {
         return std::bit_cast<CommandPacket>(b);
     }
 
     // --- EventPacket ---
-    static constexpr EventBytes pack(const EventPacket& p) {
+    [[nodiscard]] static constexpr auto pack(const EventPacket& p) -> EventBytes {
         return std::bit_cast<EventBytes>(p);
     }
-    static constexpr EventPacket unpackEvent(const EventBytes& b) {
+    [[nodiscard]] static constexpr auto unpackEvent(const EventBytes& b) -> EventPacket {
         return std::bit_cast<EventPacket>(b);
     }
 
@@ -52,13 +60,14 @@ public:
     // Used to protect every downlink frame. Computed over the payload bytes
     // after the CcsdsHeader, before transmission.
     // -----------------------------------------------------------------------
-    static constexpr uint16_t crc16(const uint8_t* data, size_t len) {
-        uint32_t crc = 0xFFFFu;
+    [[nodiscard]] static constexpr auto crc16(const uint8_t* data, size_t len) -> uint16_t {
+        uint32_t crc = CRC_INITIAL_VAL;
         for (size_t i = 0; i < len; ++i) {
-            crc ^= static_cast<uint32_t>(data[i]) << 8u;
-            for (int j = 0; j < 8; ++j) {
-                crc = (crc & 0x8000u) ? ((crc << 1u) ^ 0x1021u) : (crc << 1u);
-                crc &= 0xFFFFu; // keep in 16-bit range without narrowing cast
+            crc ^= static_cast<uint32_t>(data[i]) << BITS_PER_BYTE;
+            for (size_t j = 0; j < BITS_PER_BYTE; ++j) {
+                // Explicit != 0u check for strict typing
+                crc = ((crc & CRC_HIGH_BIT) != 0u) ? ((crc << 1u) ^ CRC_POLY) : (crc << 1u);
+                crc &= CRC_MASK; // keep in 16-bit range without narrowing cast
             }
         }
         return static_cast<uint16_t>(crc);
@@ -66,7 +75,7 @@ public:
 
     // Convenience: compute CRC over a fixed-size array
     template<size_t N>
-    static constexpr uint16_t crc16(const std::array<uint8_t, N>& data) {
+    [[nodiscard]] static constexpr auto crc16(const std::array<uint8_t, N>& data) -> uint16_t {
         return crc16(data.data(), N);
     }
 

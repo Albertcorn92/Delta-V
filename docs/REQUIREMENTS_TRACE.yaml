@@ -1,0 +1,285 @@
+requirements:
+  DV-ARCH-01:
+    dal: B
+    statement: "Passive components execute in deterministic cyclic scheduling."
+    evidence:
+      - type: test
+        ref: "Scheduler.RegisterAndInit"
+      - type: test
+        ref: "RateGroupExecutive.InitAllCallsComponentInit"
+
+  DV-ARCH-02:
+    dal: B
+    statement: "Active components run on independent threads at declared rates."
+    evidence:
+      - type: test
+        ref: "ActiveComponent.ThreadLifecycleStartStop"
+      - type: test
+        ref: "ImuComponent.StepPublishesTelemetryOnReadSuccess"
+      - type: analysis
+        ref: "src/Os.hpp"
+
+  DV-ARCH-03:
+    dal: C
+    statement: "Global mutable state restricted to explicit singleton services."
+    evidence:
+      - type: test
+        ref: "Architecture.SingletonServiceIdentity"
+      - type: analysis
+        ref: "src/Requirements.hpp"
+      - type: analysis
+        ref: "docs/ARCHITECTURE.md"
+
+  DV-MEM-01:
+    dal: A
+    statement: "No dynamic allocation succeeds after HeapGuard is armed."
+    evidence:
+      - type: test
+        ref: "HeapGuard.ArmAndIsArmed"
+      - type: test
+        ref: "HeapGuard.NewAfterArmTriggersFatal"
+
+  DV-MEM-02:
+    dal: A
+    statement: "Static arrays are compile-time bounded."
+    evidence:
+      - type: test
+        ref: "MemorySafety.StaticBoundsAreNonZero"
+      - type: analysis
+        ref: "src/Port.hpp"
+      - type: analysis
+        ref: "src/Types.hpp"
+
+  DV-MEM-03:
+    dal: B
+    statement: "RingBuffer overflow is counted and observable."
+    evidence:
+      - type: test
+        ref: "RingBuffer.OverflowCounted"
+      - type: test
+        ref: "RingBuffer.DrainOverflowCount"
+
+  DV-FDIR-01:
+    dal: A
+    statement: "SAFE_MODE on low battery."
+    evidence:
+      - type: test
+        ref: "WdFixture.SafeModeOnLowBattery"
+      - type: test
+        ref: "WdFixture.InjectBatteryLevel_v3"
+
+  DV-FDIR-02:
+    dal: A
+    statement: "EMERGENCY mode on very low battery."
+    evidence:
+      - type: test
+        ref: "WdFixture.EmergencyOnVeryLowBattery"
+
+  DV-FDIR-03:
+    dal: B
+    statement: "DEGRADED mode on warning health status."
+    evidence:
+      - type: test
+        ref: "WdFixture.DegradedFromWarning"
+
+  DV-FDIR-04:
+    dal: A
+    statement: "Automatic restart attempts for critical active components."
+    evidence:
+      - type: test
+        ref: "WdFixture.RestartsCriticalActiveComponent"
+
+  DV-FDIR-05:
+    dal: B
+    statement: "Recovery to NOMINAL when conditions normalize."
+    evidence:
+      - type: test
+        ref: "WdFixture.DegradedAutoRecovery"
+
+  DV-FDIR-06:
+    dal: B
+    statement: "Periodic heartbeat event emission."
+    evidence:
+      - type: test
+        ref: "WdFixture.HeartbeatAtCycle10"
+
+  DV-FDIR-07:
+    dal: C
+    statement: "Scheduler frame drops surfaced into FDIR event stream."
+    evidence:
+      - type: test
+        ref: "WdFixture.SchedulerHealthEmitsOnNewDrops"
+      - type: test
+        ref: "WdFixture.SchedulerHealthSilentWhenNoNewDrops"
+
+  DV-FDIR-08:
+    dal: B
+    statement: "NACK on unroutable command increments error counter."
+    evidence:
+      - type: test
+        ref: "CommandHubFixture.NackOnUnknownTarget"
+      - type: test
+        ref: "CommandHubFixture.DuplicateRouteRegistrationIsRejected"
+      - type: test
+        ref: "CommandHubFixture.NullRouteRegistrationIsRejected"
+
+  DV-FDIR-09:
+    dal: B
+    statement: "Battery thresholds are sourced from TMR and invalid configs fail safe."
+    evidence:
+      - type: test
+        ref: "WatchdogThresholds.UsesConfiguredBatteryThresholds"
+      - type: test
+        ref: "WatchdogThresholds.InvalidThresholdConfigFallsBackToDefaults"
+
+  DV-COMM-01:
+    dal: B
+    statement: "CCSDS framing and CRC are applied to flight packets."
+    evidence:
+      - type: test
+        ref: "Types.PacketSizes"
+      - type: test
+        ref: "Serializer.CRC16ArrayOverload"
+
+  DV-COMM-02:
+    dal: B
+    statement: "COBS framing preserves synchronization properties."
+    evidence:
+      - type: test
+        ref: "Cobs.RoundtripShortPayload"
+      - type: test
+        ref: "Cobs.NoZerosInEncodedData"
+      - type: test
+        ref: "Cobs.DelimiterIsLastByte"
+      - type: test
+        ref: "Cobs.DecodeFailsOnTruncated"
+
+  DV-COMM-03:
+    dal: A
+    statement: "Uplink commands use canonical CCSDS command framing."
+    evidence:
+      - type: test
+        ref: "TelemetryBridge.RejectsNonCanonicalFrameLength"
+
+  DV-COMM-04:
+    dal: A
+    statement: "Replay command sequences are rejected."
+    evidence:
+      - type: test
+        ref: "TelemetryBridge.RejectsReplaySequence"
+
+  DV-COMM-05:
+    dal: B
+    statement: "Uplink command processing is bounded per scheduler tick."
+    evidence:
+      - type: test
+        ref: "TelemetryBridge.EnforcesMaxCommandsPerTick"
+
+  DV-COMM-06:
+    dal: A
+    statement: "Replay sequence is persisted and reloaded when configured."
+    evidence:
+      - type: test
+        ref: "TelemetryBridge.PersistsReplaySequenceAcrossRestart"
+
+  DV-TIME-01:
+    dal: B
+    statement: "Absolute deadline scheduling prevents drift accumulation."
+    evidence:
+      - type: test
+        ref: "ActiveComponent.ThreadLifecycleStartStop"
+      - type: analysis
+        ref: "src/Os.hpp"
+
+  DV-TIME-02:
+    dal: C
+    statement: "One-time warning near MET overflow threshold."
+    evidence:
+      - type: test
+        ref: "TimeService.OverflowWarningThreshold"
+
+  DV-SEC-01:
+    dal: A
+    statement: "Malformed uplink header fields are rejected."
+    evidence:
+      - type: test
+        ref: "TelemetryBridge.RejectsInvalidHeaderFields"
+
+  DV-SEC-02:
+    dal: B
+    statement: "Mission FSM gates command dispatch."
+    evidence:
+      - type: test
+        ref: "CommandHubFixture.BlocksOperationalInSafeMode"
+      - type: test
+        ref: "MissionFsm.SafeModeBlocksOperational"
+
+  DV-SEC-03:
+    dal: A
+    statement: "Truncated or oversized uplink frames are rejected."
+    evidence:
+      - type: test
+        ref: "TelemetryBridge.RejectsTruncatedFrame"
+      - type: test
+        ref: "TelemetryBridge.RejectsNonCanonicalFrameLength"
+
+  DV-DATA-01:
+    dal: A
+    statement: "ParamDb integrity is verifiable using checksum."
+    evidence:
+      - type: test
+        ref: "ParamDb.IntegrityAfterWrite"
+      - type: test
+        ref: "ParamDb.ConcurrentReadWrite"
+
+  DV-DATA-02:
+    dal: B
+    statement: "Critical params stored in TMR with majority vote."
+    evidence:
+      - type: test
+        ref: "TmrStore.WriteAndRead"
+      - type: test
+        ref: "TmrStore.MajorityVoteHealsOneSEU"
+
+  DV-DATA-03:
+    dal: B
+    statement: "Periodic TMR scrub executed via registry."
+    evidence:
+      - type: test
+        ref: "TmrStore.TmrRegistryScrubAll"
+      - type: test
+        ref: "WdFixture.PeriodicTmrScrubRepairsSingleFault"
+
+  DV-LOG-01:
+    dal: C
+    statement: "Telemetry and events logged on separate channels."
+    evidence:
+      - type: test
+        ref: "LoggerComponent.DrainsAll"
+      - type: analysis
+        ref: "src/LoggerComponent.hpp"
+
+  DV-LOG-02:
+    dal: C
+    statement: "Event log flush policy is enforced."
+    evidence:
+      - type: test
+        ref: "LoggerComponent.EventFlushesImmediately"
+      - type: test
+        ref: "LoggerComponent.TelemetryFlushesAtInterval"
+      - type: analysis
+        ref: "src/LoggerComponent.hpp"
+
+  DV-TMR-01:
+    dal: A
+    statement: "Single-upset divergence is repaired by majority vote."
+    evidence:
+      - type: test
+        ref: "TmrStore.MajorityVoteHealsOneSEU"
+
+  DV-TMR-02:
+    dal: B
+    statement: "Double upset is detectable and handled best-effort."
+    evidence:
+      - type: test
+        ref: "TmrStore.AllThreeDifferIsNotSane"

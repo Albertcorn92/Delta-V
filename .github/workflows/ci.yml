@@ -1,233 +1,230 @@
-# =============================================================================
-# DELTA-V Framework — Continuous Integration Pipeline
-# =============================================================================
-# Runs on every push and pull request to main/develop.
-#
-# Jobs:
-#   1. build-and-test    — GCC + Clang, Debug (ASan/UBSan) + Release
-#   2. coverage          — Line coverage report, fails if < 80%
-#   3. static-analysis   — clang-tidy with aerospace-grade rule sets
-#   4. cross-compile     — arm-none-eabi-g++ for Cortex-M7 (no RTOS needed)
-#
-# All jobs must pass before a PR can be merged.
-# =============================================================================
-
 name: DELTA-V CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main]
 
-env:
-  BUILD_DIR: build
-  COVERAGE_MIN: 80   # Fail if line coverage drops below this percent
+# Cancel in-progress runs for the same branch to save CI minutes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-# ---------------------------------------------------------------------------
-# Job 1: Build + Unit Tests (GCC and Clang, Debug + Release)
-# ---------------------------------------------------------------------------
 jobs:
-  build-and-test:
-    name: Build & Test (${{ matrix.compiler }}, ${{ matrix.build_type }})
+  # ---------------------------------------------------------------------------
+  # 0. Legal compliance gate
+  # ---------------------------------------------------------------------------
+  legal-compliance:
+    name: Legal Compliance Gate
     runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run legal compliance checker
+        run: python3 tools/legal_compliance_check.py
+
+  # ---------------------------------------------------------------------------
+  # 1. Build & Test (Ubuntu, clang, gcc)
+  # ---------------------------------------------------------------------------
+  build-and-test:
+    name: Build & Test — ${{ matrix.os }} / ${{ matrix.compiler }}
+    runs-on: ${{ matrix.os }}
+    needs: legal-compliance
 
     strategy:
       fail-fast: false
       matrix:
-        compiler: [gcc, clang]
-        build_type: [Debug, Release]
+        include:
+          - os: ubuntu-22.04
+            compiler: gcc
+            cc: gcc-12
+            cxx: g++-12
+          - os: ubuntu-22.04
+            compiler: clang
+            cc: clang-14
+            cxx: clang++-14
+          - os: macos-13
+            compiler: clang
+            cc: clang
+            cxx: clang++
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install system dependencies (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
-          sudo apt-get update -qq
+          sudo apt-get update -q
           sudo apt-get install -y \
             cmake ninja-build \
-            libgtest-dev \
-            clang clang-tidy \
-            gcc g++
+            libgtest-dev libgmock-dev \
+            ${{ matrix.cc }} \
+            lcov
 
-      - name: Select compiler
+      - name: Install system dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
         run: |
-          if [ "${{ matrix.compiler }}" = "clang" ]; then
-            echo "CC=clang"   >> $GITHUB_ENV
-            echo "CXX=clang++" >> $GITHUB_ENV
-          else
-            echo "CC=gcc"   >> $GITHUB_ENV
-            echo "CXX=g++"  >> $GITHUB_ENV
-          fi
+          brew install cmake ninja googletest lcov
 
-      - name: Configure CMake
+      - name: Install Python dependencies
+        run: pip3 install pyyaml --quiet
+
+      - name: Run autocoder
+        run: python3 tools/autocoder.py
+
+      - name: Configure (Debug + ASan/UBSan)
+        env:
+          CC:  ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
         run: |
-          cmake -B $BUILD_DIR \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_C_COMPILER=$CC \
-            -DCMAKE_CXX_COMPILER=$CXX \
-            -G Ninja
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
-      - name: Build
-        run: cmake --build $BUILD_DIR --parallel
+      - name: Build flight_software
+        run: cmake --build build --target flight_software
+
+      - name: Build run_tests
+        run: cmake --build build --target run_tests
 
       - name: Run unit tests
         run: |
-          cd $BUILD_DIR
-          ./run_tests --gtest_output=xml:test_results.xml
+          cd build
+          ctest --output-on-failure --timeout 60
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results-${{ matrix.compiler }}-${{ matrix.build_type }}
-          path: ${{ env.BUILD_DIR }}/test_results.xml
+      - name: Configure (Release)
+        env:
+          CC:  ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: |
+          cmake -B build_release -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
 
-# ---------------------------------------------------------------------------
-# Job 2: Coverage (GCC Debug with --coverage, lcov HTML report)
-# ---------------------------------------------------------------------------
+      - name: Build Release
+        run: cmake --build build_release --target flight_software
+
+  # ---------------------------------------------------------------------------
+  # 2. Autocoder validation
+  # ---------------------------------------------------------------------------
+  autocoder-validate:
+    name: Autocoder Validation
+    runs-on: ubuntu-22.04
+    needs: legal-compliance
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip3 install pyyaml --quiet
+      - name: Dry-run validation
+        run: python3 tools/autocoder.py --dry-run
+      - name: Full autocoder run
+        run: python3 tools/autocoder.py
+
+  # ---------------------------------------------------------------------------
+  # 3. Coverage report (Ubuntu gcc only)
+  # ---------------------------------------------------------------------------
   coverage:
-    name: Code Coverage
+    name: Coverage Report
     runs-on: ubuntu-22.04
     needs: build-and-test
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y cmake ninja-build libgtest-dev gcc g++ lcov
+          sudo apt-get update -q
+          sudo apt-get install -y cmake ninja-build libgtest-dev lcov g++-12
 
-      - name: Configure with coverage flags
+      - run: pip3 install pyyaml --quiet
+      - run: python3 tools/autocoder.py
+
+      - name: Configure with coverage
+        env:
+          CC:  gcc-12
+          CXX: g++-12
         run: |
-          cmake -B $BUILD_DIR \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_COMPILER=g++ \
-            -G Ninja
+          cmake -B build_cov -G Ninja -DCMAKE_BUILD_TYPE=Debug
 
       - name: Build coverage binary
-        run: cmake --build $BUILD_DIR --target run_tests_coverage --parallel
+        run: cmake --build build_cov --target run_tests_coverage
 
-      - name: Run coverage binary
-        run: cd $BUILD_DIR && ./run_tests_coverage
+      - name: Generate coverage report
+        run: cmake --build build_cov --target coverage
 
-      - name: Capture coverage
-        run: |
-          cd $BUILD_DIR
-          lcov --capture \
-               --directory . \
-               --output-file coverage.info
-          lcov --remove coverage.info \
-               '/usr/*' '*/tests/*' '*/googletest/*' \
-               --output-file coverage_filtered.info
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: build_cov/cov.info
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Generate HTML report
-        run: |
-          cd $BUILD_DIR
-          genhtml coverage_filtered.info \
-                  --output-directory coverage_report \
-                  --title "DELTA-V Framework Coverage"
-
-      - name: Check coverage threshold
-        run: |
-          cd $BUILD_DIR
-          TOTAL=$(lcov --summary coverage_filtered.info 2>&1 \
-                  | grep "lines" | grep -o '[0-9]*\.[0-9]*%' | head -1 | tr -d '%')
-          echo "Line coverage: ${TOTAL}%"
-          echo "Minimum required: ${COVERAGE_MIN}%"
-          if (( $(echo "$TOTAL < $COVERAGE_MIN" | bc -l) )); then
-            echo "FAIL: Coverage ${TOTAL}% is below minimum ${COVERAGE_MIN}%"
-            exit 1
-          fi
-          echo "PASS: Coverage ${TOTAL}% meets minimum ${COVERAGE_MIN}%"
-
-      - name: Upload coverage report
+      - name: Archive HTML report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
-          path: ${{ env.BUILD_DIR }}/coverage_report/
+          name: coverage-html
+          path: build_cov/coverage_html/
+          retention-days: 14
 
-# ---------------------------------------------------------------------------
-# Job 3: Static Analysis (clang-tidy with aerospace rule sets)
-# ---------------------------------------------------------------------------
-  static-analysis:
-    name: Static Analysis (clang-tidy)
+  # ---------------------------------------------------------------------------
+  # 4. Safety assurance gate (blocking)
+  # ---------------------------------------------------------------------------
+  safety-assurance:
+    name: Safety Assurance Gate
     runs-on: ubuntu-22.04
     needs: build-and-test
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update -q
+          sudo apt-get install -y cmake ninja-build clang-14 clang-tidy-14 libgtest-dev
+          pip3 install pyyaml --quiet
+      - run: python3 tools/autocoder.py
+      - name: Configure
+        env: { CC: clang-14, CXX: clang++-14 }
+        run: cmake -B build_tidy -G Ninja -DCMAKE_BUILD_TYPE=Debug
+      - name: Run qualification bundle gate
+        run: cmake --build build_tidy --target qualification_bundle
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y cmake ninja-build libgtest-dev clang clang-tidy
-
-      - name: Configure (generate compile_commands.json)
-        run: |
-          cmake -B $BUILD_DIR \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -G Ninja
-          cmake --build $BUILD_DIR --parallel
-
-      - name: Run clang-tidy
-        run: |
-          find src -name "*.hpp" -o -name "*.cpp" | \
-          xargs clang-tidy \
-            -p $BUILD_DIR \
-            --checks="cppcoreguidelines-*,cert-*,performance-*,modernize-*,bugprone-*,readability-identifier-naming,-bugprone-easily-swappable-parameters,-cppcoreguidelines-pro-type-reinterpret-cast,-cppcoreguidelines-pro-type-vararg,-cppcoreguidelines-pro-type-const-cast,-cert-err33-c" \
-            --warnings-as-errors="bugprone-*,cert-*,cppcoreguidelines-pro-type-*" \
-            2>&1 | tee clang_tidy_report.txt
-          # Fail if any errors were found
-          if grep -q "error:" clang_tidy_report.txt; then
-            echo "clang-tidy found errors. See report above."
-            exit 1
-          fi
-
-      - name: Upload clang-tidy report
+      - name: Archive safety artifacts
         uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: clang-tidy-report
-          path: clang_tidy_report.txt
+          name: safety-assurance-artifacts
+          path: |
+            build_tidy/requirements_trace_matrix.md
+            build_tidy/requirements_trace_matrix.json
+            build_tidy/qualification/qualification_report.md
+            build_tidy/qualification/qualification_report.json
+          retention-days: 14
 
-# ---------------------------------------------------------------------------
-# Job 4: Cross-Compile for Cortex-M7 (embedded target verification)
-# Confirms framework headers compile clean for arm-none-eabi-g++.
-# Flight software binary is not executed — just verified it links.
-# ---------------------------------------------------------------------------
-  cross-compile:
-    name: Cross-Compile (arm-none-eabi, Cortex-M7)
+  # ---------------------------------------------------------------------------
+  # 5. Python tool tests
+  # ---------------------------------------------------------------------------
+  python-tools:
+    name: Python Tools
     runs-on: ubuntu-22.04
-    needs: build-and-test
+    needs: legal-compliance
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - run: pip3 install pyyaml --quiet
 
-      - name: Install ARM toolchain
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y gcc-arm-none-eabi cmake ninja-build
+      - name: Autocoder dry-run
+        run: python3 tools/autocoder.py --dry-run
 
-      - name: Configure for Cortex-M7
-        run: |
-          cmake -B build_arm \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm-cortex-m7.cmake \
-            -DCMAKE_BUILD_TYPE=Release \
-            -G Ninja \
-            || echo "Toolchain file not present — skipping ARM build (expected on first run)"
+      - name: dv-util list
+        run: python3 tools/dv-util.py list
 
-      - name: Build ARM target
+      - name: dv-util check
+        run: python3 tools/dv-util.py check
+
+      - name: dv-util add-component roundtrip
         run: |
-          if [ -f cmake/toolchain-arm-cortex-m7.cmake ]; then
-            cmake --build build_arm --target flight_software --parallel
-          else
-            echo "ARM toolchain file not yet created — skipping. See docs/PORTING.md"
-          fi
+          python3 tools/dv-util.py add-component TestWidget --rate fast
+          test -f src/TestWidgetComponent.hpp
+          echo "TestWidgetComponent.hpp created OK"
+
+      - name: Autocoder after add-component
+        run: python3 tools/autocoder.py
