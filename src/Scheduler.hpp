@@ -1,80 +1,92 @@
 #pragma once
+// =============================================================================
+// Scheduler.hpp — DELTA-V Real-Time Executive
+// =============================================================================
+// Manages two execution domains:
+//   1. PASSIVE loop: runs all passive components in the master thread at target_hz
+//   2. ACTIVE threads: each ActiveComponent owns its own Os::Thread (started here)
+//
+// Frame drop tracking: counts how many scheduler ticks overran their deadline.
+// This is critical FDIR data — persistent frame drops indicate the passive
+// component load is too high for the target rate and must be reduced.
+// =============================================================================
+#include "Component.hpp"
 #include <array>
 #include <chrono>
-#include <thread>
 #include <iostream>
-#include "Component.hpp"
+#include <thread>
 
 namespace deltav {
 
-// Define the maximum number of components the flight computer can run
 constexpr size_t MAX_COMPONENTS = 32;
 
 class Scheduler {
 public:
-    void initAll() {
-        std::cout << "[Scheduler] Initializing all subsystems..." << std::endl;
-        for (size_t i = 0; i < component_count; ++i) {
-            schedule[i]->init();
-        }
-        std::cout << "[Scheduler] All systems Green. Ready for loop entry." << std::endl;
-    }
-
     void registerComponent(Component* comp) {
         if (component_count < MAX_COMPONENTS) {
             schedule[component_count++] = comp;
-            std::cout << "[Scheduler] Locked into execution timeline: " << comp->getName() 
-                      << (comp->isActive() ? " [ACTIVE]" : " [PASSIVE]") << std::endl;
+            std::cout << "[Scheduler] Registered: " << comp->getName()
+                      << (comp->isActive() ? " [ACTIVE]" : " [PASSIVE]") << "\n";
         } else {
-            std::cout << "[FATAL] Scheduler component limit reached. Refusing to load: " 
-                      << comp->getName() << std::endl;
+            std::cerr << "[FATAL] Scheduler: component limit reached. "
+                         "Cannot register " << comp->getName() << "\n";
         }
     }
 
+    void initAll() {
+        std::cout << "[Scheduler] Initializing " << component_count
+                  << " subsystems...\n";
+        for (size_t i = 0; i < component_count; ++i) {
+            schedule[i]->init();
+        }
+        std::cout << "[Scheduler] All systems nominal.\n";
+    }
+
     void executeLoop(uint32_t target_hz) {
-        std::cout << "\n[Scheduler] Ignition. Spawning Active Component Threads..." << std::endl;
-        
-        // 1. Boot up all Active Components on their own OS threads
+        std::cout << "[Scheduler] Starting active threads...\n";
         for (size_t i = 0; i < component_count; ++i) {
             schedule[i]->startThread();
         }
 
-        std::cout << "[Scheduler] Entering real-time master loop at " << target_hz << " Hz." << std::endl;
-        std::cout << "[Scheduler] >> Press Ctrl+C in the terminal to abort simulation. <<\n" << std::endl;
+        std::cout << "[Scheduler] Master loop at " << target_hz
+                  << " Hz. Press Ctrl+C to abort.\n\n";
 
-        auto tick_duration = std::chrono::milliseconds(1000 / target_hz);
+        const auto tick = std::chrono::nanoseconds(1'000'000'000ULL / target_hz);
+        auto next_wake  = std::chrono::steady_clock::now();
 
         while (true) {
-            auto start_time = std::chrono::steady_clock::now();
-
-            // 2. Execute ONLY Passive components in this master thread
             for (size_t i = 0; i < component_count; ++i) {
                 if (!schedule[i]->isActive()) {
                     schedule[i]->step();
                 }
             }
 
-            auto end_time = std::chrono::steady_clock::now();
-            auto elapsed = end_time - start_time;
-            
-            if (elapsed < tick_duration) {
-                std::this_thread::sleep_for(tick_duration - elapsed);
+            next_wake += tick;
+            auto now = std::chrono::steady_clock::now();
+            if (now > next_wake) {
+                ++frame_drops;
+                if (frame_drops % 10 == 1) {
+                    std::cerr << "[Scheduler] WARNING: frame drop #" << frame_drops
+                              << " — passive load exceeds " << target_hz << " Hz budget\n";
+                }
             } else {
-                std::cout << "[WARNING] Scheduler Frame Drop! Passive execution exceeded tick duration." << std::endl;
+                std::this_thread::sleep_until(next_wake);
             }
         }
     }
 
+    uint64_t getFrameDropCount() const { return frame_drops; }
+
     ~Scheduler() {
-        // Safely spin down active threads if the flight computer shuts down
         for (size_t i = 0; i < component_count; ++i) {
             schedule[i]->joinThread();
         }
     }
 
 private:
-    std::array<Component*, MAX_COMPONENTS> schedule;
-    size_t component_count = 0;
+    std::array<Component*, MAX_COMPONENTS> schedule{};
+    size_t   component_count{0};
+    uint64_t frame_drops{0};
 };
 
 } // namespace deltav

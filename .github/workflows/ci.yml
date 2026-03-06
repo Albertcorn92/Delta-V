@@ -1,0 +1,234 @@
+# =============================================================================
+# DELTA-V Framework — Continuous Integration Pipeline
+# =============================================================================
+# Runs on every push and pull request to main/develop.
+#
+# Jobs:
+#   1. build-and-test    — GCC + Clang, Debug (ASan/UBSan) + Release
+#   2. coverage          — Line coverage report, fails if < 80%
+#   3. static-analysis   — clang-tidy with aerospace-grade rule sets
+#   4. cross-compile     — arm-none-eabi-g++ for Cortex-M7 (no RTOS needed)
+#
+# All jobs must pass before a PR can be merged.
+# =============================================================================
+
+name: DELTA-V CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  BUILD_DIR: build
+  COVERAGE_MIN: 80   # Fail if line coverage drops below this percent
+
+# ---------------------------------------------------------------------------
+# Job 1: Build + Unit Tests (GCC and Clang, Debug + Release)
+# ---------------------------------------------------------------------------
+jobs:
+  build-and-test:
+    name: Build & Test (${{ matrix.compiler }}, ${{ matrix.build_type }})
+    runs-on: ubuntu-22.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        build_type: [Debug, Release]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            cmake ninja-build \
+            libgtest-dev \
+            clang clang-tidy \
+            gcc g++
+
+      - name: Select compiler
+        run: |
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            echo "CC=clang"   >> $GITHUB_ENV
+            echo "CXX=clang++" >> $GITHUB_ENV
+          else
+            echo "CC=gcc"   >> $GITHUB_ENV
+            echo "CXX=g++"  >> $GITHUB_ENV
+          fi
+
+      - name: Configure CMake
+        run: |
+          cmake -B $BUILD_DIR \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_C_COMPILER=$CC \
+            -DCMAKE_CXX_COMPILER=$CXX \
+            -G Ninja
+
+      - name: Build
+        run: cmake --build $BUILD_DIR --parallel
+
+      - name: Run unit tests
+        run: |
+          cd $BUILD_DIR
+          ./run_tests --gtest_output=xml:test_results.xml
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.compiler }}-${{ matrix.build_type }}
+          path: ${{ env.BUILD_DIR }}/test_results.xml
+
+# ---------------------------------------------------------------------------
+# Job 2: Coverage (GCC Debug with --coverage, lcov HTML report)
+# ---------------------------------------------------------------------------
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-22.04
+    needs: build-and-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y cmake ninja-build libgtest-dev gcc g++ lcov
+
+      - name: Configure with coverage flags
+        run: |
+          cmake -B $BUILD_DIR \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -G Ninja
+
+      - name: Build coverage binary
+        run: cmake --build $BUILD_DIR --target run_tests_coverage --parallel
+
+      - name: Run coverage binary
+        run: cd $BUILD_DIR && ./run_tests_coverage
+
+      - name: Capture coverage
+        run: |
+          cd $BUILD_DIR
+          lcov --capture \
+               --directory . \
+               --output-file coverage.info \
+               --ignore-errors mismatch
+          lcov --remove coverage.info \
+               '/usr/*' '*/tests/*' '*/googletest/*' \
+               --output-file coverage_filtered.info
+
+      - name: Generate HTML report
+        run: |
+          cd $BUILD_DIR
+          genhtml coverage_filtered.info \
+                  --output-directory coverage_report \
+                  --title "DELTA-V Framework Coverage"
+
+      - name: Check coverage threshold
+        run: |
+          cd $BUILD_DIR
+          TOTAL=$(lcov --summary coverage_filtered.info 2>&1 \
+                  | grep "lines" | grep -o '[0-9]*\.[0-9]*%' | head -1 | tr -d '%')
+          echo "Line coverage: ${TOTAL}%"
+          echo "Minimum required: ${COVERAGE_MIN}%"
+          if (( $(echo "$TOTAL < $COVERAGE_MIN" | bc -l) )); then
+            echo "FAIL: Coverage ${TOTAL}% is below minimum ${COVERAGE_MIN}%"
+            exit 1
+          fi
+          echo "PASS: Coverage ${TOTAL}% meets minimum ${COVERAGE_MIN}%"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ${{ env.BUILD_DIR }}/coverage_report/
+
+# ---------------------------------------------------------------------------
+# Job 3: Static Analysis (clang-tidy with aerospace rule sets)
+# ---------------------------------------------------------------------------
+  static-analysis:
+    name: Static Analysis (clang-tidy)
+    runs-on: ubuntu-22.04
+    needs: build-and-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y cmake ninja-build libgtest-dev clang clang-tidy
+
+      - name: Configure (generate compile_commands.json)
+        run: |
+          cmake -B $BUILD_DIR \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -G Ninja
+          cmake --build $BUILD_DIR --parallel
+
+      - name: Run clang-tidy
+        run: |
+          find src -name "*.hpp" -o -name "*.cpp" | \
+          xargs clang-tidy \
+            -p $BUILD_DIR \
+            --checks="cppcoreguidelines-*,cert-*,performance-*,modernize-*,bugprone-*,readability-identifier-naming" \
+            --warnings-as-errors="bugprone-*,cert-*,cppcoreguidelines-pro-type-*" \
+            2>&1 | tee clang_tidy_report.txt
+          # Fail if any errors were found
+          if grep -q "error:" clang_tidy_report.txt; then
+            echo "clang-tidy found errors. See report above."
+            exit 1
+          fi
+
+      - name: Upload clang-tidy report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clang-tidy-report
+          path: clang_tidy_report.txt
+
+# ---------------------------------------------------------------------------
+# Job 4: Cross-Compile for Cortex-M7 (embedded target verification)
+# Confirms framework headers compile clean for arm-none-eabi-g++.
+# Flight software binary is not executed — just verified it links.
+# ---------------------------------------------------------------------------
+  cross-compile:
+    name: Cross-Compile (arm-none-eabi, Cortex-M7)
+    runs-on: ubuntu-22.04
+    needs: build-and-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ARM toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc-arm-none-eabi cmake ninja-build
+
+      - name: Configure for Cortex-M7
+        run: |
+          cmake -B build_arm \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm-cortex-m7.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -G Ninja \
+            || echo "Toolchain file not present — skipping ARM build (expected on first run)"
+
+      - name: Build ARM target
+        run: |
+          if [ -f cmake/toolchain-arm-cortex-m7.cmake ]; then
+            cmake --build build_arm --target flight_software --parallel
+          else
+            echo "ARM toolchain file not yet created — skipping. See docs/PORTING.md"
+          fi

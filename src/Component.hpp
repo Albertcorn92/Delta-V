@@ -1,104 +1,117 @@
 #pragma once
-#include <cstdint>
-#include <string_view>
-#include <thread>
+// =============================================================================
+// Component.hpp — DELTA-V Base Component Classes
+// =============================================================================
+// Every flight software block inherits from Component (passive) or
+// ActiveComponent (threaded). This file owns:
+//   - The HealthStatus enum used by the Watchdog FDIR loop
+//   - Error counting with thresholds → WARNING / CRITICAL_FAILURE transitions
+//   - ActiveComponent using Os::Thread for deterministic absolute-deadline scheduling
+//   - No raw std::thread or sleep_for anywhere in this file
+// =============================================================================
 #include <atomic>
 #include <chrono>
+#include <cstdint>
+#include <string_view>
+#include "Os.hpp"
 
 namespace deltav {
 
-// Defines the standard health states for FDIR monitoring
-enum class HealthStatus {
-    NOMINAL,
-    WARNING,
-    CRITICAL_FAILURE
+// ---------------------------------------------------------------------------
+// HealthStatus — FDIR state machine values
+// Components transition UP only on explicit recovery, DOWN automatically
+// when error thresholds are crossed.
+// ---------------------------------------------------------------------------
+enum class HealthStatus : uint8_t {
+    NOMINAL          = 0,
+    WARNING          = 1,  // Degraded — still operating
+    CRITICAL_FAILURE = 2,  // Must be restarted or mission enters safe mode
 };
 
-// The absolute base class for all flight software blocks (Passive by default)
+// ---------------------------------------------------------------------------
+// Component — Passive base class
+// Passive components are called by the Scheduler in its master loop.
+// ---------------------------------------------------------------------------
 class Component {
 public:
     virtual ~Component() = default;
 
-    // Phase 1: Called once during system boot to lock in memory and ports
     virtual void init() = 0;
-
-    // Phase 2: Called continuously by the framework or its own thread
     virtual void step() = 0;
 
-    // Architectural identity methods
-    virtual bool isActive() const { return false; }
-    virtual void startThread() {}
-    virtual void joinThread() {}
+    virtual bool        isActive()    const { return false; }
+    virtual void        startThread()       {}
+    virtual void        joinThread()        {}
 
-    // FDIR: Called by the Watchdog to check system stability
+    // FDIR interface — Watchdog calls this every supervision cycle.
     virtual HealthStatus reportHealth() {
-        return HealthStatus::NOMINAL; 
+        // Default: healthy unless error threshold is crossed
+        uint32_t errs = error_count.load(std::memory_order_acquire);
+        if (errs >= CRITICAL_THRESHOLD) return HealthStatus::CRITICAL_FAILURE;
+        if (errs >= WARNING_THRESHOLD)  return HealthStatus::WARNING;
+        return HealthStatus::NOMINAL;
+    }
+
+    // Called by subclass step() implementations when a recoverable fault occurs.
+    void recordError() {
+        error_count.fetch_add(1, std::memory_order_acq_rel);
+    }
+
+    // Called by Watchdog after successful restart to clear fault state.
+    void clearErrors() {
+        error_count.store(0, std::memory_order_release);
+    }
+
+    uint32_t getErrorCount() const {
+        return error_count.load(std::memory_order_acquire);
     }
 
     constexpr std::string_view getName() const { return name; }
-    constexpr uint32_t getId() const { return id; }
+    constexpr uint32_t         getId()   const { return id; }
+
+    // Thresholds — tunable per mission
+    static constexpr uint32_t WARNING_THRESHOLD  = 3;
+    static constexpr uint32_t CRITICAL_THRESHOLD = 10;
 
 protected:
-    constexpr Component(std::string_view comp_name, uint32_t comp_id) 
+    constexpr Component(std::string_view comp_name, uint32_t comp_id)
         : name(comp_name), id(comp_id) {}
 
 private:
-    std::string_view name;
-    uint32_t id;
+    std::string_view      name;
+    uint32_t              id;
+    std::atomic<uint32_t> error_count{0};
 };
 
-// New Class: ActiveComponent for multi-threaded subsystems
+// ---------------------------------------------------------------------------
+// ActiveComponent — Threaded base class
+//
+// Uses Os::Thread with absolute-deadline scheduling (sleep_until, not sleep_for)
+// so rate accuracy does not degrade under load over time.
+// ---------------------------------------------------------------------------
 class ActiveComponent : public Component {
 public:
-    virtual ~ActiveComponent() {
-        joinThread();
-    }
+    virtual ~ActiveComponent() { thread.stop(); }
 
-    bool isActive() const override { return true; }
+    bool isActive()    const override { return true; }
 
     void startThread() override {
-        if (!is_running) {
-            is_running = true;
-            worker = std::thread(&ActiveComponent::threadLoop, this);
-        }
+        thread.start(target_hz, [this]() { this->step(); });
     }
 
     void joinThread() override {
-        if (is_running) {
-            is_running = false;
-            if (worker.joinable()) {
-                worker.join();
-            }
-        }
+        thread.stop();
     }
 
+    bool isThreadRunning() const { return thread.isRunning(); }
+
 protected:
-    // Notice the new target_hz parameter. Active components control their own rate.
     ActiveComponent(std::string_view comp_name, uint32_t comp_id, uint32_t hz)
         : Component(comp_name, comp_id), target_hz(hz) {}
 
 private:
-    std::thread worker;
-    std::atomic<bool> is_running{false};
-    uint32_t target_hz;
-
-    // The dedicated execution loop for this specific subsystem
-    void threadLoop() {
-        auto tick_duration = std::chrono::milliseconds(1000 / (target_hz > 0 ? target_hz : 1));
-        
-        while (is_running) {
-            auto start_time = std::chrono::steady_clock::now();
-            
-            this->step(); // Execute subsystem logic
-
-            auto end_time = std::chrono::steady_clock::now();
-            auto elapsed = end_time - start_time;
-            
-            if (elapsed < tick_duration) {
-                std::this_thread::sleep_for(tick_duration - elapsed);
-            }
-        }
-    }
+    Os::Thread thread;
+    uint32_t   target_hz;
 };
 
 } // namespace deltav
