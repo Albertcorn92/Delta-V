@@ -53,7 +53,8 @@ auto main() -> int {
         return 1;
     }
 
-    RateGroupExecutive rge;
+    // Static storage avoids stack-address escape through the signal bridge pointer.
+    static RateGroupExecutive rge;
     g_rge = &rge;
 
     topology.registerAll(rge);

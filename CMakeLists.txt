@@ -106,12 +106,24 @@ if(GTest_FOUND OR GTEST_FOUND)
 
     find_program(LCOV    lcov)
     find_program(GENHTML genhtml)
+    set(DELTAV_GCOV_CANDIDATES gcov)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        string(REGEX MATCH "^[0-9]+" DELTAV_GCC_MAJOR "${CMAKE_CXX_COMPILER_VERSION}")
+        if(DELTAV_GCC_MAJOR)
+            list(PREPEND DELTAV_GCOV_CANDIDATES gcov-${DELTAV_GCC_MAJOR})
+        endif()
+    endif()
+    find_program(DELTAV_GCOV_TOOL NAMES ${DELTAV_GCOV_CANDIDATES})
+    set(DELTAV_LCOV_GCOV_ARGS)
+    if(DELTAV_GCOV_TOOL)
+        list(APPEND DELTAV_LCOV_GCOV_ARGS --gcov-tool ${DELTAV_GCOV_TOOL})
+    endif()
     if(LCOV AND GENHTML)
         add_custom_target(coverage
             COMMAND run_tests_coverage --gtest_color=yes
-            COMMAND ${LCOV}    --capture --directory .
+            COMMAND ${LCOV}    ${DELTAV_LCOV_GCOV_ARGS} --capture --directory .
                                --output-file cov_raw.info --quiet
-            COMMAND ${LCOV}    --remove  cov_raw.info
+            COMMAND ${LCOV}    ${DELTAV_LCOV_GCOV_ARGS} --remove  cov_raw.info
                                '/usr/*' '*/tests/*' '*/googletest/*'
                                --output-file cov.info --quiet
             COMMAND ${GENHTML} cov.info --output-directory coverage_html --quiet
@@ -121,6 +133,11 @@ if(GTest_FOUND OR GTEST_FOUND)
             COMMENT "Generating lcov HTML coverage report"
             DEPENDS run_tests_coverage
         )
+        if(DELTAV_GCOV_TOOL)
+            message(STATUS "Coverage gcov tool: ${DELTAV_GCOV_TOOL}")
+        else()
+            message(WARNING "Coverage gcov tool not found explicitly; lcov default gcov will be used.")
+        endif()
         message(STATUS "Coverage : ENABLED  (cmake --build build --target coverage)")
     endif()
 
