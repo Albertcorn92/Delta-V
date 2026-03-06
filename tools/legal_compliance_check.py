@@ -16,9 +16,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 EXCLUDED_DIRS = {
     ".git",
+    ".venv",
     "build",
     "build_cov",
+    "build_final",
     "build_release",
+    "build_esp32",
     "build_tidy",
     "venv",
     "__pycache__",
@@ -38,12 +41,39 @@ MILITARY_PATTERNS = [
 
 ENDORSEMENT_PATTERN = re.compile(r"\bnasa[- ]grade\b", re.IGNORECASE)
 
+CRYPTO_PATTERNS = [
+    re.compile(r"\bcryptography\b", re.IGNORECASE),
+    re.compile(r"\bcryptographic\b", re.IGNORECASE),
+    re.compile(r"\bcrypto\b", re.IGNORECASE),
+    re.compile(r"\bencrypt(?:ion|ed|ing)?\b", re.IGNORECASE),
+    re.compile(r"\bdecrypt(?:ion|ed|ing)?\b", re.IGNORECASE),
+    re.compile(r"\bAES(?:-\d+)?\b", re.IGNORECASE),
+    re.compile(r"\bRSA\b", re.IGNORECASE),
+    re.compile(r"\bECC\b", re.IGNORECASE),
+    re.compile(r"\bECDH\b", re.IGNORECASE),
+    re.compile(r"\bECDSA\b", re.IGNORECASE),
+    re.compile(r"\bEd25519\b", re.IGNORECASE),
+    re.compile(r"\bCurve25519\b", re.IGNORECASE),
+    re.compile(r"\bX25519\b", re.IGNORECASE),
+    re.compile(r"\bChaCha20\b", re.IGNORECASE),
+    re.compile(r"\bHMAC\b", re.IGNORECASE),
+    re.compile(r"\bSHA(?:-?(?:1|2|256|384|512))\b", re.IGNORECASE),
+    re.compile(r"\bTLS\b", re.IGNORECASE),
+    re.compile(r"\bSSL\b", re.IGNORECASE),
+    re.compile(r"\bPKI\b", re.IGNORECASE),
+    re.compile(r"\bcertificate(s)?\b", re.IGNORECASE),
+]
+
 PROHIBITED_CLAIM_PATTERNS = [
     re.compile(r"\bliability[-\s]*free\b", re.IGNORECASE),
     re.compile(r"\bzero[-\s]*liability\b", re.IGNORECASE),
     re.compile(r"\b100%\s*legal\b", re.IGNORECASE),
+    re.compile(r"\bfully\s+legal\b", re.IGNORECASE),
+    re.compile(r"\btotally\s+legal\b", re.IGNORECASE),
     re.compile(r"\bitar[-\s]*free\b", re.IGNORECASE),
     re.compile(r"\bear[-\s]*free\b", re.IGNORECASE),
+    re.compile(r"\bno\s+itar\b", re.IGNORECASE),
+    re.compile(r"\bno\s+ear\b", re.IGNORECASE),
     re.compile(r"\bguaranteed\s+legal\b", re.IGNORECASE),
     re.compile(r"\bguaranteed\s+compliance\b", re.IGNORECASE),
     re.compile(r"\blegal\s+clearance\s+guaranteed\b", re.IGNORECASE),
@@ -79,6 +109,7 @@ REQUIRED_FILES = [
     ROOT / "LICENSE",
     ROOT / "docs" / "CIVILIAN_USE_POLICY.md",
     ROOT / "docs" / "EXPORT_CONTROL_NOTE.md",
+    ROOT / "docs" / "LEGAL_SCOPE_CHECKLIST.md",
     ROOT / "DISCLAIMER.md",
 ]
 
@@ -90,6 +121,18 @@ REQUIRED_PHRASES = [
     (
         ROOT / "DISCLAIMER.md",
         "not certified for safety-critical, life-critical, or operational flight use",
+    ),
+    (
+        ROOT / "docs" / "CIVILIAN_USE_POLICY.md",
+        "does not itself provide legal clearance",
+    ),
+    (
+        ROOT / "docs" / "EXPORT_CONTROL_NOTE.md",
+        "not legal advice",
+    ),
+    (
+        ROOT / "docs" / "EXPORT_CONTROL_NOTE.md",
+        "cannot provide legal clearance",
     ),
 ]
 
@@ -175,6 +218,7 @@ def main() -> int:
         code_paths.append(topology)
 
     military_violations = scan_for_patterns(code_paths, MILITARY_PATTERNS)
+    crypto_violations = scan_for_patterns(code_paths, CRYPTO_PATTERNS)
 
     text_paths: list[Path] = []
     for root in TEXT_SCAN_ROOTS:
@@ -185,7 +229,12 @@ def main() -> int:
 
     claim_violations = scan_for_patterns(text_paths, PROHIBITED_CLAIM_PATTERNS)
 
-    violations = military_violations + endorsement_violations + claim_violations
+    violations = (
+        military_violations
+        + crypto_violations
+        + endorsement_violations
+        + claim_violations
+    )
     if violations:
         print("[legal] Compliance check failed.")
         for violation in violations:

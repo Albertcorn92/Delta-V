@@ -22,4 +22,10 @@ body:
     attributes:
       label: Safety / Verification Impact
       description: Mention affected DV requirements and tests.
-
+  - type: checkboxes
+    id: civilian_scope
+    attributes:
+      label: Civilian Scope Confirmation
+      options:
+        - label: This request is strictly civilian/non-weaponized and does not add targeting or fire-control behavior.
+          required: true

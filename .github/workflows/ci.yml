@@ -91,6 +91,9 @@ jobs:
       - name: Build run_tests
         run: cmake --build build --target run_tests
 
+      - name: Build run_system_tests
+        run: cmake --build build --target run_system_tests
+
       - name: Run unit tests
         run: |
           cd build

@@ -72,6 +72,20 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 # =============================================================================
+# Target: run_benchmarks  (software performance baseline)
+# =============================================================================
+add_executable(run_benchmarks benchmarks/benchmark_main.cpp ${ALL_SOURCES})
+target_include_directories(run_benchmarks PRIVATE src)
+target_link_libraries(run_benchmarks PRIVATE Threads::Threads)
+target_compile_options(run_benchmarks PRIVATE ${DELTAV_WARN_FLAGS})
+target_compile_definitions(run_benchmarks PRIVATE DELTAV_FAULT_INJECT)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT APPLE AND NOT MSVC)
+    target_compile_options(run_benchmarks PRIVATE ${DELTAV_SANITIZER_FLAGS})
+    target_link_options(run_benchmarks   PRIVATE -fsanitize=address,undefined)
+endif()
+
+# =============================================================================
 # Target: run_tests  (Google Test suite)
 # Enabled by: cmake --build build --target run_tests
 # =============================================================================
@@ -95,6 +109,32 @@ if(GTest_FOUND OR GTEST_FOUND)
 
     add_test(NAME DeltaV_Unit_Tests COMMAND run_tests --gtest_color=yes)
     set_tests_properties(DeltaV_Unit_Tests PROPERTIES TIMEOUT 60)
+
+    add_executable(run_system_tests tests/system_tests.cpp ${ALL_SOURCES})
+    target_include_directories(run_system_tests PRIVATE src)
+    target_link_libraries(run_system_tests PRIVATE Threads::Threads GTest::GTest GTest::Main)
+    target_compile_options(run_system_tests PRIVATE ${DELTAV_WARN_FLAGS})
+    target_compile_definitions(run_system_tests PRIVATE DELTAV_FAULT_INJECT)
+
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT APPLE AND NOT MSVC)
+        target_compile_options(run_system_tests PRIVATE ${DELTAV_SANITIZER_FLAGS})
+        target_link_options(run_system_tests   PRIVATE -fsanitize=address,undefined)
+    endif()
+
+    add_test(NAME DeltaV_System_Tests COMMAND run_system_tests --gtest_color=yes)
+    set_tests_properties(DeltaV_System_Tests PROPERTIES TIMEOUT 90)
+
+    set(DELTAV_VNV_STRESS_REPEATS "25" CACHE STRING
+        "Number of shuffled run_tests repetitions for the V&V stress gate")
+    add_custom_target(vnv_stress
+        COMMAND run_tests --gtest_color=yes --gtest_shuffle
+                --gtest_repeat=${DELTAV_VNV_STRESS_REPEATS}
+                --gtest_brief=1
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        COMMENT "Running V&V stress regression gate (${DELTAV_VNV_STRESS_REPEATS} shuffled repetitions)"
+        DEPENDS run_tests
+        USES_TERMINAL
+    )
 
     # ── Coverage binary ───────────────────────────────────────────────────────
     add_executable(run_tests_coverage tests/unit_tests.cpp ${ALL_SOURCES})
@@ -142,6 +182,8 @@ if(GTest_FOUND OR GTEST_FOUND)
     endif()
 
     message(STATUS "Tests    : ENABLED  (cmake --build build --target run_tests)")
+    message(STATUS "SysTests : ENABLED  (cmake --build build --target run_system_tests)")
+    message(STATUS "V&VStress: ENABLED  (cmake --build build --target vnv_stress)")
 
 else()
     message(WARNING
@@ -238,11 +280,13 @@ if(PYTHON3)
     message(STATUS "Trace    : ENABLED  (cmake --build build --target traceability)")
 endif()
 
-if(TARGET run_tests AND TARGET tidy_safety AND TARGET traceability AND TARGET legal_compliance)
+if(TARGET run_tests AND TARGET run_system_tests AND TARGET vnv_stress AND TARGET tidy_safety AND TARGET traceability AND TARGET legal_compliance)
     add_custom_target(flight_readiness
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target legal_compliance
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_tests
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_system_tests
         COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target vnv_stress
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target tidy_safety
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target traceability
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target flight_software
@@ -280,6 +324,42 @@ if(PYTHON3 AND TARGET qualification_bundle)
     message(STATUS "SoftFinal: ENABLED  (cmake --build build --target software_final)")
 endif()
 
+if(PYTHON3 AND TARGET run_benchmarks)
+    add_custom_target(benchmark_baseline
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/benchmark_report.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+        DEPENDS run_benchmarks
+        COMMENT "Generating benchmark baseline artifacts"
+    )
+    message(STATUS "BenchRpt : ENABLED  (cmake --build build --target benchmark_baseline)")
+endif()
+
+if(PYTHON3 AND TARGET flight_software)
+    add_custom_target(sitl_smoke
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_smoke.py
+            --build-dir ${CMAKE_BINARY_DIR}
+            --duration 8
+        DEPENDS flight_software
+        COMMENT "Running short SITL smoke test"
+    )
+    message(STATUS "SITLSmoke: ENABLED  (cmake --build build --target sitl_smoke)")
+endif()
+
+if(TARGET legal_compliance AND TARGET run_tests AND TARGET run_system_tests AND TARGET benchmark_baseline AND TARGET sitl_smoke)
+    add_custom_target(quickstart_10min
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target legal_compliance
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_tests
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_system_tests
+        COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure --timeout 90
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target benchmark_baseline
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target sitl_smoke
+        COMMENT "Running 10-minute local quickstart validation flow"
+        USES_TERMINAL
+    )
+    message(STATUS "Quick10m : ENABLED  (cmake --build build --target quickstart_10min)")
+endif()
+
 # =============================================================================
 # Summary
 # =============================================================================
@@ -293,7 +373,10 @@ message(STATUS "║  Compiler     : ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILE
 message(STATUS "╠════════════════════════════════════════════╣")
 message(STATUS "║  Targets:                                  ║")
 message(STATUS "║    flight_software  — main SITL binary     ║")
+message(STATUS "║    run_benchmarks   — software benchmarks  ║")
 message(STATUS "║    run_tests        — GTest suite          ║")
+message(STATUS "║    run_system_tests — integration tests    ║")
+message(STATUS "║    vnv_stress       — stress test gate     ║")
 message(STATUS "║    coverage         — lcov HTML report     ║")
 message(STATUS "║    tidy             — clang-tidy analysis  ║")
 message(STATUS "║    tidy_safety      — blocking safety gate ║")
@@ -302,6 +385,9 @@ message(STATUS "║    traceability     — requirements trace   ║")
 message(STATUS "║    flight_readiness — full assurance gate  ║")
 message(STATUS "║    qualification_bundle — audit artifacts  ║")
 message(STATUS "║    software_final   — software release gate║")
+message(STATUS "║    benchmark_baseline — perf report sync   ║")
+message(STATUS "║    sitl_smoke       — short runtime check  ║")
+message(STATUS "║    quickstart_10min — one-command local UX ║")
 message(STATUS "║    gen              — run autocoder        ║")
 message(STATUS "╚════════════════════════════════════════════╝")
 message(STATUS "")

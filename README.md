@@ -122,6 +122,12 @@ Port-specific quick reference: `ports/esp32/README.md`.
 cd build && ctest --output-on-failure
 ```
 
+### Run V&V Stress Gate
+
+```bash
+cmake --build build --target vnv_stress
+```
+
 ### Validate Requirements Traceability
 
 ```bash
@@ -196,9 +202,11 @@ See `src/Requirements.hpp` for the full RTM. Every unit test references its gove
 
 - DELTA-V is scoped for civilian, scientific, and educational use.
 - Contributions that add military, weapons, targeting, or fire-control behavior are out of scope and will be rejected.
+- Command-path cryptography/encryption features are intentionally excluded from this baseline and blocked by legal policy checks.
 - This repository is intended for research/prototyping and is not certified for operational or safety-critical deployment.
 - This repository includes compliance guidance, but it is **not legal advice** and does not provide legal clearance by itself.
 - See `docs/CIVILIAN_USE_POLICY.md` and `docs/EXPORT_CONTROL_NOTE.md` before release or deployment.
+- Maintainer release checklist: `docs/LEGAL_SCOPE_CHECKLIST.md`.
 
 ---
 

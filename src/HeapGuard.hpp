@@ -40,6 +40,10 @@ public:
         return armed.load(std::memory_order_acquire);
     }
 
+    static void disarm() {
+        armed.store(false, std::memory_order_release);
+    }
+
     // Called by the overridden operator new (below).
     // On embedded: loops forever (safe-mode equivalent).
     // On SITL: aborts with a diagnostic message.

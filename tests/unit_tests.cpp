@@ -27,6 +27,7 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <random>
 #include <string>
 #include <thread>
 #include <vector>
@@ -40,6 +41,7 @@
 #include "CommandHub.hpp"
 #include "EventHub.hpp"
 #include "TelemHub.hpp"
+#include "TelemetryBridge.hpp"
 #include "SensorComponent.hpp"
 #include "PowerComponent.hpp"
 #include "WatchdogComponent.hpp"
@@ -115,6 +117,26 @@ private:
     const char* key_{nullptr};
     bool had_old_{false};
     std::string old_value_{};
+};
+
+class ScopedReplaySeqFile {
+public:
+    ScopedReplaySeqFile()
+        : path_(makeUniqueTestLogPath("test_replay_seq", ".db")),
+          env_(TelemetryBridge::REPLAY_SEQ_FILE_ENV, path_.c_str()) {
+        (void)std::remove(path_.c_str());
+    }
+
+    ~ScopedReplaySeqFile() {
+        (void)std::remove(path_.c_str());
+    }
+
+    ScopedReplaySeqFile(const ScopedReplaySeqFile&) = delete;
+    auto operator=(const ScopedReplaySeqFile&) -> ScopedReplaySeqFile& = delete;
+
+private:
+    std::string path_{};
+    ScopedEnvVar env_;
 };
 
 } // namespace
@@ -339,6 +361,14 @@ TEST(Serializer, PackUnpackEvent) {
     EXPECT_STREQ(out.message.data(), "Test message");
 }
 
+TEST(Serializer, CRC16KnownVector) {
+    // DV-COMM-01: CRC-16/CCITT reference vector ("123456789")
+    constexpr std::array<uint8_t, 9> payload{
+        {'1', '2', '3', '4', '5', '6', '7', '8', '9'}
+    };
+    EXPECT_EQ(Serializer::crc16(payload), 0x29B1u);
+}
+
 // =============================================================================
 // TimeService
 // =============================================================================
@@ -380,6 +410,19 @@ TEST(ParamDb, ConcurrentReadWrite) {
     }
     for (auto& t : threads) t.join();
     EXPECT_TRUE(db.verifyIntegrity());
+}
+
+TEST(ParamDb, CapacityBoundedAtCompileTimeLimit) {
+    ParamDb db;
+    for (size_t i = 0; i < MAX_PARAMS + 32u; ++i) {
+        db.setParam(static_cast<uint32_t>(i + 1u), static_cast<float>(i));
+    }
+    EXPECT_EQ(db.paramCount(), MAX_PARAMS);
+    EXPECT_TRUE(db.verifyIntegrity());
+
+    // Attempting to insert beyond the fixed bound must not grow the table.
+    EXPECT_FLOAT_EQ(db.getParam(0xFFFF0001u, -123.0f), -123.0f);
+    EXPECT_EQ(db.paramCount(), MAX_PARAMS);
 }
 
 // =============================================================================
@@ -992,12 +1035,13 @@ TEST(TopologyManager, WireSetsWatchdogThresholdSources) {
 // TelemetryBridge accessor (no socket needed)
 // =============================================================================
 TEST(TelemetryBridge, RejectedCountStartsAtZero) {
-    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    ScopedReplaySeqFile replay_path_env{};
     TelemetryBridge bridge{"RadioLink", 20};
     EXPECT_EQ(bridge.getRejectedCount(), 0u);
 }
 
 TEST(ActiveComponent, ThreadLifecycleStartStop) {
+    ScopedReplaySeqFile replay_path_env{};
     TelemetryBridge bridge{"RadioLink", 20};
     EXPECT_FALSE(bridge.isThreadRunning());
     bridge.startThread();
@@ -1008,7 +1052,7 @@ TEST(ActiveComponent, ThreadLifecycleStartStop) {
 }
 
 TEST(TelemetryBridge, RejectsNonCanonicalFrameLength) {
-    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    ScopedReplaySeqFile replay_path_env{};
     constexpr uint16_t DL_PORT = 19011;
     constexpr uint16_t UL_PORT = 19012;
 
@@ -1028,7 +1072,7 @@ TEST(TelemetryBridge, RejectsNonCanonicalFrameLength) {
 }
 
 TEST(TelemetryBridge, RejectsReplaySequence) {
-    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    ScopedReplaySeqFile replay_path_env{};
     constexpr uint16_t DL_PORT = 19013;
     constexpr uint16_t UL_PORT = 19014;
 
@@ -1052,7 +1096,7 @@ TEST(TelemetryBridge, RejectsReplaySequence) {
 }
 
 TEST(TelemetryBridge, EnforcesMaxCommandsPerTick) {
-    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    ScopedReplaySeqFile replay_path_env{};
     constexpr uint16_t DL_PORT = 19015;
     constexpr uint16_t UL_PORT = 19016;
 
@@ -1093,7 +1137,7 @@ TEST(TelemetryBridge, EnforcesMaxCommandsPerTick) {
 }
 
 TEST(TelemetryBridge, RejectsInvalidHeaderFields) {
-    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    ScopedReplaySeqFile replay_path_env{};
     constexpr uint16_t DL_PORT = 19017;
     constexpr uint16_t UL_PORT = 19018;
 
@@ -1128,7 +1172,7 @@ TEST(TelemetryBridge, RejectsInvalidHeaderFields) {
 }
 
 TEST(TelemetryBridge, RejectsTruncatedFrame) {
-    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    ScopedReplaySeqFile replay_path_env{};
     constexpr uint16_t DL_PORT = 19019;
     constexpr uint16_t UL_PORT = 19020;
 
@@ -1139,7 +1183,7 @@ TEST(TelemetryBridge, RejectsTruncatedFrame) {
 }
 
 TEST(TelemetryBridge, AcceptsSequenceWrapFromHighToLow) {
-    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    ScopedReplaySeqFile replay_path_env{};
     constexpr uint16_t DL_PORT = 19021;
     constexpr uint16_t UL_PORT = 19022;
 
@@ -1344,6 +1388,52 @@ TEST(Cobs, DecodeFailsWhenDelimiterMissing) {
     EXPECT_EQ(decoded_len, 0u);
 }
 
+TEST(Cobs, RoundtripRawPayloadAt254Boundary) {
+    std::array<uint8_t, 254> payload{};
+    for (size_t i = 0; i < payload.size(); ++i) {
+        // Non-zero pattern forces the 0xFF code-path in COBS encode.
+        payload[i] = static_cast<uint8_t>((i % 254u) + 1u);
+    }
+
+    std::array<uint8_t, cobs::encodedMaxSize(payload.size())> encoded{};
+    const size_t encoded_len = cobs::encode(
+        payload.data(), payload.size(), encoded.data(), encoded.size());
+    ASSERT_GT(encoded_len, 0u);
+    ASSERT_EQ(encoded[encoded_len - 1], 0x00u);
+
+    std::array<uint8_t, payload.size()> decoded{};
+    const size_t decoded_len = cobs::decode(
+        encoded.data(), encoded_len - 1u, decoded.data(), decoded.size());
+    EXPECT_EQ(decoded_len, payload.size());
+    EXPECT_EQ(decoded, payload);
+}
+
+TEST(Cobs, RandomizedCorpusRoundtrip) {
+    std::mt19937 rng(0xC0B5u);
+    std::uniform_int_distribution<size_t> len_dist(0u, 22u);
+    std::uniform_int_distribution<int> byte_dist(0, 255);
+
+    for (size_t iter = 0; iter < 256u; ++iter) {
+        const size_t len = len_dist(rng);
+        std::array<uint8_t, 22> payload{};
+        for (size_t i = 0; i < len; ++i) {
+            payload[i] = static_cast<uint8_t>(byte_dist(rng));
+        }
+
+        auto frame = cobs::CobsFrame::encode(payload.data(), len);
+        ASSERT_GT(frame.encoded_len, 0u);
+
+        std::array<uint8_t, 22> decoded{};
+        size_t decoded_len = 0;
+        const bool ok = cobs::CobsFrame::decode(frame, decoded.data(), decoded.size(), decoded_len);
+        ASSERT_TRUE(ok);
+        ASSERT_EQ(decoded_len, len);
+        for (size_t i = 0; i < len; ++i) {
+            EXPECT_EQ(decoded[i], payload[i]);
+        }
+    }
+}
+
 // =============================================================================
 // MissionFsm  (DV-SEC-02)
 // =============================================================================
@@ -1454,6 +1544,24 @@ TEST(RateGroupExecutive, FrameDropsStartAtZero) {
     RateGroupExecutive rge;
     EXPECT_EQ(rge.getFastDrops(), 0u);
     EXPECT_EQ(rge.getNormDrops(), 0u);
+}
+
+TEST(Component, ReportHealthTransitionsAtThresholds) {
+    FakeComponent c;
+    EXPECT_EQ(c.reportHealth(), HealthStatus::NOMINAL);
+
+    for (uint32_t i = 0; i < Component::WARNING_THRESHOLD; ++i) {
+        c.recordError();
+    }
+    EXPECT_EQ(c.reportHealth(), HealthStatus::WARNING);
+
+    for (uint32_t i = Component::WARNING_THRESHOLD; i < Component::CRITICAL_THRESHOLD; ++i) {
+        c.recordError();
+    }
+    EXPECT_EQ(c.reportHealth(), HealthStatus::CRITICAL_FAILURE);
+
+    c.clearErrors();
+    EXPECT_EQ(c.reportHealth(), HealthStatus::NOMINAL);
 }
 
 TEST(Architecture, SingletonServiceIdentity) {
@@ -1609,7 +1717,7 @@ TEST(CommandHub, MissionStateSourceFlag) {
 }
 
 TEST(TelemetryBridge, UsesConfiguredPorts) {
-    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, nullptr);
+    ScopedReplaySeqFile replay_path_env{};
     TelemetryBridge bridge{"RadioLink", 20, 19101, 19102};
     EXPECT_EQ(bridge.getDownlinkPort(), 19101u);
     EXPECT_EQ(bridge.getUplinkPort(), 19102u);
@@ -1637,6 +1745,74 @@ TEST(TelemetryBridge, PersistsReplaySequenceAcrossRestart) {
     }
 
     (void)std::remove(replay_file.c_str());
+}
+
+TEST(TelemetryBridge, RejectsOutOfRangeReplayStateFile) {
+    const std::string replay_file = makeUniqueTestLogPath("test_replay_bad_seq", ".db");
+    {
+        std::ofstream out(replay_file, std::ios::trunc);
+        ASSERT_TRUE(out.is_open());
+        out << "70000\n"; // > uint16 max
+    }
+
+    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, replay_file.c_str());
+    TelemetryBridge bridge{"RadioLink", 20, 19111, 19112};
+    EXPECT_GT(bridge.getErrorCount(), 0u);
+
+    auto frame = buildUplinkFrame(1, CommandPacket{200, 1, 0.0f});
+    EXPECT_TRUE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
+
+    (void)std::remove(replay_file.c_str());
+}
+
+TEST(TelemetryBridge, PersistReplayStateFailureIncrementsErrors) {
+    const std::string replay_file = makeUniqueTestLogPath("missing_dir/replay_seq", ".db");
+    ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, replay_file.c_str());
+    TelemetryBridge bridge{"RadioLink", 20, 19113, 19114};
+
+    auto frame = buildUplinkFrame(88, CommandPacket{200, 1, 0.0f});
+    EXPECT_TRUE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
+    EXPECT_GT(bridge.getErrorCount(), 0u);
+}
+
+TEST(TelemetryBridge, MalformedFrameCorpusRejected) {
+    ScopedReplaySeqFile replay_path_env{};
+    TelemetryBridge bridge{"RadioLink", 20, 19115, 19116};
+
+    auto base = buildUplinkFrame(500, CommandPacket{200, 1, 0.0f});
+    uint32_t rejected_before = bridge.getRejectedCount();
+
+    for (size_t i = 0; i < 128u; ++i) {
+        auto frame = base;
+        const size_t mode = i % 4u;
+        if (mode == 0u) {
+            // Bad sync
+            CcsdsHeader hdr{};
+            std::memcpy(&hdr, frame.data(), sizeof(hdr));
+            hdr.sync_word ^= 0xFFFFFFFFu;
+            std::memcpy(frame.data(), &hdr, sizeof(hdr));
+            EXPECT_FALSE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
+        } else if (mode == 1u) {
+            // Bad APID
+            CcsdsHeader hdr{};
+            std::memcpy(&hdr, frame.data(), sizeof(hdr));
+            hdr.apid = Apid::EVENT;
+            std::memcpy(frame.data(), &hdr, sizeof(hdr));
+            EXPECT_FALSE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
+        } else if (mode == 2u) {
+            // Bad payload length
+            CcsdsHeader hdr{};
+            std::memcpy(&hdr, frame.data(), sizeof(hdr));
+            hdr.payload_len = static_cast<uint16_t>(sizeof(CommandPacket) - 1u);
+            std::memcpy(frame.data(), &hdr, sizeof(hdr));
+            EXPECT_FALSE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
+        } else {
+            // Truncated frame
+            EXPECT_FALSE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size() - 1u));
+        }
+    }
+
+    EXPECT_GE(bridge.getRejectedCount(), rejected_before + 128u);
 }
 
 // =============================================================================

@@ -7,6 +7,7 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
 ## 1. Technical Gates
 
 - [ ] `python3 tools/legal_compliance_check.py` passes.
+- [ ] `cmake --build build --target vnv_stress` passes (repeat/shuffle stress gate).
 - [ ] `cmake --build build --target flight_readiness` passes.
 - [ ] `cmake --build build --target qualification_bundle` passes.
 - [ ] `cmake --build build --target software_final` passes.
@@ -25,11 +26,13 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
 - [ ] `docs/SAFETY_ASSURANCE.md` references current gate commands.
 - [ ] `docs/ESP32_BRINGUP.md` includes latest no-sensor and hardware validation steps.
 - [ ] `docs/ESP32_SENSORLESS_BASELINE.md` reflects the latest local-only hardware run.
+- [ ] `docs/LEGAL_SCOPE_CHECKLIST.md` reflects current legal/civilian release guidance.
 - [ ] `docs/process/*.md` templates are present for mission teams.
 
 ## 3. Security and Safety Hygiene
 
 - [ ] No production secrets in repository history or source files.
+- [ ] No command-path cryptography/encryption features added to baseline framework.
 - [ ] Dev/test uplink keys are clearly marked as non-flight keys.
 - [ ] Safety-critical changes have review evidence recorded.
 - [ ] Civilian-use scope maintained (no weapon/military-targeting functionality).

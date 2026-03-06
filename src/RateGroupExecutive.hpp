@@ -6,6 +6,7 @@
 // following common flight-software rate-group scheduling patterns.
 // =============================================================================
 #include "Component.hpp"
+#include "HeapGuard.hpp"
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -178,15 +179,23 @@ public:
             }
         });
 
+#if !defined(DELTAV_DISABLE_HOST_HEAP_GUARD)
+        HeapGuard::arm();
+#endif
         std::printf("[RGE] All rate groups running. Ctrl+C to stop.\n\n");
 
         if (fast_thread_.joinable()) fast_thread_.join();
         if (norm_thread_.joinable()) norm_thread_.join();
+        for (size_t i = 0; i < active_count_; ++i) active_.at(i)->joinThread();
 #endif
     }
 
-    auto stopAll() -> void {
+    auto requestStop() noexcept -> void {
         running_.store(false, std::memory_order_release);
+    }
+
+    auto stopAll() -> void {
+        requestStop();
         if (fast_thread_.joinable()) fast_thread_.join();
         if (norm_thread_.joinable()) norm_thread_.join();
         for (size_t i = 0; i < active_count_; ++i) active_.at(i)->joinThread();

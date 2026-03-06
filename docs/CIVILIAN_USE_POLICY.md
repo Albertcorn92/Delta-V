@@ -15,6 +15,7 @@ Contributions and integrations are not accepted if they add or document:
 - military targeting or fire-control behavior,
 - munition, missile, or warhead functionality,
 - combat-operations features,
+- command-path cryptography/encryption features in the baseline framework,
 - controlled technical data that is not authorized for open publication.
 
 ## Contribution Requirement

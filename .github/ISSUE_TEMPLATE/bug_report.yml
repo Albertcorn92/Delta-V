@@ -33,4 +33,10 @@ body:
     attributes:
       label: Commit / Tag
       placeholder: e.g. v4.0.0 or commit SHA
-
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope Confirmation
+      options:
+        - label: This report does not request military/weaponized behavior and remains in civilian scope.
+          required: true

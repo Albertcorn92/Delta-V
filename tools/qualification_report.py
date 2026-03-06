@@ -224,6 +224,11 @@ def main() -> int:
                 "evidence": "flight_readiness target execution",
             },
             {
+                "name": "V&V Stress Gate",
+                "status": "PASS",
+                "evidence": "vnv_stress target in flight_readiness",
+            },
+            {
                 "name": "Static Safety Gate",
                 "status": "PASS",
                 "evidence": "tidy_safety in flight_readiness",

@@ -3,8 +3,17 @@
 - What changed:
 - Why it changed:
 
+## Legal Scope Attestation
+
+- [ ] This change remains strictly civilian/non-weaponized in scope.
+- [ ] No military targeting, fire-control, weapon, munition, or combat behavior was added.
+- [ ] No command-path cryptography/encryption features were introduced.
+- [ ] No controlled third-party technical data was added.
+
 ## Verification
 
+- [ ] `python3 tools/legal_compliance_check.py`
+- [ ] `cmake --build build --target vnv_stress`
 - [ ] `cmake --build build --target flight_readiness`
 - [ ] `cmake --build build --target qualification_bundle`
 - [ ] Added/updated tests for changed behavior
@@ -19,4 +28,3 @@
 
 - Areas that need careful review:
 - Known limitations:
-

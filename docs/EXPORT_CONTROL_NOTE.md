@@ -11,6 +11,7 @@ payload, customer, destination, and operational use.
 - This document is informational only and is **not legal advice**.
 - This repository alone cannot provide legal clearance or eliminate legal liability.
 - Final ITAR/EAR determination must be made by qualified export counsel.
+- Publishing this repo does not create a blanket ITAR/EAR exemption for every use.
 
 ## Practical Guidance
 
@@ -26,6 +27,7 @@ payload, customer, destination, and operational use.
 ## Suggested Pre-Release Controls
 
 1. Keep the project scoped to civilian, non-weaponized use.
-2. Obtain an export-classification memo from counsel before production release.
-3. Prohibit committed production secrets in CI policy.
-4. Maintain destination/end-user screening in deployment operations.
+2. Keep command-path cryptography/encryption features out of the baseline.
+3. Obtain an export-classification memo from counsel before production release.
+4. Prohibit committed production secrets in CI policy.
+5. Maintain destination/end-user screening in deployment operations.

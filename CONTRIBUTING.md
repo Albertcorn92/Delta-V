@@ -39,6 +39,7 @@ cmake --build build --target qualification_bundle
 - DELTA-V is scoped to civilian, scientific, industrial, and educational use.
 - Contributions that add military, weapons, targeting, or fire-control behavior
   are out of scope and will be rejected.
+- Do not add command-path cryptography/encryption features in the baseline framework.
 - Do not submit controlled or restricted third-party technical data.
 - Do not introduce wording that claims guaranteed legality, zero liability, or
   guaranteed ITAR/EAR exemption.

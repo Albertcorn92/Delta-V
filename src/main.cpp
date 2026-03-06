@@ -27,8 +27,9 @@ static RateGroupExecutive* g_rge = nullptr;
 
 static auto on_signal(int /*signum*/) -> void {
     (void)std::fprintf(stderr, "\n[Boot] Signal received - initiating clean shutdown.\n");
+    HeapGuard::disarm();
     if (g_rge != nullptr) {
-        g_rge->stopAll();
+        g_rge->requestStop();
     }
 }
 #endif
@@ -83,20 +84,13 @@ auto main() -> int {
 
     rge.initAll();
 
-    // HeapGuard is useful for host/SITL determinism, but on ESP-IDF the C++
-    // runtime and RTOS paths may still require heap allocations after boot.
-    // Keep it disabled on embedded targets to avoid allocator recursion panics.
-#if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
-    HeapGuard::arm();
-#endif
-
 #if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
     (void)std::signal(SIGINT,  on_signal);
     (void)std::signal(SIGTERM, on_signal);
 #endif
 
 #if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
-    std::printf("[Boot] Heap locked - dynamic allocation permanently disabled.\n");
+    std::printf("[Boot] Heap guard policy: lock after scheduler startup.\n");
 #else
     std::printf("[Boot] Heap guard disabled on ESP target (local-only runtime).\n");
 #endif
@@ -106,12 +100,16 @@ auto main() -> int {
     std::printf("[Boot]   SLOW   0.1 Hz  - %zu component(s)\n", rge.slowCount());
     std::printf("[Boot]   ACTIVE own thr - %zu component(s)\n\n", rge.activeCount());
 
-    rge.startAll(); 
+    rge.startAll();
 
-        std::printf("[Boot] Saving parameter database...\n");
-        ParamDb::getInstance().save();
-        std::printf("[Boot] Shutdown complete.\n");
-        return 0;
+#if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
+    HeapGuard::disarm();
+#endif
+
+    std::printf("[Boot] Saving parameter database...\n");
+    ParamDb::getInstance().save();
+    std::printf("[Boot] Shutdown complete.\n");
+    return 0;
     } catch (const std::exception& ex) {
         (void)std::fprintf(stderr, "[Boot] FATAL: unhandled exception: %s\n", ex.what());
         return 2;
