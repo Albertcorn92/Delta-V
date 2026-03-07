@@ -1095,6 +1095,28 @@ TEST(TelemetryBridge, RejectsReplaySequence) {
     EXPECT_EQ(bridge.getRejectedCount(), 1u);
 }
 
+TEST(TelemetryBridge, DispatchFailureDoesNotAdvanceReplaySequence) {
+    ScopedReplaySeqFile replay_path_env{};
+    constexpr uint16_t DL_PORT = 19041;
+    constexpr uint16_t UL_PORT = 19042;
+
+    TelemetryBridge bridge{"RadioLink", 20, DL_PORT, UL_PORT};
+    auto frame = buildUplinkFrame(321, CommandPacket{200, 1, 0.0f});
+
+    // No command sink connected yet -> dispatch failure.
+    EXPECT_FALSE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
+    EXPECT_EQ(bridge.getRejectedCount(), 1u);
+    EXPECT_GT(bridge.getErrorCount(), 0u);
+
+    InputPort<CommandPacket, 64> dest{};
+    bridge.command_out.connect(&dest);
+
+    // Same sequence should still be accepted now (not treated as replay).
+    EXPECT_TRUE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
+    EXPECT_TRUE(dest.hasNew());
+    EXPECT_EQ(bridge.getRejectedCount(), 1u);
+}
+
 TEST(TelemetryBridge, EnforcesMaxCommandsPerTick) {
     ScopedReplaySeqFile replay_path_env{};
     constexpr uint16_t DL_PORT = 19015;
@@ -1733,6 +1755,8 @@ TEST(TelemetryBridge, PersistsReplaySequenceAcrossRestart) {
 
     {
         TelemetryBridge bridge{"RadioLink", 20, DL_PORT, UL_PORT};
+        InputPort<CommandPacket, 64> dest{};
+        bridge.command_out.connect(&dest);
         auto frame = buildUplinkFrame(77, CommandPacket{200, 1, 0.0f});
         EXPECT_TRUE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
     }
@@ -1757,6 +1781,8 @@ TEST(TelemetryBridge, RejectsOutOfRangeReplayStateFile) {
 
     ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, replay_file.c_str());
     TelemetryBridge bridge{"RadioLink", 20, 19111, 19112};
+    InputPort<CommandPacket, 64> dest{};
+    bridge.command_out.connect(&dest);
     EXPECT_GT(bridge.getErrorCount(), 0u);
 
     auto frame = buildUplinkFrame(1, CommandPacket{200, 1, 0.0f});
@@ -1769,6 +1795,8 @@ TEST(TelemetryBridge, PersistReplayStateFailureIncrementsErrors) {
     const std::string replay_file = makeUniqueTestLogPath("missing_dir/replay_seq", ".db");
     ScopedEnvVar replay_path_env(TelemetryBridge::REPLAY_SEQ_FILE_ENV, replay_file.c_str());
     TelemetryBridge bridge{"RadioLink", 20, 19113, 19114};
+    InputPort<CommandPacket, 64> dest{};
+    bridge.command_out.connect(&dest);
 
     auto frame = buildUplinkFrame(88, CommandPacket{200, 1, 0.0f});
     EXPECT_TRUE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
@@ -1813,6 +1841,101 @@ TEST(TelemetryBridge, MalformedFrameCorpusRejected) {
     }
 
     EXPECT_GE(bridge.getRejectedCount(), rejected_before + 128u);
+}
+
+TEST(TelemetryBridge, RandomizedMalformedFramesProperty) {
+    ScopedReplaySeqFile replay_path_env{};
+    TelemetryBridge bridge{"RadioLink", 20, 19117, 19118};
+    InputPort<CommandPacket, 4096> dest{};
+    bridge.command_out.connect(&dest);
+
+    std::mt19937 rng(0xD37AF00Du);
+    std::uniform_int_distribution<int> len_dist(
+        0, static_cast<int>(TelemetryBridge::UPLINK_FRAME_SIZE + 8u));
+    std::uniform_int_distribution<int> byte_dist(0, 255);
+
+    size_t accepted = 0u;
+    size_t rejected = 0u;
+    uint16_t valid_seq = 600u;
+
+    for (size_t i = 0; i < 2000u; ++i) {
+        // Every 25th sample is intentionally canonical to prove acceptance path.
+        if (i % 25u == 0u) {
+            auto frame = buildUplinkFrame(valid_seq++, CommandPacket{200, 1, 0.0f});
+            const bool ok = bridge.ingestUplinkFrameForTest(frame.data(), frame.size());
+            EXPECT_TRUE(ok);
+            if (ok) {
+                ++accepted;
+            } else {
+                ++rejected;
+            }
+            continue;
+        }
+
+        const size_t len = static_cast<size_t>(len_dist(rng));
+        std::vector<uint8_t> blob(len, 0u);
+        for (size_t j = 0; j < blob.size(); ++j) {
+            blob[j] = static_cast<uint8_t>(byte_dist(rng));
+        }
+
+        const bool ok = bridge.ingestUplinkFrameForTest(blob.data(), blob.size());
+        if (ok) {
+            ++accepted;
+        } else {
+            ++rejected;
+        }
+    }
+
+    EXPECT_GT(rejected, 1000u);
+    EXPECT_GE(accepted, 80u); // includes intentionally valid injections
+
+    size_t consumed = 0u;
+    CommandPacket cmd{};
+    while (dest.tryConsume(cmd)) {
+        ++consumed;
+    }
+    EXPECT_EQ(consumed, accepted);
+}
+
+TEST(TelemetryBridge, ReplayMonotonicityProperty) {
+    ScopedReplaySeqFile replay_path_env{};
+    TelemetryBridge bridge{"RadioLink", 20, 19119, 19120};
+    InputPort<CommandPacket, 4096> dest{};
+    bridge.command_out.connect(&dest);
+
+    uint16_t seq = 1000u;
+    size_t accepted = 0u;
+    size_t rejected = 0u;
+
+    testing::internal::CaptureStdout();
+    testing::internal::CaptureStderr();
+    for (size_t i = 0; i < 1024u; ++i) {
+        const bool replay = (i > 0u) && (i % 19u == 0u);
+        const uint16_t frame_seq = replay ? seq : static_cast<uint16_t>(seq + 1u);
+        if (!replay) {
+            seq = frame_seq;
+        }
+
+        auto frame = buildUplinkFrame(frame_seq, CommandPacket{200, 1, 0.0f});
+        const bool ok = bridge.ingestUplinkFrameForTest(frame.data(), frame.size());
+        if (replay) {
+            EXPECT_FALSE(ok);
+            ++rejected;
+        } else {
+            EXPECT_TRUE(ok);
+            ++accepted;
+        }
+    }
+    (void)testing::internal::GetCapturedStdout();
+    (void)testing::internal::GetCapturedStderr();
+
+    size_t consumed = 0u;
+    CommandPacket cmd{};
+    while (dest.tryConsume(cmd)) {
+        ++consumed;
+    }
+    EXPECT_EQ(consumed, accepted);
+    EXPECT_EQ(bridge.getRejectedCount(), rejected);
 }
 
 // =============================================================================

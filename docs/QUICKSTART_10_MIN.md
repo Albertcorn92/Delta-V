@@ -7,7 +7,7 @@ This flow validates DELTA-V end-to-end on a local machine:
 1. Legal/scope checks
 2. Build binaries
 3. Unit + system tests
-4. Software benchmark baseline
+4. Software benchmark baseline + regression guard
 5. Short SITL smoke run
 
 ## Run
@@ -25,12 +25,12 @@ cmake --build build --target flight_software
 cmake --build build --target run_tests
 cmake --build build --target run_system_tests
 ctest --test-dir build --output-on-failure --timeout 90
-cmake --build build --target benchmark_baseline
+cmake --build build --target benchmark_guard
 python3 tools/sitl_smoke.py --build-dir build --duration 8
 ```
 
 ## Expected Result
 
 - All checks pass with no fatal runtime signatures.
-- Benchmark artifacts are generated in `build/benchmark/`.
+- Benchmark artifacts are generated in `build/benchmark/` and validated.
 - `docs/BENCHMARK_BASELINE.*` are refreshed.

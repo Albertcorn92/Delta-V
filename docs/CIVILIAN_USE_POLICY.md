@@ -31,3 +31,5 @@ By opening a pull request, contributors affirm that:
 This policy narrows project scope but does not itself provide legal clearance.
 Users are responsible for export, sanctions, and local-law compliance for their
 own deployment and distribution activities.
+
+For practical release questions, see `docs/LEGAL_FAQ.md`.

@@ -15,7 +15,8 @@ ESP32 no-sensor baseline evidence: `docs/ESP32_SENSORLESS_BASELINE.md`.
 
 Using **C++20 Concepts and Template Metaprogramming**, DELTA-V moves system validation to the **compiler**. Component wiring and data types are verified at compile time. If the spacecraft's internal architecture is incorrect, **the program will not compile**.
 
-In host/SITL builds, the heap is locked after initialization by `HeapGuard::arm()`.
+In host/SITL builds, strict runtime heap lock is optional and can be enabled with
+`DELTAV_ENABLE_HOST_HEAP_GUARD=1`.
 On ESP builds, heap lock is intentionally disabled in the default profile to keep
 runtime compatibility with ESP-IDF/FreeRTOS internals.
 
@@ -25,13 +26,16 @@ runtime compatibility with ESP-IDF/FreeRTOS internals.
 
 | Feature | Description |
 |---|---|
-| **HeapGuard** | Post-init heap lock: overrides `operator new` to fatal-abort after `arm()` |
+| **HeapGuard** | Optional strict host runtime heap lock via `DELTAV_ENABLE_HOST_HEAP_GUARD=1` |
 | **TmrStore** | Triple Modular Redundancy for critical params — SEU self-healing via majority vote |
 | **COBS Framing** | Consistent Overhead Byte Stuffing — guarantees frame sync after bit errors |
 | **MissionFsm** | Formal FSM gates uplink commands by state: SAFE_MODE blocks OPERATIONAL opcodes |
 | **Requirements.hpp** | RTM header — every DV-XXX-NN requirement linked to tests |
 | **FaultInjection** | `WatchdogComponent::injectBatteryLevel()` hook for HIL destructive testing |
 | **TMR Scrub** | Watchdog calls `TmrRegistry::scrubAll()` every 30 cycles |
+| **System Tests** | End-to-end command/event/telemetry integration tests via `run_system_tests` |
+| **Bench Baseline** | Reproducible software performance metrics (uplink, CRC-16, COBS) |
+| **SITL Smoke + Quickstart** | Local runtime smoke validation and one-command onboarding flow |
 
 ---
 
@@ -122,11 +126,59 @@ Port-specific quick reference: `ports/esp32/README.md`.
 cd build && ctest --output-on-failure
 ```
 
+### Generate Coverage + Enforce Thresholds
+
+```bash
+cmake -B build_cov -DCMAKE_BUILD_TYPE=Debug
+cmake --build build_cov --target coverage
+cmake --build build_cov --target coverage_guard
+```
+
+### Run System Integration Tests
+
+```bash
+cmake --build build --target run_system_tests
+ctest --test-dir build --output-on-failure --timeout 90
+```
+
 ### Run V&V Stress Gate
 
 ```bash
 cmake --build build --target vnv_stress
 ```
+
+### Generate Software Benchmark Baseline
+
+```bash
+cmake --build build --target benchmark_baseline
+# writes docs/BENCHMARK_BASELINE.{md,json}
+```
+
+### Run Benchmark Regression Guard
+
+```bash
+cmake --build build --target benchmark_guard
+```
+
+### Run SITL Smoke Check
+
+```bash
+cmake --build build --target sitl_smoke
+```
+
+### Run Extended SITL Soak
+
+```bash
+cmake --build build --target sitl_soak
+```
+
+### 10-Minute Local Validation (Recommended)
+
+```bash
+cmake --build build --target quickstart_10min
+```
+
+Reference: `docs/QUICKSTART_10_MIN.md`
 
 ### Validate Requirements Traceability
 
@@ -154,10 +206,13 @@ cmake --build build --target qualification_bundle
 cmake --build build --target software_final
 # syncs docs/{REQUIREMENTS_TRACE_MATRIX.*,qualification_report.*}
 # emits docs/SOFTWARE_FINAL_STATUS.md
+# includes benchmark_guard + sitl_soak dependencies
 ```
 
 Process templates for mission certification work are in `docs/process/`.
 Open-source release checklist is in `docs/OPEN_SOURCE_RELEASE_CHECKLIST.md`.
+Performance methodology is in `docs/BENCHMARK_PROTOCOL.md`.
+Coverage policy is in `docs/COVERAGE_POLICY.md`.
 
 ---
 
@@ -206,6 +261,7 @@ See `src/Requirements.hpp` for the full RTM. Every unit test references its gove
 - This repository is intended for research/prototyping and is not certified for operational or safety-critical deployment.
 - This repository includes compliance guidance, but it is **not legal advice** and does not provide legal clearance by itself.
 - See `docs/CIVILIAN_USE_POLICY.md` and `docs/EXPORT_CONTROL_NOTE.md` before release or deployment.
+- Read `docs/LEGAL_FAQ.md` for plain-language release/deployment legal questions.
 - Maintainer release checklist: `docs/LEGAL_SCOPE_CHECKLIST.md`.
 
 ---

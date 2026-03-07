@@ -10,11 +10,17 @@ The repository enforces these assurance gates in CI:
 - Runs the full GTest suite in shuffled repeated mode (`--gtest_shuffle --gtest_repeat=25` by default).
 - Detects nondeterministic/flaky behavior before static-analysis and traceability gates.
 
-2. `tidy_safety`
+2. `flight_readiness`
+- Enforces legal checks, test execution, safety static analysis, traceability validation,
+  and final flight binary build in a single target.
+- Includes unit + system integration coverage through `ctest` (`DeltaV_Unit_Tests` and
+  `DeltaV_System_Tests`).
+
+3. `tidy_safety`
 - Runs curated high-signal checks (`clang-analyzer-*` and selected `bugprone`/`cert` rules).
 - Treats findings as errors.
 
-3. `traceability`
+4. `traceability`
 - Validates one-to-one coverage between requirements in `src/Requirements.hpp`
   and mapped evidence in `docs/REQUIREMENTS_TRACE.yaml`.
 - Verifies every mapped test name exists in `tests/unit_tests.cpp`.
@@ -22,8 +28,9 @@ The repository enforces these assurance gates in CI:
   - `requirements_trace_matrix.md`
   - `requirements_trace_matrix.json`
 
-4. `software_final`
-- Depends on `qualification_bundle` after `flight_readiness`.
+5. `software_final`
+- Depends on `qualification_bundle` after `flight_readiness` plus
+  `benchmark_guard` and `sitl_soak`.
 - Re-validates legal policy scan (civilian scope + no command-path crypto patterns)
   and trace/qualification status.
 - Synchronizes release evidence into `docs/` and writes `docs/SOFTWARE_FINAL_STATUS.md`.
@@ -31,17 +38,32 @@ The repository enforces these assurance gates in CI:
 ## Advisory Gates
 
 - `tidy`: broad static-analysis profile for modernization and maintainability improvements.
+- `benchmark_baseline`: regenerates reproducible host/SITL performance baseline
+  (`docs/BENCHMARK_BASELINE.{md,json}`).
+- `benchmark_guard`: enforces threshold-based performance regression checks from
+  `docs/BENCHMARK_THRESHOLDS.json`.
+- `sitl_smoke`: short runtime health check for startup markers, early process exit, and fatal signature scan.
+- `sitl_soak`: extended runtime soak to detect delayed failures and unstable shutdown behavior.
+- `coverage_guard`: enforces minimum line/branch/function coverage thresholds in CI.
+- `quickstart_10min`: one-command local path for legal + build + tests + benchmark + smoke.
 - Coverage and Python tool checks remain active in CI.
 
 ## Command Reference
 
 ```bash
+cmake --build build --target run_system_tests
 cmake --build build --target tidy_safety
 cmake --build build --target traceability
 cmake --build build --target vnv_stress
 cmake --build build --target flight_readiness
 cmake --build build --target qualification_bundle
 cmake --build build --target software_final
+cmake --build build --target benchmark_baseline
+cmake --build build --target benchmark_guard
+cmake --build build --target sitl_smoke
+cmake --build build --target sitl_soak
+cmake --build build_cov --target coverage_guard
+cmake --build build --target quickstart_10min
 ```
 
 ## Qualification Bundle

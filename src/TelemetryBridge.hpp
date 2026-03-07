@@ -7,6 +7,7 @@
 // - Loop conditions fixed to prevent infinite-loop evaluation
 // =============================================================================
 #include "Component.hpp"
+#include "HeapGuard.hpp"
 #include "Port.hpp"
 #include "Serializer.hpp"
 #include "TimeService.hpp"
@@ -209,6 +210,12 @@ private:
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
         return;
 #else
+        // Host heap lock intentionally disallows post-start dynamic allocation.
+        // Replay protection still works in-memory when persistence is disabled.
+        if (HeapGuard::isArmed()) {
+            return;
+        }
+
         if (replay_seq_path.empty()) {
             return;
         }
@@ -330,13 +337,21 @@ private:
                 static_cast<int>(name.size()), name.data(), static_cast<unsigned>(new_seq));
             return false;
         }
-        first_uplink = false;
-        last_uplink_seq = new_seq;
-        persistReplayState();
 
         CommandPacket cmd{};
         std::memcpy(&cmd, data + sizeof(CcsdsHeader), sizeof(CommandPacket));
-        command_out.send(cmd);
+        if (!command_out.send(cmd)) {
+            ++rejected_count;
+            recordError();
+            const auto name = getName();
+            (void)std::fprintf(stderr, "[%.*s] WARN: command dispatch failed seq=%u\n",
+                static_cast<int>(name.size()), name.data(), static_cast<unsigned>(new_seq));
+            return false;
+        }
+
+        first_uplink = false;
+        last_uplink_seq = new_seq;
+        persistReplayState();
         const auto name = getName();
         std::printf("[%.*s] CMD seq=%u op=%u -> ID %u\n",
             static_cast<int>(name.size()), name.data(),

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-sitl_smoke.py
+sitl_soak.py
 
-Run a short local SITL smoke test and validate basic runtime health markers.
+Run an extended local SITL soak and validate runtime stability markers.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ REQUIRED_MARKERS = [
     "[Topology] All ports connected.",
 ]
 
-RGE_MARKERS = [
+RUNTIME_MARKERS = [
     "[RGE] All rate groups running.",
     "[RGE] Embedded cooperative scheduler running.",
     "[RGE] Tiers ready - FAST=",
@@ -32,9 +32,11 @@ FAIL_MARKERS = [
     "stack overflow",
     "Guru Meditation",
     "assert failed",
+    "[HeapGuard] FATAL",
 ]
 
-def tail_excerpt(text: str, lines: int = 40) -> str:
+
+def tail_excerpt(text: str, lines: int = 60) -> str:
     split = text.splitlines()
     if not split:
         return "<no output captured>"
@@ -42,18 +44,18 @@ def tail_excerpt(text: str, lines: int = 40) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run DELTA-V SITL smoke test.")
+    parser = argparse.ArgumentParser(description="Run DELTA-V extended SITL soak.")
     parser.add_argument("--build-dir", type=Path, default=Path("build"))
-    parser.add_argument("--duration", type=float, default=8.0)
+    parser.add_argument("--duration", type=float, default=180.0)
     args = parser.parse_args()
 
     build_dir = args.build_dir.resolve()
     flight_bin = build_dir / "flight_software"
     if not flight_bin.exists():
-        print(f"[sitl-smoke] ERROR: missing binary: {flight_bin}", file=sys.stderr)
+        print(f"[sitl-soak] ERROR: missing binary: {flight_bin}", file=sys.stderr)
         return 2
 
-    with tempfile.NamedTemporaryFile(prefix="deltav_sitl_smoke_", suffix=".log", delete=False) as log:
+    with tempfile.NamedTemporaryFile(prefix="deltav_sitl_soak_", suffix=".log", delete=False) as log:
         log_path = Path(log.name)
         proc = subprocess.Popen(
             [str(flight_bin)],
@@ -63,46 +65,43 @@ def main() -> int:
             text=True,
         )
 
-    stopped_by_smoke = False
-    try:
-        time.sleep(max(args.duration, 1.0))
-    finally:
-        if proc.poll() is None:
-            stopped_by_smoke = True
-            proc.terminate()
+    early_exit = False
+    t_end = time.monotonic() + max(args.duration, 1.0)
+    while time.monotonic() < t_end:
+        rc = proc.poll()
+        if rc is not None:
+            early_exit = True
+            break
+        time.sleep(0.5)
+
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                proc.kill()
-                try:
-                    proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    print("[sitl-smoke] ERROR: process did not exit after kill.", file=sys.stderr)
-                    return 5
+                print("[sitl-soak] ERROR: process did not terminate.", file=sys.stderr)
+                return 5
 
     output = log_path.read_text(encoding="utf-8", errors="ignore")
     log_path.unlink(missing_ok=True)
 
-    if not stopped_by_smoke:
+    if early_exit:
         print(
-            f"[sitl-smoke] ERROR: flight_software exited before {args.duration:.1f}s "
-            f"(code={proc.returncode}).",
+            f"[sitl-soak] ERROR: early process exit before soak duration (code={proc.returncode}).",
             file=sys.stderr,
         )
         print(tail_excerpt(output), file=sys.stderr)
         return 6
 
-    if proc.returncode not in (-15, -9, 0):
-        print(f"[sitl-smoke] ERROR: unexpected process exit code: {proc.returncode}", file=sys.stderr)
-        print(tail_excerpt(output), file=sys.stderr)
-        return 7
-
     missing = [m for m in REQUIRED_MARKERS if m not in output]
-    if not any(marker in output for marker in RGE_MARKERS):
-        missing.append("RGE startup marker")
-
+    if not any(marker in output for marker in RUNTIME_MARKERS):
+        missing.append("RGE runtime marker")
     if missing:
-        print("[sitl-smoke] ERROR: missing required startup markers:", file=sys.stderr)
+        print("[sitl-soak] ERROR: missing required runtime markers:", file=sys.stderr)
         for marker in missing:
             print(f"  - {marker}", file=sys.stderr)
         print(tail_excerpt(output), file=sys.stderr)
@@ -110,13 +109,13 @@ def main() -> int:
 
     failures = [m for m in FAIL_MARKERS if m in output]
     if failures:
-        print("[sitl-smoke] ERROR: failure markers detected:", file=sys.stderr)
+        print("[sitl-soak] ERROR: failure markers detected:", file=sys.stderr)
         for marker in failures:
             print(f"  - {marker}", file=sys.stderr)
         print(tail_excerpt(output), file=sys.stderr)
         return 4
 
-    print(f"[sitl-smoke] PASS: ran {args.duration:.1f}s, markers present, no fatal signatures.")
+    print(f"[sitl-soak] PASS: ran {args.duration:.1f}s with no fatal signatures.")
     return 0
 
 

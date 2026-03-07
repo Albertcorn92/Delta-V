@@ -19,10 +19,15 @@ payload, customer, destination, and operational use.
   for open-source distribution.
 - The baseline repository profile intentionally avoids command-path
   cryptographic features to reduce export-compliance complexity.
+- For typical public open-source publication of this civilian baseline, users
+  often do not perform special filings solely to publish code; deployment and
+  export operations can still require formal review.
 - ITAR applicability depends on whether software/technical data is specifically
   controlled as a defense article/technical data for USML use.
 - Sanctions obligations (for end user, destination, and prohibited parties)
   remain applicable to deployment and support activities.
+
+Plain-language Q&A: see `docs/LEGAL_FAQ.md`.
 
 ## Suggested Pre-Release Controls
 

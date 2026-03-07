@@ -20,7 +20,13 @@ DELTA-V uses semantic versioning:
 
 ```bash
 python3 tools/legal_compliance_check.py
+cmake --build build --target run_system_tests
 cmake --build build --target vnv_stress
+cmake --build build --target benchmark_baseline
+cmake --build build --target benchmark_guard
+cmake --build build --target sitl_smoke
+cmake --build build --target sitl_soak
+cmake --build build_cov --target coverage_guard
 cmake --build build --target software_final
 ```
 

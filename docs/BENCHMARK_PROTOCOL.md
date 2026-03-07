@@ -16,6 +16,7 @@ and compare results against other frameworks on equal footing.
 ```bash
 cmake --build build --target run_benchmarks
 cmake --build build --target benchmark_baseline
+cmake --build build --target benchmark_guard
 ```
 
 Artifacts:
@@ -24,6 +25,7 @@ Artifacts:
 - `build/benchmark/benchmark_baseline.md`
 - `docs/BENCHMARK_BASELINE.md` (synced by default)
 - `docs/BENCHMARK_BASELINE.json` (synced by default)
+- `docs/BENCHMARK_THRESHOLDS.json` (regression gate thresholds)
 
 ## Metrics (Current Baseline)
 
@@ -39,6 +41,14 @@ Artifacts:
 3. Same payload sizes and command frame structures.
 4. Minimum 3 runs per scenario; report median and p95.
 5. Keep background load minimal and documented.
+
+## Regression Gate Policy
+
+- `benchmark_guard` validates current metrics against
+  `docs/BENCHMARK_THRESHOLDS.json`.
+- Thresholds are intentionally conservative cross-host minimums for CI.
+- If hardware/OS/compiler baseline changes materially, update thresholds with
+  evidence in the release notes.
 
 ## Suggested Cross-Framework Matrix
 

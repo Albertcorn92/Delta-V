@@ -65,11 +65,40 @@ def validate_qualification(qualification_payload: dict[str, Any]) -> int:
 
 def validate_readme_legal_links(readme_path: Path) -> None:
     text = readme_path.read_text(encoding="utf-8").lower()
-    required = ["docs/civilian_use_policy.md", "docs/export_control_note.md"]
+    required = [
+        "docs/civilian_use_policy.md",
+        "docs/export_control_note.md",
+        "docs/legal_faq.md",
+    ]
     missing = [item for item in required if item not in text]
     if missing:
         raise ValueError(
             "README legal scope links missing: " + ", ".join(sorted(missing))
+        )
+
+
+def validate_architecture_doc(architecture_path: Path) -> None:
+    text = architecture_path.read_text(encoding="utf-8")
+
+    forbidden_snippets = [
+        "Rate Groups (Planned — Phase 5)",
+        "| Rate group executive (10/1/0.1 Hz tiers) | Planned",
+    ]
+    for snippet in forbidden_snippets:
+        if snippet in text:
+            raise ValueError(
+                f"Architecture doc contains stale runtime statement: '{snippet}'"
+            )
+
+    required_snippets = [
+        "RateGroupExecutive",
+        "DELTAV_ENABLE_HOST_HEAP_GUARD=1",
+    ]
+    missing = [snippet for snippet in required_snippets if snippet not in text]
+    if missing:
+        raise ValueError(
+            "Architecture doc missing required runtime details: "
+            + ", ".join(missing)
         )
 
 
@@ -130,6 +159,7 @@ def main() -> int:
 
     run_legal_check(workspace, args.python_exe)
     validate_readme_legal_links(workspace / "README.md")
+    validate_architecture_doc(workspace / "docs" / "ARCHITECTURE.md")
 
     trace_payload = load_json(trace_json)
     total_reqs, covered_reqs = validate_traceability(trace_payload)

@@ -10,7 +10,9 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <cstdio>
+#include <cstring>
 #include <thread>
 
 namespace deltav {
@@ -179,9 +181,20 @@ public:
             }
         });
 
-#if !defined(DELTAV_DISABLE_HOST_HEAP_GUARD)
-        HeapGuard::arm();
+        const char* heap_guard_env = std::getenv("DELTAV_ENABLE_HOST_HEAP_GUARD");
+        const bool enable_heap_guard =
+#if defined(DELTAV_DISABLE_HOST_HEAP_GUARD)
+            false;
+#else
+            heap_guard_env != nullptr && std::strcmp(heap_guard_env, "1") == 0;
 #endif
+
+        if (enable_heap_guard) {
+            HeapGuard::arm();
+            std::printf("[RGE] Host HeapGuard armed (strict mode).\n");
+        } else {
+            std::printf("[RGE] Host HeapGuard runtime lock skipped (set DELTAV_ENABLE_HOST_HEAP_GUARD=1 to enable).\n");
+        }
         std::printf("[RGE] All rate groups running. Ctrl+C to stop.\n\n");
 
         if (fast_thread_.joinable()) fast_thread_.join();

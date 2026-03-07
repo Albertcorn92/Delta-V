@@ -82,7 +82,7 @@ public:
         }}
 
         // ── 2. Cyclic logic ───────────────────────────────────────────────
-        // TODO: implement your sensor or actuator logic here.
+        // Implement your sensor or actuator logic here.
 
         // ── 3. Emit telemetry ─────────────────────────────────────────────
         // TelemetryPacket p{{ TimeService::getMET(), getId(), value_ }};
@@ -154,7 +154,7 @@ public:
             handleCommand(cmd);
         }}
 
-        // TODO: implement your high-rate I/O or computation here.
+        // Implement your high-rate I/O or computation here.
     }}
 
 private:

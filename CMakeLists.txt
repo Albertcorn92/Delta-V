@@ -146,14 +146,39 @@ if(GTest_FOUND OR GTEST_FOUND)
 
     find_program(LCOV    lcov)
     find_program(GENHTML genhtml)
-    set(DELTAV_GCOV_CANDIDATES gcov)
+    unset(DELTAV_GCOV_TOOL)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        string(REGEX MATCH "^[0-9]+" DELTAV_GCC_MAJOR "${CMAKE_CXX_COMPILER_VERSION}")
-        if(DELTAV_GCC_MAJOR)
-            list(PREPEND DELTAV_GCOV_CANDIDATES gcov-${DELTAV_GCC_MAJOR})
+        # Ask the active compiler for its matching gcov tool to avoid
+        # version mismatches (for example, prefixed triplet gcov binaries).
+        execute_process(
+            COMMAND ${CMAKE_CXX_COMPILER} -print-prog-name=gcov
+            OUTPUT_VARIABLE DELTAV_GCOV_FROM_COMPILER
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        if(DELTAV_GCOV_FROM_COMPILER AND
+           NOT DELTAV_GCOV_FROM_COMPILER STREQUAL "gcov")
+            if(EXISTS "${DELTAV_GCOV_FROM_COMPILER}")
+                set(DELTAV_GCOV_TOOL "${DELTAV_GCOV_FROM_COMPILER}")
+            else()
+                find_program(DELTAV_GCOV_TOOL
+                    NAMES ${DELTAV_GCOV_FROM_COMPILER})
+            endif()
         endif()
     endif()
-    find_program(DELTAV_GCOV_TOOL NAMES ${DELTAV_GCOV_CANDIDATES})
+    if(NOT DELTAV_GCOV_TOOL)
+        set(DELTAV_GCOV_CANDIDATES gcov)
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            string(REGEX MATCH "^[0-9]+" DELTAV_GCC_MAJOR "${CMAKE_CXX_COMPILER_VERSION}")
+            if(DELTAV_GCC_MAJOR)
+                list(PREPEND DELTAV_GCOV_CANDIDATES
+                    gcov-${DELTAV_GCC_MAJOR}
+                    x86_64-linux-gnu-gcov-${DELTAV_GCC_MAJOR}
+                    aarch64-linux-gnu-gcov-${DELTAV_GCC_MAJOR})
+            endif()
+        endif()
+        find_program(DELTAV_GCOV_TOOL NAMES ${DELTAV_GCOV_CANDIDATES})
+    endif()
     set(DELTAV_LCOV_GCOV_ARGS)
     if(DELTAV_GCOV_TOOL)
         list(APPEND DELTAV_LCOV_GCOV_ARGS --gcov-tool ${DELTAV_GCOV_TOOL})
@@ -324,6 +349,17 @@ if(PYTHON3 AND TARGET qualification_bundle)
     message(STATUS "SoftFinal: ENABLED  (cmake --build build --target software_final)")
 endif()
 
+if(PYTHON3 AND TARGET coverage)
+    add_custom_target(coverage_guard
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/coverage_guard.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+        DEPENDS coverage
+        COMMENT "Validating coverage thresholds"
+    )
+    message(STATUS "CovGuard : ENABLED  (cmake --build build --target coverage_guard)")
+endif()
+
 if(PYTHON3 AND TARGET run_benchmarks)
     add_custom_target(benchmark_baseline
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/benchmark_report.py
@@ -335,6 +371,17 @@ if(PYTHON3 AND TARGET run_benchmarks)
     message(STATUS "BenchRpt : ENABLED  (cmake --build build --target benchmark_baseline)")
 endif()
 
+if(PYTHON3 AND TARGET benchmark_baseline)
+    add_custom_target(benchmark_guard
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/benchmark_guard.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+        DEPENDS benchmark_baseline
+        COMMENT "Validating benchmark regression thresholds"
+    )
+    message(STATUS "BenchGte : ENABLED  (cmake --build build --target benchmark_guard)")
+endif()
+
 if(PYTHON3 AND TARGET flight_software)
     add_custom_target(sitl_smoke
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_smoke.py
@@ -344,20 +391,39 @@ if(PYTHON3 AND TARGET flight_software)
         COMMENT "Running short SITL smoke test"
     )
     message(STATUS "SITLSmoke: ENABLED  (cmake --build build --target sitl_smoke)")
+
+    set(DELTAV_SITL_SOAK_SECONDS "180" CACHE STRING
+        "Duration in seconds for the SITL soak gate")
+    add_custom_target(sitl_soak
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_soak.py
+            --build-dir ${CMAKE_BINARY_DIR}
+            --duration ${DELTAV_SITL_SOAK_SECONDS}
+        DEPENDS flight_software
+        COMMENT "Running extended SITL soak (${DELTAV_SITL_SOAK_SECONDS}s)"
+    )
+    message(STATUS "SITLSoak : ENABLED  (cmake --build build --target sitl_soak)")
 endif()
 
-if(TARGET legal_compliance AND TARGET run_tests AND TARGET run_system_tests AND TARGET benchmark_baseline AND TARGET sitl_smoke)
+if(TARGET legal_compliance AND TARGET run_tests AND TARGET run_system_tests AND TARGET benchmark_guard AND TARGET sitl_smoke)
     add_custom_target(quickstart_10min
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target legal_compliance
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_tests
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_system_tests
         COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure --timeout 90
-        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target benchmark_baseline
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target benchmark_guard
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target sitl_smoke
         COMMENT "Running 10-minute local quickstart validation flow"
         USES_TERMINAL
     )
     message(STATUS "Quick10m : ENABLED  (cmake --build build --target quickstart_10min)")
+endif()
+
+if(TARGET software_final AND TARGET benchmark_guard)
+    add_dependencies(software_final benchmark_guard)
+endif()
+
+if(TARGET software_final AND TARGET sitl_soak)
+    add_dependencies(software_final sitl_soak)
 endif()
 
 # =============================================================================
@@ -378,6 +444,7 @@ message(STATUS "║    run_tests        — GTest suite          ║")
 message(STATUS "║    run_system_tests — integration tests    ║")
 message(STATUS "║    vnv_stress       — stress test gate     ║")
 message(STATUS "║    coverage         — lcov HTML report     ║")
+message(STATUS "║    coverage_guard   — coverage quality gate║")
 message(STATUS "║    tidy             — clang-tidy analysis  ║")
 message(STATUS "║    tidy_safety      — blocking safety gate ║")
 message(STATUS "║    legal_compliance — civilian-use checks  ║")
@@ -386,7 +453,9 @@ message(STATUS "║    flight_readiness — full assurance gate  ║")
 message(STATUS "║    qualification_bundle — audit artifacts  ║")
 message(STATUS "║    software_final   — software release gate║")
 message(STATUS "║    benchmark_baseline — perf report sync   ║")
+message(STATUS "║    benchmark_guard  — perf regression gate ║")
 message(STATUS "║    sitl_smoke       — short runtime check  ║")
+message(STATUS "║    sitl_soak        — extended runtime test║")
 message(STATUS "║    quickstart_10min — one-command local UX ║")
 message(STATUS "║    gen              — run autocoder        ║")
 message(STATUS "╚════════════════════════════════════════════╝")

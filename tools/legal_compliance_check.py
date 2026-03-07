@@ -29,6 +29,7 @@ EXCLUDED_DIRS = {
 
 MILITARY_PATTERNS = [
     re.compile(r"\bweapon(s)?\b", re.IGNORECASE),
+    re.compile(r"\bweaponized\b", re.IGNORECASE),
     re.compile(r"\bmissile(s)?\b", re.IGNORECASE),
     re.compile(r"\bwarhead(s)?\b", re.IGNORECASE),
     re.compile(r"\bmunition(s)?\b", re.IGNORECASE),
@@ -66,6 +67,7 @@ CRYPTO_PATTERNS = [
 
 PROHIBITED_CLAIM_PATTERNS = [
     re.compile(r"\bliability[-\s]*free\b", re.IGNORECASE),
+    re.compile(r"\b100%\s*liability[-\s]*free\b", re.IGNORECASE),
     re.compile(r"\bzero[-\s]*liability\b", re.IGNORECASE),
     re.compile(r"\b100%\s*legal\b", re.IGNORECASE),
     re.compile(r"\bfully\s+legal\b", re.IGNORECASE),
@@ -109,6 +111,7 @@ REQUIRED_FILES = [
     ROOT / "LICENSE",
     ROOT / "docs" / "CIVILIAN_USE_POLICY.md",
     ROOT / "docs" / "EXPORT_CONTROL_NOTE.md",
+    ROOT / "docs" / "LEGAL_FAQ.md",
     ROOT / "docs" / "LEGAL_SCOPE_CHECKLIST.md",
     ROOT / "DISCLAIMER.md",
 ]
@@ -133,6 +136,10 @@ REQUIRED_PHRASES = [
     (
         ROOT / "docs" / "EXPORT_CONTROL_NOTE.md",
         "cannot provide legal clearance",
+    ),
+    (
+        ROOT / "docs" / "LEGAL_FAQ.md",
+        "not legal advice",
     ),
 ]
 

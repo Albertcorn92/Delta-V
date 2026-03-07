@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "minimums": {
+    "line_pct": 60.0,
+    "branch_pct": 40.0,
+    "function_pct": 70.0
+  }
+}

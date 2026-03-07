@@ -12,6 +12,7 @@ cmake --build build --target software_final
 ```
 
 Both commands must pass.
+Read `docs/LEGAL_FAQ.md` before public release if you are unsure about scope.
 
 ## 2. Civilian Scope Boundaries
 

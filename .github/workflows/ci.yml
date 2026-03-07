@@ -162,6 +162,9 @@ jobs:
       - name: Generate coverage report
         run: cmake --build build_cov --target coverage
 
+      - name: Enforce coverage thresholds
+        run: cmake --build build_cov --target coverage_guard
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -194,7 +197,10 @@ jobs:
       - run: python3 tools/autocoder.py
       - name: Configure
         env: { CC: clang-14, CXX: clang++-14 }
-        run: cmake -B build_tidy -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        run: |
+          cmake -B build_tidy -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DDELTAV_SITL_SOAK_SECONDS=60
       - name: Run software-final gate
         run: cmake --build build_tidy --target software_final
 

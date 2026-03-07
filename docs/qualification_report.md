@@ -1,6 +1,6 @@
 # DELTA-V Qualification Report
 
-- Generated (UTC): `2026-03-06T22:56:24.952426+00:00`
+- Generated (UTC): `2026-03-07T00:10:12.980215+00:00`
 - Workspace: `DELTA-V Framework`
 
 ## Build Provenance
@@ -8,7 +8,7 @@
 | Field | Value |
 |---|---|
 | Git branch | `main` |
-| Git commit | `927517e4ca00c6083c1d87962de9cce191efe76c` |
+| Git commit | `6efbcff9ff1ed19fb79959c2a70a42726e4e612d` |
 | Dirty worktree | `True` |
 | Host OS | `macOS-26.2-arm64-arm-64bit` |
 | Python | `3.12.12` |
@@ -28,7 +28,7 @@
 - Total requirements: `33`
 - With direct test evidence: `33`
 - Mapping errors: `0`
-- Unit test count: `127`
+- Unit test count: `130`
 - DAL distribution: `{'B': 16, 'C': 5, 'A': 12}`
 
 ## Artifact Checksums (CRC-32)
@@ -37,9 +37,9 @@
 |---|---|
 | `build/requirements_trace_matrix.json` | `93ea3889` |
 | `build/requirements_trace_matrix.md` | `0d46e8ba` |
-| `tests/unit_tests.cpp` | `0a6635df` |
-| `build/flight_software` | `370c6e6d` |
-| `build/run_tests` | `ad486b56` |
+| `tests/unit_tests.cpp` | `4ebaedba` |
+| `build/flight_software` | `1178a4e9` |
+| `build/run_tests` | `37072520` |
 
 ## Manual Evidence Remaining
 

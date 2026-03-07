@@ -7,7 +7,14 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
 ## 1. Technical Gates
 
 - [ ] `python3 tools/legal_compliance_check.py` passes.
+- [ ] `cmake --build build --target quickstart_10min` passes on a clean checkout.
+- [ ] `cmake --build build --target run_system_tests` passes.
 - [ ] `cmake --build build --target vnv_stress` passes (repeat/shuffle stress gate).
+- [ ] `cmake --build build --target benchmark_baseline` passes and refreshes docs baseline artifacts.
+- [ ] `cmake --build build --target benchmark_guard` passes against thresholds.
+- [ ] `cmake --build build --target sitl_smoke` passes.
+- [ ] `cmake --build build --target sitl_soak` passes.
+- [ ] `cmake --build build_cov --target coverage_guard` passes.
 - [ ] `cmake --build build --target flight_readiness` passes.
 - [ ] `cmake --build build --target qualification_bundle` passes.
 - [ ] `cmake --build build --target software_final` passes.
@@ -16,14 +23,19 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
 - [ ] `docs/REQUIREMENTS_TRACE_MATRIX.md` and `.json` are refreshed.
 - [ ] `docs/qualification_report.md` and `.json` are refreshed.
 - [ ] `docs/SOFTWARE_FINAL_STATUS.md` is refreshed.
+- [ ] `docs/BENCHMARK_BASELINE.md` and `.json` are refreshed.
 - [ ] CI safety-assurance workflow passes on clean branch.
 
 ## 2. Documentation
 
 - [ ] `README.md` quick-start commands are current.
+- [ ] `README.md` includes `quickstart_10min`, system tests, benchmark baseline, and SITL smoke commands.
 - [ ] `README.md` links `docs/CIVILIAN_USE_POLICY.md` and `docs/EXPORT_CONTROL_NOTE.md`.
+- [ ] `README.md` links `docs/LEGAL_FAQ.md`.
 - [ ] `README.md` and `DISCLAIMER.md` include non-operational-use limits.
 - [ ] `docs/SAFETY_ASSURANCE.md` references current gate commands.
+- [ ] `docs/BENCHMARK_PROTOCOL.md` reflects current benchmark scope and artifacts.
+- [ ] `docs/COVERAGE_POLICY.md` and `docs/COVERAGE_THRESHOLDS.json` reflect current CI thresholds.
 - [ ] `docs/ESP32_BRINGUP.md` includes latest no-sensor and hardware validation steps.
 - [ ] `docs/ESP32_SENSORLESS_BASELINE.md` reflects the latest local-only hardware run.
 - [ ] `docs/LEGAL_SCOPE_CHECKLIST.md` reflects current legal/civilian release guidance.

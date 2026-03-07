@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "metrics": {
+    "uplink_throughput_cmd_per_s_min": 5000.0,
+    "uplink_latency_p95_us_max": 500.0,
+    "crc16_throughput_mb_per_s_min": 5.0,
+    "cobs_roundtrip_throughput_mb_per_s_min": 50.0
+  }
+}

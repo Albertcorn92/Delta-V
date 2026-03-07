@@ -7,16 +7,24 @@
 DELTA-V is a Component-Based Software Architecture (CBSA) targeting **DO-178C DAL-B** compliance. Its three foundational rules are:
 
 1. **Compile-time correctness over runtime validation.** Wiring errors, type mismatches, and capacity violations are compiler errors, not runtime crashes.
-2. **No heap allocation in flight.** `HeapGuard::arm()` locks the heap after `initAll()`. Any post-init allocation is a fatal abort.
+2. **Deterministic runtime profile.** Core component graph and data paths are static; host builds can optionally enforce strict no-heap-after-init with `DELTAV_ENABLE_HOST_HEAP_GUARD=1`.
 3. **All faults are observable.** Every error path calls `recordError()`, feeds `EventHub`, and is surfaced to the GDS via the telemetry downlink.
 
 ---
 
 ## 2. Execution Model
 
-### 2.1 The Scheduler (Cyclic Executive)
+### 2.1 The Rate Group Executive (Primary Runtime)
 
-`Scheduler` runs the **passive component loop** in the master thread at a configurable rate (default 1 Hz). Each tick calls `step()` on every passive component in registration order. Frame drops (overruns) are counted and reported to the Watchdog.
+`RateGroupExecutive` is the primary runtime orchestrator in current SITL/host and
+ESP profiles. It runs deterministic tiers:
+
+- FAST: `10 Hz`
+- NORM: `1 Hz`
+- SLOW: `0.1 Hz`
+- ACTIVE: dedicated component threads
+
+Tier frame drops are counted and surfaced as watchdog health signals.
 
 ### 2.2 Active vs. Passive Components
 
@@ -27,9 +35,10 @@ DELTA-V is a Component-Based Software Architecture (CBSA) targeting **DO-178C DA
 
 `Os::Thread` uses `sleep_until` (absolute deadline) — **not** `sleep_for` — so wakeup times never drift. On FreeRTOS this maps to `vTaskDelayUntil`.
 
-### 2.3 Rate Groups (Planned — Phase 5)
+### 2.3 Legacy Scheduler
 
-A future upgrade partitions the passive loop into rate groups (10 Hz attitude, 1 Hz housekeeping, 0.1 Hz logging) via a `RateGroupExecutive`. This is the pattern used by F Prime and JPL's flight software.
+The legacy `Scheduler` abstraction remains in-tree for compatibility and focused
+unit testing, but production startup paths use `RateGroupExecutive`.
 
 ---
 
@@ -80,11 +89,16 @@ BOOT → NOMINAL ⇆ DEGRADED → SAFE_MODE → EMERGENCY
 
 ### 5.1 Static Allocation Model
 
-All arrays are `std::array<T, N>` with compile-time bounds. After boot, no heap allocation occurs. `HeapGuard` enforces this at runtime as defense-in-depth.
+All arrays are `std::array<T, N>` with compile-time bounds. Core flight paths are
+designed to avoid runtime heap growth.
 
 ### 5.2 HeapGuard
 
-`HeapGuard::arm()` overrides `operator new` and `operator new[]` globally. Any call after arming calls `HeapGuard::violation()` which prints a diagnostic and calls `std::abort()`. On FreeRTOS, `configTOTAL_HEAP_SIZE` is set to exactly what is allocated during `pvPortMalloc` calls in `init()`.
+`HeapGuard::arm()` overrides `operator new` and `operator new[]` globally.
+
+- Host/SITL: strict mode is opt-in via `DELTAV_ENABLE_HOST_HEAP_GUARD=1`.
+- ESP baseline profile: heap guard runtime lock is disabled by default for
+  compatibility with ESP-IDF/FreeRTOS internals.
 
 ### 5.3 Triple Modular Redundancy (TmrStore)
 
@@ -139,8 +153,8 @@ COBS ensures `0x00` is only ever a frame delimiter. After a dropped byte or corr
 
 | Item | Status |
 |---|---|
-| CRC-32 on downlink (CRC-16 currently) | Planned — Phase 5 |
-| Rate group executive (10/1/0.1 Hz tiers) | Planned — Phase 5 |
+| CRC-32 on downlink (CRC-16 currently) | Planned |
+| Rate group executive (10/1/0.1 Hz tiers) | Implemented in runtime path |
 | TAI/UTC epoch synchronisation | Planned — Phase 5 |
 | MISRA C++:2023 full compliance | Partially met (enforced by Wconversion, Wshadow, Wformat=2) |
 | Polyspace / Coverity integration | Planned |
