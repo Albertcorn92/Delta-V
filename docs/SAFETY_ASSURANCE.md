@@ -47,6 +47,7 @@ The repository enforces these assurance gates in CI:
 - `coverage_guard`: enforces minimum line/branch/function coverage thresholds in CI.
 - `coverage-trend` artifact: captures per-run coverage percentages for staged threshold increases.
 - `quickstart_10min`: one-command local path for legal + build + tests + benchmark + smoke.
+- `cubesat_readiness`: generates a consolidated CubeSat mission-readiness status snapshot.
 - Coverage and Python tool checks remain active in CI.
 
 ## Command Reference
@@ -59,6 +60,7 @@ cmake --build build --target vnv_stress
 cmake --build build --target flight_readiness
 cmake --build build --target qualification_bundle
 cmake --build build --target software_final
+cmake --build build --target cubesat_readiness
 cmake --build build --target benchmark_baseline
 cmake --build build --target benchmark_guard
 cmake --build build --target sitl_smoke

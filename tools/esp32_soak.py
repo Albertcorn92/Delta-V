@@ -8,6 +8,7 @@ Run an ESP32 sensorless soak over serial and validate runtime health markers.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from collections import deque
@@ -52,6 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--duration", type=float, default=600.0)
     parser.add_argument("--max-rom-banners", type=int, default=3)
     parser.add_argument("--log-file", type=Path, default=None)
+    parser.add_argument("--report-json", type=Path, default=None)
     parser.add_argument("--no-reset", action="store_true")
     return parser.parse_args()
 
@@ -60,6 +62,11 @@ def parse_args() -> argparse.Namespace:
 def make_default_log_path() -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return Path("artifacts") / f"esp32_soak_{ts}.log"
+
+
+def write_report(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
 
@@ -104,6 +111,7 @@ def main() -> int:
 
     log_path = args.log_file.resolve() if args.log_file else make_default_log_path().resolve()
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path = args.report_json.resolve() if args.report_json else log_path.with_suffix(".json")
 
     required_found = {marker: False for marker in REQUIRED_MARKERS}
     runtime_seen = False
@@ -142,8 +150,26 @@ def main() -> int:
                         if marker in lower:
                             failures.add(marker)
     except Exception as exc:
+        write_report(
+            report_path,
+            {
+                "generated_utc": datetime.now(timezone.utc).isoformat(),
+                "duration_s": duration,
+                "port": args.port,
+                "baud": args.baud,
+                "status": "ERROR",
+                "reason": f"serial monitor failed: {exc}",
+                "required_markers": required_found,
+                "runtime_seen": runtime_seen,
+                "rom_banner_count": rom_banners,
+                "failures": sorted(failures),
+                "max_rom_banners": args.max_rom_banners,
+                "log_path": str(log_path),
+            },
+        )
         print(f"[esp32-soak] ERROR: serial monitor failed: {exc}", file=sys.stderr)
         print(f"[esp32-soak] log: {log_path}", file=sys.stderr)
+        print(f"[esp32-soak] report: {report_path}", file=sys.stderr)
         return 3
 
     tail_excerpt = "\n".join(tail_lines) if tail_lines else "<no output captured>"
@@ -155,23 +181,78 @@ def main() -> int:
     if not runtime_seen:
         missing.append("RGE runtime marker")
     if missing:
+        write_report(
+            report_path,
+            {
+                "generated_utc": datetime.now(timezone.utc).isoformat(),
+                "duration_s": duration,
+                "port": args.port,
+                "baud": args.baud,
+                "status": "FAIL",
+                "reason": "missing required runtime markers",
+                "missing_markers": missing,
+                "required_markers": required_found,
+                "runtime_seen": runtime_seen,
+                "rom_banner_count": rom_banners,
+                "failures": sorted(failures),
+                "max_rom_banners": args.max_rom_banners,
+                "log_path": str(log_path),
+            },
+        )
         print("[esp32-soak] ERROR: missing required runtime markers:", file=sys.stderr)
         for marker in missing:
             print(f"  - {marker}", file=sys.stderr)
         print(tail_excerpt, file=sys.stderr)
         print(f"[esp32-soak] log: {log_path}", file=sys.stderr)
+        print(f"[esp32-soak] report: {report_path}", file=sys.stderr)
         return 4
 
     if failures:
+        write_report(
+            report_path,
+            {
+                "generated_utc": datetime.now(timezone.utc).isoformat(),
+                "duration_s": duration,
+                "port": args.port,
+                "baud": args.baud,
+                "status": "FAIL",
+                "reason": "failure markers detected",
+                "required_markers": required_found,
+                "runtime_seen": runtime_seen,
+                "rom_banner_count": rom_banners,
+                "failures": sorted(failures),
+                "max_rom_banners": args.max_rom_banners,
+                "log_path": str(log_path),
+            },
+        )
         print("[esp32-soak] ERROR: failure markers detected:", file=sys.stderr)
         for marker in sorted(failures):
             print(f"  - {marker}", file=sys.stderr)
         print(tail_excerpt, file=sys.stderr)
         print(f"[esp32-soak] log: {log_path}", file=sys.stderr)
+        print(f"[esp32-soak] report: {report_path}", file=sys.stderr)
         return 5
 
+    write_report(
+        report_path,
+        {
+            "generated_utc": datetime.now(timezone.utc).isoformat(),
+            "duration_s": duration,
+            "port": args.port,
+            "baud": args.baud,
+            "status": "PASS",
+            "reason": "healthy runtime markers",
+            "required_markers": required_found,
+            "runtime_seen": runtime_seen,
+            "rom_banner_count": rom_banners,
+            "failures": sorted(failures),
+            "max_rom_banners": args.max_rom_banners,
+            "log_path": str(log_path),
+        },
+    )
     print(f"[esp32-soak] PASS: ran {duration:.1f}s with healthy runtime markers.")
     print(f"[esp32-soak] log: {log_path}")
+    print(f"[esp32-soak] report: {report_path}")
     return 0
 
 

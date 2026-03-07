@@ -21,7 +21,7 @@
 | DV-FDIR-05 | B | PASS | WdFixture.DegradedAutoRecovery | - |
 | DV-FDIR-06 | B | PASS | WdFixture.HeartbeatAtCycle10 | - |
 | DV-FDIR-07 | C | PASS | WdFixture.SchedulerHealthEmitsOnNewDrops<br>WdFixture.SchedulerHealthSilentWhenNoNewDrops | - |
-| DV-FDIR-08 | B | PASS | CommandHubFixture.DuplicateRouteRegistrationIsRejected<br>CommandHubFixture.NackOnUnknownTarget<br>CommandHubFixture.NullRouteRegistrationIsRejected | - |
+| DV-FDIR-08 | B | PASS | CommandHubFixture.DuplicateRouteRegistrationIsRejected<br>CommandHubFixture.NackOnUnknownTarget<br>CommandHubFixture.NackWhenRouteQueueIsFull<br>CommandHubFixture.NullRouteRegistrationIsRejected | - |
 | DV-FDIR-09 | B | PASS | WatchdogThresholds.InvalidThresholdConfigFallsBackToDefaults<br>WatchdogThresholds.UsesConfiguredBatteryThresholds | - |
 | DV-LOG-01 | C | PASS | LoggerComponent.DrainsAll | analysis:src/LoggerComponent.hpp |
 | DV-LOG-02 | C | PASS | LoggerComponent.EventFlushesImmediately<br>LoggerComponent.TelemetryFlushesAtInterval | analysis:src/LoggerComponent.hpp |

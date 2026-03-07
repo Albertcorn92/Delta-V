@@ -11,6 +11,7 @@ DO-178C evidence around DELTA-V.
 - Automated quality gates (`flight_readiness`).
 - Requirements traceability mapping and report generation.
 - Qualification evidence bundle generation (`qualification_bundle`).
+- CubeSat mission-readiness status snapshot (`cubesat_readiness`).
 
 ## What Mission Teams Must Still Provide
 
@@ -27,3 +28,4 @@ DO-178C evidence around DELTA-V.
 4. HIL campaign results (fault injection, soak run, restart/recovery evidence).
 5. Release manifest with hashes for binaries and source commit.
 6. Safety-case package (`docs/safety_case/`) with hazards, mitigations, and verification links.
+7. Mission operations/environment records from `docs/process/*_TEMPLATE.md`.

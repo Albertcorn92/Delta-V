@@ -13,14 +13,25 @@ This guide covers creating custom flight software components, integrating them i
 ### 2.1 Scaffold with dv-util
 
 ```bash
+# Interactive wizard (recommended)
+python3 tools/dv-util.py boot-menu
+# then choose: "Quickstart: component + command + regenerate"
+
+# One command (best for first-time users)
+python3 tools/dv-util.py quickstart-component ThermalControl --build
+
 # Passive component (runs in the scheduler master thread)
-python3 tools/dv-util.py add-component ThermalControl
+python3 tools/dv-util.py add-component ThermalControl --profile utility
 
 # Active component (runs on its own Os::Thread)
-python3 tools/dv-util.py add-component ThermalControl --active
+python3 tools/dv-util.py add-component ThermalControl --active --profile controller
+
+# Register directly into topology.yaml during scaffolding
+python3 tools/dv-util.py add-component ThermalControl --register
 ```
 
-This creates `src/ThermalControlComponent.hpp` with all boilerplate pre-filled.
+The boot menu quickstart path can scaffold a component, add its first command,
+run `tools/autocoder.py`, and optionally build `flight_software` in one guided flow.
 
 ### 2.2 Component Checklist
 
@@ -154,6 +165,7 @@ class FaultI2c : public deltav::hal::MockI2c {
 | Flight readiness gate | `cmake --build . --target flight_readiness` | Legal + tests + safety + traceability |
 | Qualification bundle | `cmake --build . --target qualification_bundle` | Evidence report and artifact hashes |
 | Software final gate | `cmake --build . --target software_final` | Sync docs evidence + final software check |
+| CubeSat readiness report | `cmake --build . --target cubesat_readiness` | Consolidated framework + mission gap snapshot |
 
 Safety-case starter templates for mission teams are in `docs/safety_case/`.
 
@@ -163,9 +175,10 @@ Safety-case starter templates for mission teams are in `docs/safety_case/`.
 
 1. Start flight software: `./build/flight_software`
 2. Start GDS: `streamlit run gds/gds_dash.py`
-3. Use the sidebar to select and send commands — the dictionary auto-loads from `dictionary.json`
-4. Events appear in `flight_events.log` and the GDS event panel
-5. Telemetry is logged to `flight_log.csv` and plotted in real time
+3. Use the sidebar command console to filter, inspect, and send commands from `dictionary.json`
+4. Track startup readiness in the interactive boot checklist tab
+5. Events appear in `events.log` and the event stream panel
+6. Telemetry is logged to `live_telem.csv` and plotted in real time
 
 ---
 

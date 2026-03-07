@@ -21,14 +21,21 @@
 #include <cstring>
 #if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
 #include <fstream>
+#else
+#include "nvs.h"
+#include "nvs_flash.h"
 #endif
 #include <cstdio>
+#include <algorithm>
 #include <mutex>
 
 namespace deltav {
 
 constexpr size_t       MAX_PARAMS = 256;
 constexpr const char*  PARAM_FILE = "mission_params.db";
+constexpr const char*  PARAM_NVS_NAMESPACE = "deltav";
+constexpr const char*  PARAM_NVS_COUNT_KEY = "param_count";
+constexpr const char*  PARAM_NVS_BLOB_KEY  = "param_blob";
 
 class ParamDb {
 public:
@@ -153,6 +160,47 @@ public:
     // -----------------------------------------------------------------------
     void load() {
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        if (!ensureEspStorageReady()) {
+            return;
+        }
+
+        nvs_handle_t handle{};
+        if (nvs_open(PARAM_NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK) {
+            return;
+        }
+
+        uint16_t persisted_count = 0;
+        esp_err_t err = nvs_get_u16(handle, PARAM_NVS_COUNT_KEY, &persisted_count);
+        if (err != ESP_OK || persisted_count == 0) {
+            nvs_close(handle);
+            return;
+        }
+
+        std::array<CrcPayload, MAX_PARAMS> persisted{};
+        size_t blob_size = persisted.size() * sizeof(CrcPayload);
+        err = nvs_get_blob(handle, PARAM_NVS_BLOB_KEY, persisted.data(), &blob_size);
+        nvs_close(handle);
+        if (err != ESP_OK) {
+            (void)std::fprintf(stderr, "[ParamDb] WARN: NVS load failed (err=%d)\n",
+                static_cast<int>(err));
+            return;
+        }
+
+        const size_t available = blob_size / sizeof(CrcPayload);
+        const size_t bounded_count = std::min<size_t>(
+            static_cast<size_t>(persisted_count), std::min(available, MAX_PARAMS));
+
+        {
+            std::lock_guard<std::mutex> lk(write_mutex);
+            count.store(0, std::memory_order_release);
+            for (size_t i = 0; i < bounded_count; ++i) {
+                params[i].id = persisted[i].id;
+                params[i].value.store(persisted[i].value, std::memory_order_release);
+            }
+            count.store(bounded_count, std::memory_order_release);
+            updateChecksum();
+        }
+        std::printf("[ParamDb] Loaded %zu parameters from NVS\n", bounded_count);
         return;
 #else
         std::ifstream file(PARAM_FILE);
@@ -169,6 +217,42 @@ public:
 
     void save() const {
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        if (!ensureEspStorageReady()) {
+            return;
+        }
+
+        nvs_handle_t handle{};
+        if (nvs_open(PARAM_NVS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) {
+            return;
+        }
+
+        size_t n = count.load(std::memory_order_acquire);
+        if (n > MAX_PARAMS) {
+            n = MAX_PARAMS;
+        }
+
+        std::array<CrcPayload, MAX_PARAMS> persisted{};
+        for (size_t i = 0; i < n; ++i) {
+            persisted[i].id = params[i].id;
+            persisted[i].value = params[i].value.load(std::memory_order_acquire);
+        }
+
+        esp_err_t err = nvs_set_u16(handle, PARAM_NVS_COUNT_KEY, static_cast<uint16_t>(n));
+        if (err == ESP_OK) {
+            err = nvs_set_blob(
+                handle,
+                PARAM_NVS_BLOB_KEY,
+                persisted.data(),
+                n * sizeof(CrcPayload));
+        }
+        if (err == ESP_OK) {
+            err = nvs_commit(handle);
+        }
+        if (err != ESP_OK) {
+            (void)std::fprintf(stderr, "[ParamDb] WARN: NVS save failed (err=%d)\n",
+                static_cast<int>(err));
+        }
+        nvs_close(handle);
         return;
 #else
         std::ofstream file(PARAM_FILE, std::ios::trunc);
@@ -193,6 +277,35 @@ public:
     }
 
 private:
+    static auto ensureEspStorageReady() -> bool {
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        static bool attempted = false;
+        static bool ready = false;
+        if (attempted) {
+            return ready;
+        }
+        attempted = true;
+
+        esp_err_t err = nvs_flash_init();
+        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            const esp_err_t erase_err = nvs_flash_erase();
+            if (erase_err == ESP_OK) {
+                err = nvs_flash_init();
+            } else {
+                err = erase_err;
+            }
+        }
+        ready = (err == ESP_OK);
+        if (!ready) {
+            (void)std::fprintf(stderr, "[ParamDb] WARN: NVS init failed (err=%d)\n",
+                static_cast<int>(err));
+        }
+        return ready;
+#else
+        return true;
+#endif
+    }
+
     struct ParamEntry {
         uint32_t           id{0};
         std::atomic<float> value{0.0f};

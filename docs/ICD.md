@@ -92,6 +92,8 @@ All command frames must match canonical command framing:
 - `[CCSDS Header (10B)] + [CommandPacket (12B)]` exactly
 - sync/APID/payload-length fields must be valid
 - oversized or truncated frames are rejected
+- host/SITL UDP command ingest is disabled by default unless `DELTAV_ENABLE_UNAUTH_UPLINK=1`
+- host/SITL accepted source IP defaults to `127.0.0.1` and can be overridden with `DELTAV_UPLINK_ALLOW_IP`
 - Replay-state persistence path: `DELTAV_REPLAY_SEQ_FILE`.
 - Replay protection: sequence number must be strictly greater than the last accepted value (with wrap detection at `0xFF00`→`0x0100`)
 

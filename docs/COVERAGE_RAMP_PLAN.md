@@ -5,21 +5,21 @@ Date: 2026-03-07
 This plan defines controlled threshold increases for software-only coverage
 gates.
 
-## Stage A (Active)
-
-- Line: `>= 65%`
-- Branch: `>= 45%`
-- Function: `>= 75%`
-
-## Stage B (Planned)
+## Stage B (Active)
 
 - Line: `>= 70%`
 - Branch: `>= 50%`
 - Function: `>= 80%`
 
+## Stage C (Planned)
+
+- Line: `>= 75%`
+- Branch: `>= 55%`
+- Function: `>= 85%`
+
 ## Promotion Criteria
 
-Move from Stage A to Stage B only after all criteria are met:
+Move from Stage B to Stage C only after all criteria are met:
 
 1. Coverage gate passes for at least 10 consecutive CI runs on `main`.
 2. Coverage trend artifacts show no single-run drop greater than:

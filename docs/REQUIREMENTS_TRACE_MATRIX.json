@@ -220,6 +220,7 @@
       "tests": [
         "CommandHubFixture.DuplicateRouteRegistrationIsRejected",
         "CommandHubFixture.NackOnUnknownTarget",
+        "CommandHubFixture.NackWhenRouteQueueIsFull",
         "CommandHubFixture.NullRouteRegistrationIsRejected"
       ],
       "other_evidence": [],

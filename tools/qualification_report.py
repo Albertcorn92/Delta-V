@@ -145,6 +145,22 @@ def has_passing_hil_fault_campaign(artifacts_dir: Path) -> bool:
     return has_passing_reboot_campaign(artifacts_dir)
 
 
+def has_passing_sensorless_soak(
+    artifacts_dir: Path, *, min_duration_s: float = 3600.0
+) -> bool:
+    for candidate in latest_files(artifacts_dir, "esp32_soak_*.json"):
+        try:
+            payload = json.loads(candidate.read_text(encoding="utf-8"))
+            if str(payload.get("status", "")).upper() != "PASS":
+                continue
+            if float(payload.get("duration_s", 0.0)) < min_duration_s:
+                continue
+            return True
+        except Exception:
+            continue
+    return False
+
+
 def require_program_signatures() -> bool:
     return os.getenv("DELTAV_REQUIRE_PROGRAM_SIGNATURES", "0") == "1"
 
@@ -158,7 +174,8 @@ def collect_manual_remaining(workspace: Path) -> list[str]:
         remaining.append("Timing/WCET and stack margin evidence on target (`tools/esp32_runtime_guard.py`).")
     if not has_passing_reboot_campaign(artifacts_dir):
         remaining.append("Reboot-cycle stability evidence on target (`tools/esp32_reboot_campaign.py`).")
-    remaining.append("Multi-hour sensorless soak evidence on target (`tools/esp32_soak.py`, >=1h).")
+    if not has_passing_sensorless_soak(artifacts_dir, min_duration_s=3600.0):
+        remaining.append("Multi-hour sensorless soak evidence on target (`tools/esp32_soak.py`, >=1h).")
     if require_program_signatures():
         remaining.append("Program-level DO-178C process records (review signatures, independence, audits).")
     return remaining

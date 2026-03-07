@@ -97,7 +97,14 @@ private:
 
         for (size_t i = 0; i < route_count; ++i) {
             if (routes.at(i).comp_id == cmd.target_id) {
-                routes.at(i).port->send(cmd);
+                if (!routes.at(i).port->send(cmd)) {
+                    if (!ack_out.send(EventPacket::create(
+                            Severity::WARNING, getId(), "NACK: ROUTE BUSY"))) {
+                        recordError();
+                    }
+                    recordError();
+                    return;
+                }
                 char msg[28];
                 (void)std::snprintf(msg, sizeof(msg), "ACK: OP%" PRIu32 "->ID%" PRIu32,
                     static_cast<std::uint32_t>(cmd.opcode),

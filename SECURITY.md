@@ -15,8 +15,10 @@ Security fixes are applied to the latest `main` branch baseline.
 
 ## Security Notes for Integrators
 
-- The default uplink key in source is for development/SITL only.
-- Set `DELTAV_UPLINK_KEY_HEX` in deployment environments (32 hex chars).
+- Baseline DELTA-V intentionally excludes command-path cryptography/encryption.
+- On host/SITL, unauthenticated UDP uplink ingest is disabled by default.
+- Set `DELTAV_ENABLE_UNAUTH_UPLINK=1` only for controlled local testing.
+- Optionally restrict host uplink source IP with `DELTAV_UPLINK_ALLOW_IP` (defaults to `127.0.0.1`).
 - Set `DELTAV_REPLAY_SEQ_FILE` to persist anti-replay sequence state.
-- Production deployments must provision mission keys outside public source control.
+- Production missions should implement private, program-owned command security controls outside this baseline.
 - Validate replay protection behavior in on-target test campaigns.

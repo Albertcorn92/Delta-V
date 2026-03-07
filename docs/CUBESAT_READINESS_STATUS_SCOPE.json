@@ -1,0 +1,174 @@
+{
+  "generated_utc": "2026-03-07T23:07:21.008013+00:00",
+  "workspace": "DELTA-V Framework",
+  "build_dir": "build",
+  "framework_release_ready": true,
+  "cubesat_flight_ready": false,
+  "checks": [
+    {
+      "id": "legal-compliance",
+      "category": "Civilian/Legal",
+      "status": "PASS",
+      "required_for": [
+        "framework",
+        "flight"
+      ],
+      "evidence": "[legal] Required files and policy scans are valid."
+    },
+    {
+      "id": "software-final",
+      "category": "Software",
+      "status": "PASS",
+      "required_for": [
+        "framework"
+      ],
+      "evidence": "docs/SOFTWARE_FINAL_STATUS.md"
+    },
+    {
+      "id": "qualification-report",
+      "category": "Software",
+      "status": "PASS",
+      "required_for": [
+        "framework"
+      ],
+      "evidence": "docs/qualification_report.json"
+    },
+    {
+      "id": "requirements-traceability",
+      "category": "Software",
+      "status": "PASS",
+      "required_for": [
+        "framework"
+      ],
+      "evidence": "docs/REQUIREMENTS_TRACE_MATRIX.json (33/33)"
+    },
+    {
+      "id": "esp32-runtime-guard",
+      "category": "Hardware",
+      "status": "PASS",
+      "required_for": [
+        "framework",
+        "flight"
+      ],
+      "evidence": "artifacts/esp32_runtime_guard_20260307T071843Z.json"
+    },
+    {
+      "id": "esp32-reboot-campaign",
+      "category": "Hardware",
+      "status": "PASS",
+      "required_for": [
+        "framework",
+        "flight"
+      ],
+      "evidence": "artifacts/esp32_reboot_campaign_20260307T072234Z.json"
+    },
+    {
+      "id": "esp32-soak-30m",
+      "category": "Hardware",
+      "status": "PASS",
+      "required_for": [
+        "framework"
+      ],
+      "evidence": "docs/evidence/ESP32_SENSORLESS_EVIDENCE_20260307.md (documented 1800s pass)"
+    },
+    {
+      "id": "esp32-soak-1h",
+      "category": "Hardware",
+      "status": "WAIVED",
+      "required_for": [
+        "flight"
+      ],
+      "evidence": "no passing esp32_soak_*.json with duration >= 3600s | scope waiver requested via --exclude-check"
+    },
+    {
+      "id": "sensor-attached-evidence",
+      "category": "Hardware",
+      "status": "WAIVED",
+      "required_for": [
+        "flight"
+      ],
+      "evidence": "docs/evidence/ESP32_SENSOR_ATTACHED_EVIDENCE_20260307.md (record exists, execution pending) | scope waiver requested via --exclude-check"
+    },
+    {
+      "id": "flight-env-test-matrix",
+      "category": "Program",
+      "status": "MANUAL",
+      "required_for": [
+        "flight"
+      ],
+      "evidence": "docs/process/FLIGHT_ENV_TEST_MATRIX_20260307.md (record exists, execution pending)"
+    },
+    {
+      "id": "comms-link-validation",
+      "category": "Program",
+      "status": "MANUAL",
+      "required_for": [
+        "flight"
+      ],
+      "evidence": "docs/process/COMMS_LINK_VALIDATION_20260307.md (record exists, execution pending)"
+    },
+    {
+      "id": "operations-readiness",
+      "category": "Program",
+      "status": "MANUAL",
+      "required_for": [
+        "flight"
+      ],
+      "evidence": "docs/process/OPERATIONS_READINESS_20260307.md (record exists, execution pending)"
+    },
+    {
+      "id": "release-manifest",
+      "category": "Program",
+      "status": "PASS",
+      "required_for": [
+        "flight"
+      ],
+      "evidence": "docs/process/RELEASE_MANIFEST_20260307.md"
+    },
+    {
+      "id": "independent-review-record",
+      "category": "Process",
+      "status": "PASS",
+      "required_for": [
+        "framework",
+        "flight"
+      ],
+      "evidence": "docs/process/INDEPENDENT_REVIEW_RECORD_20260307.md"
+    },
+    {
+      "id": "ccb-signoff",
+      "category": "Process",
+      "status": "PASS",
+      "required_for": [
+        "framework",
+        "flight"
+      ],
+      "evidence": "docs/process/CCB_RELEASE_SIGNOFF_20260307.md"
+    },
+    {
+      "id": "deployment-screening",
+      "category": "Civilian/Legal",
+      "status": "PASS",
+      "required_for": [
+        "framework",
+        "flight"
+      ],
+      "evidence": "docs/process/DEPLOYMENT_SCREENING_PROCEDURE.md, docs/process/DEPLOYMENT_SCREENING_LOG_20260307.md"
+    },
+    {
+      "id": "safety-case-baseline",
+      "category": "Process",
+      "status": "PASS",
+      "required_for": [
+        "framework",
+        "flight"
+      ],
+      "evidence": "all baseline safety-case files present"
+    }
+  ],
+  "remaining_gaps": [
+    "flight-env-test-matrix: docs/process/FLIGHT_ENV_TEST_MATRIX_20260307.md (record exists, execution pending)",
+    "comms-link-validation: docs/process/COMMS_LINK_VALIDATION_20260307.md (record exists, execution pending)",
+    "operations-readiness: docs/process/OPERATIONS_READINESS_20260307.md (record exists, execution pending)"
+  ]
+}

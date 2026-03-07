@@ -43,7 +43,8 @@ idf.py -B build_esp32 -p /dev/cu.usbmodem101 flash
 idf.py -B build_esp32 -p /dev/cu.usbmodem101 monitor
 ```
 
-Automated soak command (writes `artifacts/esp32_soak_*.log`):
+Automated soak command (writes `artifacts/esp32_soak_*.log` and
+`artifacts/esp32_soak_*.json`):
 
 ```bash
 source $HOME/esp/esp-idf/export.sh

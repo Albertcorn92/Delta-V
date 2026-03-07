@@ -15,6 +15,7 @@ idf_component_register(
         lwip
         esp_timer
         freertos
+        nvs_flash
 )
 
 target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_20)

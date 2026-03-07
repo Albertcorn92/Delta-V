@@ -250,9 +250,18 @@ cmake --build build --target software_final
 # includes benchmark_guard + sitl_soak dependencies
 ```
 
+### Generate CubeSat Readiness Snapshot
+
+```bash
+cmake --build build --target cubesat_readiness
+# emits docs/CUBESAT_READINESS_STATUS.{md,json}
+```
+
 Process templates for mission certification work are in `docs/process/`.
 Open-source release checklist is in `docs/OPEN_SOURCE_RELEASE_CHECKLIST.md`.
 Mission assurance checklist is in `docs/MISSION_ASSURANCE_CHECKLIST.md`.
+CubeSat mission-team readiness guide is in `docs/CUBESAT_TEAM_READINESS.md`.
+Latest release notes snapshot is in `docs/RELEASE_NOTES_20260307.md`.
 Performance methodology is in `docs/BENCHMARK_PROTOCOL.md`.
 Coverage policy is in `docs/COVERAGE_POLICY.md`.
 
@@ -263,14 +272,22 @@ Coverage policy is in `docs/COVERAGE_POLICY.md`.
 ### Quick scaffold
 
 ```bash
-python3 tools/dv-util.py add-component ThermalControl
-# or for an Active (threaded) component:
-python3 tools/dv-util.py add-component ThermalControl --active
+# Interactive wizard (recommended)
+python3 tools/dv-util.py boot-menu
+# then choose: "Quickstart: component + command + regenerate"
+
+# One command (best for first-time setup)
+python3 tools/dv-util.py quickstart-component ThermalControl --build
+
+# Non-interactive scaffolding
+python3 tools/dv-util.py add-component ThermalControl --profile controller --register
+python3 tools/dv-util.py add-command SET_HEATER --target-id 400 --opcode 1 \
+  --description "Set heater target temperature (deg C)"
 ```
 
 ### Manual steps
 
-1. Add the component to `topology.yaml`
+1. Add the component to `topology.yaml` (or use `--register` in `add-component`)
 2. Run `python3 tools/autocoder.py` to regenerate `Types.hpp` and `dictionary.json`
 3. Wire ports in `TopologyManager.hpp` (or re-run the autocoder)
 4. Add unit tests referencing the relevant DV-XXX-NN requirements
@@ -285,6 +302,14 @@ Set replay-state persistence path before launch:
 
 ```bash
 export DELTAV_REPLAY_SEQ_FILE="replay_seq.db"
+```
+
+Enable local SITL command ingest only when needed:
+
+```bash
+export DELTAV_ENABLE_UNAUTH_UPLINK=1
+# Optional: restrict accepted source IP (default is 127.0.0.1)
+export DELTAV_UPLINK_ALLOW_IP="127.0.0.1"
 ```
 
 ---

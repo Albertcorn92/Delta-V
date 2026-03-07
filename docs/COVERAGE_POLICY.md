@@ -18,15 +18,15 @@ cmake --build build_cov --target coverage_guard
 
 Current minimums:
 
-- Line coverage: `>= 65%`
-- Branch coverage: `>= 45%`
-- Function coverage: `>= 75%`
-
-Next staged target (after trend stability):
-
 - Line coverage: `>= 70%`
 - Branch coverage: `>= 50%`
 - Function coverage: `>= 80%`
+
+Next staged target (after trend stability):
+
+- Line coverage: `>= 75%`
+- Branch coverage: `>= 55%`
+- Function coverage: `>= 85%`
 
 ## Trend Tracking
 

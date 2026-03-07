@@ -117,6 +117,8 @@ requirements:
     statement: "NACK on unroutable command increments error counter."
     evidence:
       - type: test
+        ref: "CommandHubFixture.NackWhenRouteQueueIsFull"
+      - type: test
         ref: "CommandHubFixture.NackOnUnknownTarget"
       - type: test
         ref: "CommandHubFixture.DuplicateRouteRegistrationIsRejected"

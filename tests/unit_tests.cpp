@@ -539,6 +539,37 @@ TEST_F(CommandHubFixture, DispatchesInNominal) {
     EXPECT_TRUE(target.hasNew());
 }
 
+TEST_F(CommandHubFixture, NackWhenRouteQueueIsFull) {
+    InputPort<CommandPacket, 1> target;
+    OutputPort<CommandPacket> route;
+    route.connect(&target);
+    hub.registerRoute(200, &route);
+    hub.init();
+
+    // Saturate the route queue so hub delivery fails.
+    ASSERT_TRUE(route.send(CommandPacket{200, 1, 0.0f}));
+
+    EventPacket drain{};
+    while (event_dest.tryConsume(drain)) {}
+
+    const uint32_t before_errors = hub.getErrorCount();
+    OutputPort<CommandPacket> sender;
+    sender.connect(&hub.cmd_input);
+    sender.send(CommandPacket{200, 1, 0.0f});
+    hub.step();
+
+    EXPECT_GT(hub.getErrorCount(), before_errors);
+
+    bool saw_route_busy_nack = false;
+    EventPacket evt{};
+    while (event_dest.tryConsume(evt)) {
+        if (std::string_view(evt.message.data()).find("ROUTE BUSY") != std::string_view::npos) {
+            saw_route_busy_nack = true;
+        }
+    }
+    EXPECT_TRUE(saw_route_busy_nack);
+}
+
 TEST_F(CommandHubFixture, BlocksOperationalInSafeMode) {
     // DV-SEC-02: OPERATIONAL commands blocked in SAFE_MODE
     InputPort<CommandPacket> target;

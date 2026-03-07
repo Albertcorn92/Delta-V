@@ -109,12 +109,49 @@ def validate_safety_case_templates(workspace: Path) -> None:
         workspace / "docs" / "safety_case" / "hazards.md",
         workspace / "docs" / "safety_case" / "mitigations.md",
         workspace / "docs" / "safety_case" / "verification_links.md",
+        workspace / "docs" / "safety_case" / "fmea.md",
+        workspace / "docs" / "safety_case" / "fta.md",
         workspace / "docs" / "safety_case" / "change_impact.md",
         workspace / "docs" / "COVERAGE_RAMP_PLAN.md",
     ]
     missing = [str(path.relative_to(workspace)) for path in required if not path.exists()]
     if missing:
         raise ValueError("Missing safety/process templates: " + ", ".join(missing))
+
+
+def require_any_glob(workspace: Path, pattern: str, label: str) -> None:
+    matches = sorted(workspace.glob(pattern))
+    if not matches:
+        raise ValueError(f"Missing required {label}: expected pattern '{pattern}'")
+
+
+def validate_process_evidence_baseline(workspace: Path) -> None:
+    required_static = [
+        workspace / "docs" / "process" / "DEPLOYMENT_SCREENING_PROCEDURE.md",
+    ]
+    missing_static = [
+        str(path.relative_to(workspace)) for path in required_static if not path.exists()
+    ]
+    if missing_static:
+        raise ValueError(
+            "Missing required process evidence docs: " + ", ".join(missing_static)
+        )
+
+    require_any_glob(
+        workspace,
+        "docs/process/INDEPENDENT_REVIEW_RECORD_*.md",
+        "independent review record",
+    )
+    require_any_glob(
+        workspace,
+        "docs/process/CCB_RELEASE_SIGNOFF_*.md",
+        "CCB release sign-off record",
+    )
+    require_any_glob(
+        workspace,
+        "docs/process/DEPLOYMENT_SCREENING_LOG_*.md",
+        "deployment screening log",
+    )
 
 
 def sync_artifact(src: Path, dst: Path) -> None:
@@ -175,6 +212,22 @@ def has_passing_hil_fault_campaign(artifacts_dir: Path) -> bool:
     return has_passing_reboot_campaign(artifacts_dir)
 
 
+def has_passing_sensorless_soak(
+    artifacts_dir: Path, *, min_duration_s: float = 3600.0
+) -> bool:
+    for candidate in latest_files(artifacts_dir, "esp32_soak_*.json"):
+        try:
+            payload = load_json(candidate)
+            if str(payload.get("status", "")).upper() != "PASS":
+                continue
+            if float(payload.get("duration_s", 0.0)) < min_duration_s:
+                continue
+            return True
+        except Exception:
+            continue
+    return False
+
+
 def require_program_signatures() -> bool:
     return os.getenv("DELTAV_REQUIRE_PROGRAM_SIGNATURES", "0") == "1"
 
@@ -192,7 +245,8 @@ def collect_remaining_non_software(workspace: Path) -> list[str]:
             "(`tools/esp32_runtime_guard.py`)."
         )
 
-    remaining.append("ESP32 1h+ sensorless soak evidence (`tools/esp32_soak.py`).")
+    if not has_passing_sensorless_soak(artifacts_dir, min_duration_s=3600.0):
+        remaining.append("ESP32 1h+ sensorless soak evidence (`tools/esp32_soak.py`).")
     if require_program_signatures():
         remaining.append(
             "Mission-program process records requiring independent review signatures."
@@ -256,6 +310,7 @@ def main() -> int:
     validate_readme_legal_links(workspace / "README.md")
     validate_architecture_doc(workspace / "docs" / "ARCHITECTURE.md")
     validate_safety_case_templates(workspace)
+    validate_process_evidence_baseline(workspace)
 
     trace_payload = load_json(trace_json)
     total_reqs, covered_reqs = validate_traceability(trace_payload)

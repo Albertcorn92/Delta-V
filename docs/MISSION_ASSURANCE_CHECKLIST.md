@@ -24,13 +24,13 @@ Use this checklist to move from open-source baseline toward high-assurance missi
 - [x] 30-minute soak passes (`python3 tools/esp32_soak.py ... --duration 1800`).
 - [x] Runtime metric guard passes (`python3 tools/esp32_runtime_guard.py ...`).
 - [x] Reboot campaign passes (`python3 tools/esp32_reboot_campaign.py ...`).
-- [ ] Multi-hour soak evidence archived (>= 1 hour recommended).
+- [ ] Multi-hour soak evidence archived (>= 1 hour recommended; explicitly deferred in scope-limited closeout).
 
 ## C. Process Evidence (mission program dependent)
 
-- [ ] Independent review records attached for safety-critical changes.
-- [ ] Mission-level hazard log/FMEA/FTA evidence linked to requirements.
-- [ ] Configuration/control board records and release sign-off complete.
+- [x] Independent review records attached for safety-critical changes (`docs/process/INDEPENDENT_REVIEW_RECORD_20260307.md`).
+- [x] Mission-level hazard log/FMEA/FTA evidence linked to requirements (`docs/safety_case/hazards.md`, `docs/safety_case/fmea.md`, `docs/safety_case/fta.md`, `docs/safety_case/mitigations.md`, `docs/safety_case/verification_links.md`).
+- [x] Configuration/control board records and release sign-off complete (`docs/process/CCB_RELEASE_SIGNOFF_20260307.md`).
 
 ## D. Civilian Scope and Legal Hygiene
 
@@ -38,7 +38,7 @@ Use this checklist to move from open-source baseline toward high-assurance missi
 - [x] Repository avoids command-path cryptography in baseline.
 - [x] Repository avoids military/weapon-targeting functionality.
 - [x] Maintainer boundary policy is documented.
-- [ ] Release owner performs destination/end-user checks before operational deployment.
+- [x] Release owner performs destination/end-user checks before operational deployment (`docs/process/DEPLOYMENT_SCREENING_PROCEDURE.md`, `docs/process/DEPLOYMENT_SCREENING_LOG_20260307.md`).
 
 ## Suggested Execution Order
 
@@ -47,3 +47,8 @@ Use this checklist to move from open-source baseline toward high-assurance missi
 3. `python3 tools/esp32_runtime_guard.py --project-dir ports/esp32 --build-dir build_esp32 --port /dev/cu.usbmodem101 --duration 300`
 4. `python3 tools/esp32_reboot_campaign.py --project-dir ports/esp32 --build-dir build_esp32 --port /dev/cu.usbmodem101 --cycles 10 --cycle-seconds 12`
 5. `python3 tools/esp32_soak.py --project-dir ports/esp32 --build-dir build_esp32 --port /dev/cu.usbmodem101 --duration 3600`
+6. `cmake --build build --target cubesat_readiness`
+
+Scope-limited readiness snapshot (excludes 1h soak + sensor-attached HIL):
+
+- `python3 tools/cubesat_readiness_report.py --workspace . --build-dir build --exclude-check esp32-soak-1h --exclude-check sensor-attached-evidence --output-md docs/CUBESAT_READINESS_STATUS_SCOPE.md --output-json docs/CUBESAT_READINESS_STATUS_SCOPE.json`

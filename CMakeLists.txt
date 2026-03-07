@@ -343,7 +343,10 @@ if(CLANG_TIDY)
         endif()
     endif()
 
-    file(GLOB_RECURSE TIDY_FILES CONFIGURE_DEPENDS "src/*.cpp")
+    file(GLOB_RECURSE TIDY_FILES CONFIGURE_DEPENDS
+        "src/*.cpp"
+        "tests/*.cpp")
+    file(GLOB_RECURSE TIDY_SAFETY_FILES CONFIGURE_DEPENDS "src/*.cpp")
 
     set(DELTAV_TIDY_CHECKS
         cppcoreguidelines-*,cert-*,performance-*,modernize-*,bugprone-*)
@@ -368,7 +371,7 @@ if(CLANG_TIDY)
             --warnings-as-errors=*
             --header-filter=^${CMAKE_SOURCE_DIR}/src/.*
             ${TIDY_EXTRA_ARGS}
-            ${TIDY_FILES}
+            ${TIDY_SAFETY_FILES}
         COMMENT "Running blocking clang-tidy safety gate"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
@@ -455,6 +458,18 @@ if(PYTHON3 AND TARGET qualification_bundle)
     message(STATUS "SoftFinal: ENABLED  (cmake --build build --target software_final)")
 endif()
 
+if(PYTHON3)
+    add_custom_target(cubesat_readiness
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/cubesat_readiness_report.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+            --python-exe ${PYTHON3}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Generating CubeSat readiness status report"
+    )
+    message(STATUS "CubeSat  : ENABLED  (cmake --build build --target cubesat_readiness)")
+endif()
+
 if(PYTHON3 AND TARGET coverage)
     add_custom_target(coverage_guard
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/coverage_guard.py
@@ -511,7 +526,7 @@ if(PYTHON3 AND TARGET flight_software)
     )
     message(STATUS "SITLSmoke: ENABLED  (cmake --build build --target sitl_smoke)")
 
-    set(DELTAV_SITL_SOAK_SECONDS "180" CACHE STRING
+    set(DELTAV_SITL_SOAK_SECONDS "600" CACHE STRING
         "Duration in seconds for the SITL soak gate")
     add_custom_target(sitl_soak
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_soak.py
@@ -613,6 +628,7 @@ message(STATUS "║    traceability     — requirements trace   ║")
 message(STATUS "║    flight_readiness — full assurance gate  ║")
 message(STATUS "║    qualification_bundle — audit artifacts  ║")
 message(STATUS "║    software_final   — software release gate║")
+message(STATUS "║    cubesat_readiness — mission status rpt  ║")
 message(STATUS "║    benchmark_baseline — perf report sync   ║")
 message(STATUS "║    benchmark_guard  — perf regression gate ║")
 message(STATUS "║    sitl_smoke       — short runtime check  ║")

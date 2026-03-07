@@ -50,8 +50,8 @@ python3 tools/esp32_soak.py \
   --duration 1800
 ```
 
-This writes a timestamped log under `artifacts/` and validates required runtime
-markers plus failure signatures.
+This writes timestamped log + JSON report artifacts under `artifacts/` and
+validates required runtime markers plus failure signatures.
 
 ## Runtime WCET/Stack Guard
 

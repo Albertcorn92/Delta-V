@@ -1,9 +1,9 @@
 {
-  "generated_utc": "2026-03-07T08:04:45.629491+00:00",
+  "generated_utc": "2026-03-07T22:58:51.303214+00:00",
   "workspace": "DELTA-V Framework",
   "git": {
     "branch": "main",
-    "commit": "78941353402a04f6a11ae0cce4b30fefe7881598",
+    "commit": "1b7036a796e232f8aee81969bcc8a203a33bbc94",
     "dirty_worktree": true
   },
   "host": {
@@ -11,7 +11,7 @@
     "python": "3.12.12",
     "cmake": "cmake version 4.2.3"
   },
-  "unit_test_count": 130,
+  "unit_test_count": 131,
   "trace": {
     "summary": {
       "total_requirements": 33,
@@ -46,29 +46,29 @@
     {
       "name": "Requirements Traceability Gate",
       "status": "PASS",
-      "evidence": "build_cov/requirements_trace_matrix.json"
+      "evidence": "build/requirements_trace_matrix.json"
     }
   ],
   "hashes": [
     {
-      "path": "build_cov/requirements_trace_matrix.json",
-      "crc32": "93ea3889"
+      "path": "build/requirements_trace_matrix.json",
+      "crc32": "c23274da"
     },
     {
-      "path": "build_cov/requirements_trace_matrix.md",
-      "crc32": "0d46e8ba"
+      "path": "build/requirements_trace_matrix.md",
+      "crc32": "8fa4ddd0"
     },
     {
       "path": "tests/unit_tests.cpp",
-      "crc32": "4ebaedba"
+      "crc32": "88c7ca73"
     },
     {
-      "path": "build_cov/flight_software",
-      "crc32": "a51f9ead"
+      "path": "build/flight_software",
+      "crc32": "1bd256e0"
     },
     {
-      "path": "build_cov/run_tests",
-      "crc32": "5cd8cec1"
+      "path": "build/run_tests",
+      "crc32": "cc5affe6"
     }
   ],
   "manual_remaining": [

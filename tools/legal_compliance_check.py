@@ -124,6 +124,7 @@ REQUIRED_FILES = [
     ROOT / "docs" / "MAINTAINER_BOUNDARY_POLICY.md",
     ROOT / "docs" / "LEGAL_FAQ.md",
     ROOT / "docs" / "LEGAL_SCOPE_CHECKLIST.md",
+    ROOT / "docs" / "process" / "DEPLOYMENT_SCREENING_PROCEDURE.md",
     ROOT / "docs" / "COVERAGE_RAMP_PLAN.md",
     ROOT / "docs" / "safety_case" / "README.md",
     ROOT / "docs" / "safety_case" / "hazards.md",

@@ -19,6 +19,9 @@
 #include <fcntl.h>
 #if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
 #include <fstream>
+#else
+#include "nvs.h"
+#include "nvs_flash.h"
 #endif
 #include <cstdio>
 #include <netinet/in.h>
@@ -43,7 +46,11 @@ public:
     static constexpr size_t MAX_CMDS_PER_TICK    = 20;
     static constexpr size_t UPLINK_FRAME_SIZE =
         sizeof(CcsdsHeader) + sizeof(CommandPacket);
+    static constexpr const char* ENABLE_UNAUTH_UPLINK_ENV = "DELTAV_ENABLE_UNAUTH_UPLINK";
+    static constexpr const char* UPLINK_ALLOW_IP_ENV = "DELTAV_UPLINK_ALLOW_IP";
     static constexpr const char* REPLAY_SEQ_FILE_ENV = "DELTAV_REPLAY_SEQ_FILE";
+    static constexpr const char* REPLAY_SEQ_NVS_NAMESPACE = "deltav";
+    static constexpr const char* REPLAY_SEQ_NVS_KEY = "replay_seq";
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
     static constexpr const char* DEFAULT_REPLAY_SEQ_FILE = "";
 #else
@@ -63,6 +70,7 @@ public:
         : ActiveComponent(comp_name, comp_id, TELEMETRY_HZ),
           downlink_port_(downlink_port),
           uplink_port_(uplink_port) {
+        loadUplinkConfiguration();
         loadReplayConfiguration();
         loadReplayState();
     }
@@ -138,6 +146,12 @@ public:
         std::printf("[%.*s] Bridge online. Downlink:%u Uplink:%u [CCSDS 0x1ACFFC1D | strict frame + anti-replay]\n",
             static_cast<int>(name.size()), name.data(),
             static_cast<unsigned>(downlink_port_), static_cast<unsigned>(uplink_port_));
+        if (!uplink_enabled_) {
+            std::printf(
+                "[%.*s] Uplink command ingest DISABLED by default. "
+                "Set DELTAV_ENABLE_UNAUTH_UPLINK=1 for local SITL command tests.\n",
+                static_cast<int>(name.size()), name.data());
+        }
 #endif
     }
 
@@ -170,6 +184,75 @@ private:
     bool         first_uplink{true};
     uint32_t     rejected_count{0};
     std::string  replay_seq_path{DEFAULT_REPLAY_SEQ_FILE};
+    bool         uplink_enabled_{true};
+    uint32_t     allowed_uplink_addr_{INADDR_LOOPBACK};
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+    bool         replay_store_init_attempted_{false};
+    bool         replay_store_ready_{false};
+#endif
+
+    auto loadUplinkConfiguration() -> void {
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        uplink_enabled_ = true;
+#else
+        const char* enable_env = std::getenv(ENABLE_UNAUTH_UPLINK_ENV);
+        uplink_enabled_ = enable_env != nullptr && std::strcmp(enable_env, "1") == 0;
+
+        const char* allow_ip_env = std::getenv(UPLINK_ALLOW_IP_ENV);
+        if (allow_ip_env != nullptr && allow_ip_env[0] != '\0') {
+            in_addr parsed{};
+            if (inet_aton(allow_ip_env, &parsed) != 0) {
+                allowed_uplink_addr_ = parsed.s_addr;
+            } else {
+                const auto name = getName();
+                (void)std::fprintf(
+                    stderr,
+                    "[%.*s] WARN: invalid DELTAV_UPLINK_ALLOW_IP=%s; keeping default 127.0.0.1\n",
+                    static_cast<int>(name.size()), name.data(), allow_ip_env);
+                recordError();
+            }
+        }
+#endif
+    }
+
+    [[nodiscard]] auto isTrustedUplinkSource(const sockaddr_in& client) const -> bool {
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        (void)client;
+        return true;
+#else
+        return client.sin_addr.s_addr == allowed_uplink_addr_;
+#endif
+    }
+
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+    auto ensureReplayStoreReadyEsp() -> bool {
+        if (replay_store_init_attempted_) {
+            return replay_store_ready_;
+        }
+        replay_store_init_attempted_ = true;
+
+        esp_err_t err = nvs_flash_init();
+        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            const esp_err_t erase_err = nvs_flash_erase();
+            if (erase_err == ESP_OK) {
+                err = nvs_flash_init();
+            } else {
+                err = erase_err;
+            }
+        }
+
+        replay_store_ready_ = (err == ESP_OK);
+        if (!replay_store_ready_) {
+            const auto name = getName();
+            (void)std::fprintf(
+                stderr,
+                "[%.*s] WARN: replay NVS init failed (err=%d)\n",
+                static_cast<int>(name.size()), name.data(), static_cast<int>(err));
+            recordError();
+        }
+        return replay_store_ready_;
+    }
+#endif
 
     auto loadReplayConfiguration() -> void {
         const char* replay_path_env = std::getenv(REPLAY_SEQ_FILE_ENV);
@@ -180,6 +263,22 @@ private:
 
     auto loadReplayState() -> void {
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        if (!ensureReplayStoreReadyEsp()) {
+            return;
+        }
+
+        nvs_handle_t handle{};
+        if (nvs_open(REPLAY_SEQ_NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK) {
+            return;
+        }
+
+        uint16_t stored_seq = 0;
+        const esp_err_t get_err = nvs_get_u16(handle, REPLAY_SEQ_NVS_KEY, &stored_seq);
+        if (get_err == ESP_OK) {
+            last_uplink_seq = stored_seq;
+            first_uplink = false;
+        }
+        nvs_close(handle);
         return;
 #else
         if (replay_seq_path.empty()) {
@@ -208,6 +307,25 @@ private:
 
     auto persistReplayState() -> void {
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        if (!ensureReplayStoreReadyEsp()) {
+            return;
+        }
+
+        nvs_handle_t handle{};
+        esp_err_t err = nvs_open(REPLAY_SEQ_NVS_NAMESPACE, NVS_READWRITE, &handle);
+        if (err != ESP_OK) {
+            recordError();
+            return;
+        }
+
+        err = nvs_set_u16(handle, REPLAY_SEQ_NVS_KEY, static_cast<uint16_t>(last_uplink_seq));
+        if (err == ESP_OK) {
+            err = nvs_commit(handle);
+        }
+        if (err != ESP_OK) {
+            recordError();
+        }
+        nvs_close(handle);
         return;
 #else
         // Host heap lock intentionally disallows post-start dynamic allocation.
@@ -285,6 +403,10 @@ private:
     }
 
     auto receiveCommands() -> void {
+        if (!uplink_enabled_) {
+            return;
+        }
+
         constexpr size_t BUF_SIZE = sizeof(CcsdsHeader) + MAX_UPLINK_PAYLOAD;
         std::array<uint8_t, BUF_SIZE> buf{};
 
@@ -299,6 +421,11 @@ private:
                 reinterpret_cast<sockaddr*>(&client), &client_len);
 
             if (len <= 0) break; 
+            if (!isTrustedUplinkSource(client)) {
+                ++rejected_count;
+                recordError();
+                continue;
+            }
             processed++;
             (void)processIncomingFrame(buf.data(), static_cast<size_t>(len));
         }
