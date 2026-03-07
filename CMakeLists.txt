@@ -79,11 +79,10 @@ target_include_directories(run_benchmarks PRIVATE src)
 target_link_libraries(run_benchmarks PRIVATE Threads::Threads)
 target_compile_options(run_benchmarks PRIVATE ${DELTAV_WARN_FLAGS})
 target_compile_definitions(run_benchmarks PRIVATE DELTAV_FAULT_INJECT)
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT APPLE AND NOT MSVC)
-    target_compile_options(run_benchmarks PRIVATE ${DELTAV_SANITIZER_FLAGS})
-    target_link_options(run_benchmarks   PRIVATE -fsanitize=address,undefined)
-endif()
+# Benchmarks are intended for regression/performance gates; keep them on a
+# release-like profile independent of the parent build type to avoid sanitizer
+# overhead distorting throughput/latency thresholds in CI.
+target_compile_options(run_benchmarks PRIVATE ${DELTAV_RELEASE_FLAGS})
 
 # =============================================================================
 # Target: run_tests  (Google Test suite)

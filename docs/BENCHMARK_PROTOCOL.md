@@ -19,6 +19,9 @@ cmake --build build --target benchmark_baseline
 cmake --build build --target benchmark_guard
 ```
 
+`run_benchmarks` is compiled with release-style optimization flags for stable
+cross-host regression behavior (even when the parent build directory is Debug).
+
 Artifacts:
 
 - `build/benchmark/benchmark_metrics.json`
