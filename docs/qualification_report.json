@@ -1,9 +1,9 @@
 {
-  "generated_utc": "2026-03-07T01:54:07.480824+00:00",
+  "generated_utc": "2026-03-07T08:04:45.629491+00:00",
   "workspace": "DELTA-V Framework",
   "git": {
     "branch": "main",
-    "commit": "bed6ae40cd19491b747e65df280ebd8c3ecc47b8",
+    "commit": "78941353402a04f6a11ae0cce4b30fefe7881598",
     "dirty_worktree": true
   },
   "host": {
@@ -46,16 +46,16 @@
     {
       "name": "Requirements Traceability Gate",
       "status": "PASS",
-      "evidence": "build/requirements_trace_matrix.json"
+      "evidence": "build_cov/requirements_trace_matrix.json"
     }
   ],
   "hashes": [
     {
-      "path": "build/requirements_trace_matrix.json",
+      "path": "build_cov/requirements_trace_matrix.json",
       "crc32": "93ea3889"
     },
     {
-      "path": "build/requirements_trace_matrix.md",
+      "path": "build_cov/requirements_trace_matrix.md",
       "crc32": "0d46e8ba"
     },
     {
@@ -63,12 +63,15 @@
       "crc32": "4ebaedba"
     },
     {
-      "path": "build/flight_software",
-      "crc32": "74fb6113"
+      "path": "build_cov/flight_software",
+      "crc32": "a51f9ead"
     },
     {
-      "path": "build/run_tests",
-      "crc32": "64b6b549"
+      "path": "build_cov/run_tests",
+      "crc32": "5cd8cec1"
     }
+  ],
+  "manual_remaining": [
+    "Multi-hour sensorless soak evidence on target (`tools/esp32_soak.py`, >=1h)."
   ]
 }

@@ -26,4 +26,4 @@ DO-178C evidence around DELTA-V.
 3. Signed review package for changed safety-critical files.
 4. HIL campaign results (fault injection, soak run, restart/recovery evidence).
 5. Release manifest with hashes for binaries and source commit.
-
+6. Safety-case package (`docs/safety_case/`) with hazards, mitigations, and verification links.

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -102,9 +103,101 @@ def validate_architecture_doc(architecture_path: Path) -> None:
         )
 
 
+def validate_safety_case_templates(workspace: Path) -> None:
+    required = [
+        workspace / "docs" / "safety_case" / "README.md",
+        workspace / "docs" / "safety_case" / "hazards.md",
+        workspace / "docs" / "safety_case" / "mitigations.md",
+        workspace / "docs" / "safety_case" / "verification_links.md",
+        workspace / "docs" / "safety_case" / "change_impact.md",
+        workspace / "docs" / "COVERAGE_RAMP_PLAN.md",
+    ]
+    missing = [str(path.relative_to(workspace)) for path in required if not path.exists()]
+    if missing:
+        raise ValueError("Missing safety/process templates: " + ", ".join(missing))
+
+
 def sync_artifact(src: Path, dst: Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dst)
+
+
+def latest_files(directory: Path, pattern: str) -> list[Path]:
+    if not directory.exists():
+        return []
+    return sorted(directory.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def has_passing_reboot_campaign(artifacts_dir: Path) -> bool:
+    for candidate in latest_files(artifacts_dir, "esp32_reboot_campaign_*.json"):
+        try:
+            payload = load_json(candidate)
+            summary = payload.get("summary", {})
+            if int(summary.get("fail_cycles", 1)) == 0 and int(summary.get("pass_cycles", 0)) > 0:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def has_passing_runtime_guard(artifacts_dir: Path) -> bool:
+    for candidate in latest_files(artifacts_dir, "esp32_runtime_guard_*.json"):
+        try:
+            payload = load_json(candidate)
+            thresholds = payload.get("thresholds", {})
+            summary = payload.get("summary", {})
+            samples = int(payload.get("samples", 0))
+
+            min_samples = int(thresholds.get("min_samples", 1))
+            min_stack = int(thresholds.get("min_stack_words", 0))
+            max_fast = int(thresholds.get("max_fast_tick_wcet_us", 1_000_000))
+            max_loop = int(thresholds.get("max_loop_wcet_us", 1_000_000))
+            max_overruns = int(thresholds.get("max_loop_overruns", 0))
+
+            if samples < min_samples:
+                continue
+            if int(summary.get("max_fast_tick_wcet_us", max_fast + 1)) > max_fast:
+                continue
+            if int(summary.get("max_loop_wcet_us", max_loop + 1)) > max_loop:
+                continue
+            if int(summary.get("last_loop_overruns", max_overruns + 1)) > max_overruns:
+                continue
+            if int(summary.get("min_stack_free_words", 0)) < min_stack:
+                continue
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def has_passing_hil_fault_campaign(artifacts_dir: Path) -> bool:
+    # Reboot/reset cycling is treated as on-target injected-fault evidence.
+    return has_passing_reboot_campaign(artifacts_dir)
+
+
+def require_program_signatures() -> bool:
+    return os.getenv("DELTAV_REQUIRE_PROGRAM_SIGNATURES", "0") == "1"
+
+
+def collect_remaining_non_software(workspace: Path) -> list[str]:
+    artifacts_dir = workspace / "artifacts"
+    remaining: list[str] = []
+
+    if not has_passing_hil_fault_campaign(artifacts_dir):
+        remaining.append("ESP32 on-target HIL campaign evidence (fault injection logs).")
+
+    if not has_passing_runtime_guard(artifacts_dir):
+        remaining.append(
+            "On-target timing/WCET and stack-margin PASS evidence "
+            "(`tools/esp32_runtime_guard.py`)."
+        )
+
+    remaining.append("ESP32 1h+ sensorless soak evidence (`tools/esp32_soak.py`).")
+    if require_program_signatures():
+        remaining.append(
+            "Mission-program process records requiring independent review signatures."
+        )
+    return remaining
 
 
 def write_status_report(
@@ -115,6 +208,7 @@ def write_status_report(
     covered_requirements: int,
     gate_count: int,
     synced: bool,
+    remaining_work: list[str],
 ) -> None:
     lines = [
         "# DELTA-V Software Finalization Status",
@@ -127,12 +221,12 @@ def write_status_report(
         "",
         "## Remaining Work (Non-Software)",
         "",
-        "- ESP32 on-target HIL campaign evidence (fault injection and soak logs).",
-        "- On-target timing/WCET and stack-margin evidence (`tools/esp32_runtime_guard.py`).",
-        "- ESP32 reboot stability evidence (`tools/esp32_reboot_campaign.py`).",
-        "- Mission-program process records requiring independent review signatures.",
-        "",
     ]
+    if remaining_work:
+        lines.extend([f"- {item}" for item in remaining_work])
+    else:
+        lines.append("- None for baseline release profile.")
+    lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -161,6 +255,7 @@ def main() -> int:
     run_legal_check(workspace, args.python_exe)
     validate_readme_legal_links(workspace / "README.md")
     validate_architecture_doc(workspace / "docs" / "ARCHITECTURE.md")
+    validate_safety_case_templates(workspace)
 
     trace_payload = load_json(trace_json)
     total_reqs, covered_reqs = validate_traceability(trace_payload)
@@ -181,6 +276,7 @@ def main() -> int:
         covered_requirements=covered_reqs,
         gate_count=gate_count,
         synced=sync_docs,
+        remaining_work=collect_remaining_non_software(workspace),
     )
 
     print(

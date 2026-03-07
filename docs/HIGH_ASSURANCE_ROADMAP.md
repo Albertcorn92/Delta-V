@@ -15,12 +15,13 @@ Date: 2026-03-06
 
 1. On-target assurance evidence
 - Run and archive ESP32 HIL campaign logs (fault injection, long soak, restart behavior).
-- Run `tools/esp32_runtime_guard.py` and archive WCET/stack evidence.
-- Run `tools/esp32_reboot_campaign.py` and archive reboot-cycle stability evidence.
+- Run `tools/esp32_runtime_guard.py` and archive WCET/stack evidence (`[RGE_METRIC]` stream required).
+- Reboot-cycle stability evidence is archived (`tools/esp32_reboot_campaign.py`, 10/10 pass on 2026-03-07 UTC).
 
 2. Program/process assurance
 - Maintain independent review records and approval workflow for safety-critical changes.
 - Track tool qualification/deviation records required by mission governance.
+- Maintain mission safety-case package using `docs/safety_case/` templates.
 
 3. Deployment security posture
 - Current baseline intentionally excludes command-path crypto/auth to keep export/legal complexity low.

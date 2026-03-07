@@ -16,3 +16,4 @@ __pycache__/
 coverage_html/
 compile_commands.json
 mission_params.db
+artifacts/

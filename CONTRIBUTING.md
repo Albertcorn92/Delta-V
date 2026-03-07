@@ -43,7 +43,9 @@ cmake --build build --target qualification_bundle
 - Do not submit controlled or restricted third-party technical data.
 - Do not introduce wording that claims guaranteed legality, zero liability, or
   guaranteed ITAR/EAR exemption.
+- Do not request direct non-U.S. operational support from the maintainer.
 - Follow `docs/CIVILIAN_USE_POLICY.md` and `docs/EXPORT_CONTROL_NOTE.md`.
+- Follow `docs/MAINTAINER_BOUNDARY_POLICY.md`.
 - This project does not provide legal advice or legal clearance.
 
 ## Coding Guidelines

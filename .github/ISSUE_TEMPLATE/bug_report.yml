@@ -40,3 +40,5 @@ body:
       options:
         - label: This report does not request military/weaponized behavior and remains in civilian scope.
           required: true
+        - label: This report does not request direct non-U.S. operational support from the maintainer.
+          required: true

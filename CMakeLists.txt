@@ -89,7 +89,58 @@ target_compile_options(run_benchmarks PRIVATE ${DELTAV_RELEASE_FLAGS})
 # Enabled by: cmake --build build --target run_tests
 # =============================================================================
 enable_testing()
-find_package(GTest QUIET)
+
+# Homebrew gtest binaries on macOS are commonly built with clang/libc++, which
+# conflicts with GNU/libstdc++ coverage builds. In that case, build gtest from
+# Homebrew-provided sources with the active compiler instead.
+set(DELTAV_BUILD_GTEST_FROM_SOURCE OFF)
+if(APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(DELTAV_BUILD_GTEST_FROM_SOURCE ON)
+endif()
+
+if(DELTAV_BUILD_GTEST_FROM_SOURCE)
+    set(DELTAV_GTEST_PREFIX_CANDIDATES
+        "$ENV{HOMEBREW_PREFIX}/opt/googletest"
+        "/opt/homebrew/opt/googletest"
+        "/usr/local/opt/googletest"
+    )
+    set(DELTAV_GTEST_PREFIX "")
+    foreach(_prefix IN LISTS DELTAV_GTEST_PREFIX_CANDIDATES)
+        if(_prefix AND EXISTS "${_prefix}/include/googletest/googletest/src/gtest-all.cc")
+            set(DELTAV_GTEST_PREFIX "${_prefix}")
+            break()
+        endif()
+    endforeach()
+
+    if(NOT DELTAV_GTEST_PREFIX)
+        message(FATAL_ERROR
+            "GNU-on-macOS test build requires Homebrew googletest sources.\n"
+            "Install with: brew install googletest"
+        )
+    endif()
+
+    add_library(deltav_gtest STATIC
+        ${DELTAV_GTEST_PREFIX}/include/googletest/googletest/src/gtest-all.cc
+    )
+    target_include_directories(deltav_gtest
+        PUBLIC
+            ${DELTAV_GTEST_PREFIX}/include
+            ${DELTAV_GTEST_PREFIX}/include/googletest/googletest
+    )
+    target_link_libraries(deltav_gtest PUBLIC Threads::Threads)
+
+    add_library(deltav_gtest_main STATIC
+        ${DELTAV_GTEST_PREFIX}/include/googletest/googletest/src/gtest_main.cc
+    )
+    target_link_libraries(deltav_gtest_main PUBLIC deltav_gtest)
+
+    add_library(GTest::GTest ALIAS deltav_gtest)
+    add_library(GTest::Main ALIAS deltav_gtest_main)
+    set(GTest_FOUND TRUE)
+    message(STATUS "GTest   : building from source (${DELTAV_GTEST_PREFIX})")
+else()
+    find_package(GTest QUIET)
+endif()
 
 if(GTest_FOUND OR GTEST_FOUND)
 
@@ -183,14 +234,33 @@ if(GTest_FOUND OR GTEST_FOUND)
         list(APPEND DELTAV_LCOV_GCOV_ARGS --gcov-tool ${DELTAV_GCOV_TOOL})
     endif()
     if(LCOV AND GENHTML AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        set(DELTAV_LCOV_REMOVE_PATTERNS
+            '/usr/*'
+            '*/tests/*'
+            '*/googletest/*')
+        if(APPLE)
+            if(EXISTS "/opt/homebrew")
+                list(APPEND DELTAV_LCOV_REMOVE_PATTERNS '/opt/homebrew/*')
+            endif()
+            if(EXISTS "/Library/Developer")
+                list(APPEND DELTAV_LCOV_REMOVE_PATTERNS '/Library/Developer/*')
+            endif()
+        endif()
         add_custom_target(coverage
+            COMMAND ${LCOV}    ${DELTAV_LCOV_GCOV_ARGS} --zerocounters
+                               --directory . --quiet
             COMMAND run_tests_coverage --gtest_color=yes
             COMMAND ${LCOV}    ${DELTAV_LCOV_GCOV_ARGS} --capture --directory .
+                               --rc branch_coverage=1
+                               --ignore-errors inconsistent,mismatch,deprecated
                                --output-file cov_raw.info --quiet
             COMMAND ${LCOV}    ${DELTAV_LCOV_GCOV_ARGS} --remove  cov_raw.info
-                               '/usr/*' '*/tests/*' '*/googletest/*'
+                               ${DELTAV_LCOV_REMOVE_PATTERNS}
+                               --rc branch_coverage=1
+                               --ignore-errors inconsistent,mismatch,deprecated,unused
                                --output-file cov.info --quiet
-            COMMAND ${GENHTML} cov.info --output-directory coverage_html --quiet
+            COMMAND ${GENHTML} cov.info --branch-coverage
+                               --output-directory coverage_html --quiet
             COMMAND ${CMAKE_COMMAND} -E echo
                 "Coverage report → ${CMAKE_BINARY_DIR}/coverage_html/index.html"
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -359,6 +429,15 @@ if(PYTHON3 AND TARGET coverage)
         COMMENT "Validating coverage thresholds"
     )
     message(STATUS "CovGuard : ENABLED  (cmake --build build --target coverage_guard)")
+
+    add_custom_target(coverage_trend
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/coverage_trend.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+        DEPENDS coverage
+        COMMENT "Generating coverage trend snapshot"
+    )
+    message(STATUS "CovTrend : ENABLED  (cmake --build build --target coverage_trend)")
 endif()
 
 if(PYTHON3 AND TARGET run_benchmarks)
@@ -491,6 +570,7 @@ message(STATUS "║    run_system_tests — integration tests    ║")
 message(STATUS "║    vnv_stress       — stress test gate     ║")
 message(STATUS "║    coverage         — lcov HTML report     ║")
 message(STATUS "║    coverage_guard   — coverage quality gate║")
+message(STATUS "║    coverage_trend   — coverage trend json  ║")
 message(STATUS "║    tidy             — clang-tidy analysis  ║")
 message(STATUS "║    tidy_safety      — blocking safety gate ║")
 message(STATUS "║    legal_compliance — civilian-use checks  ║")

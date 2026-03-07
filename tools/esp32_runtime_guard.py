@@ -105,6 +105,23 @@ def reset_esp32(ser: serial.Serial) -> None:
     ser.reset_input_buffer()
 
 
+def read_available_lines(ser: serial.Serial, pending: bytearray) -> list[str]:
+    chunk = ser.read(max(ser.in_waiting, 1))
+    if not chunk:
+        return []
+
+    pending.extend(chunk)
+    lines: list[str] = []
+    while True:
+        newline_index = pending.find(b"\n")
+        if newline_index < 0:
+            break
+        raw = bytes(pending[: newline_index + 1])
+        del pending[: newline_index + 1]
+        lines.append(raw.decode("utf-8", errors="replace").rstrip("\r\n"))
+    return lines
+
+
 
 def main() -> int:
     args = parse_args()
@@ -144,9 +161,10 @@ def main() -> int:
     failures: set[str] = set()
     rom_banners = 0
     tail_lines: deque[str] = deque(maxlen=120)
+    pending = bytearray()
 
     try:
-        with serial.Serial(args.port, args.baud, timeout=0.25) as ser, log_path.open(
+        with serial.Serial(args.port, args.baud, timeout=0) as ser, log_path.open(
             "w", encoding="utf-8", errors="replace"
         ) as log_file:
             if not args.no_reset:
@@ -154,34 +172,35 @@ def main() -> int:
 
             deadline = time.monotonic() + duration
             while time.monotonic() < deadline:
-                raw = ser.readline()
-                if not raw:
+                lines = read_available_lines(ser, pending)
+                if not lines:
+                    time.sleep(0.01)
                     continue
-                line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
-                log_file.write(line + "\n")
-                log_file.flush()
+                for line in lines:
+                    log_file.write(line + "\n")
+                    log_file.flush()
 
-                lower = line.lower()
-                tail_lines.append(line)
-                if "esp-rom:" in line:
-                    rom_banners += 1
-                for marker in REQUIRED_MARKERS:
-                    if marker in line:
-                        required_found[marker] = True
-                for fail in FAIL_MARKERS:
-                    if fail in lower:
-                        failures.add(fail)
+                    lower = line.lower()
+                    tail_lines.append(line)
+                    if "esp-rom:" in line:
+                        rom_banners += 1
+                    for marker in REQUIRED_MARKERS:
+                        if marker in line:
+                            required_found[marker] = True
+                    for fail in FAIL_MARKERS:
+                        if fail in lower:
+                            failures.add(fail)
 
-                match = METRIC_RE.search(line)
-                if match:
-                    samples.append(
-                        RuntimeSample(
-                            fast_tick_wcet_us=int(match.group(1)),
-                            loop_wcet_us=int(match.group(2)),
-                            loop_overruns=int(match.group(3)),
-                            stack_min_free_words=int(match.group(4)),
+                    match = METRIC_RE.search(line)
+                    if match:
+                        samples.append(
+                            RuntimeSample(
+                                fast_tick_wcet_us=int(match.group(1)),
+                                loop_wcet_us=int(match.group(2)),
+                                loop_overruns=int(match.group(3)),
+                                stack_min_free_words=int(match.group(4)),
+                            )
                         )
-                    )
     except Exception as exc:
         print(f"[esp32-runtime] ERROR: serial monitor failed: {exc}", file=sys.stderr)
         print(f"[esp32-runtime] log: {log_path}", file=sys.stderr)

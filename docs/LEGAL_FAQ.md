@@ -1,6 +1,6 @@
 # Legal FAQ (Civilian Open-Source Baseline)
 
-Date: 2026-03-06
+Date: 2026-03-07
 
 This FAQ is process guidance only and is **not legal advice**.
 
@@ -43,3 +43,12 @@ compliance in their own mission and business context.
 - Before international customer support or distribution.
 - If you add features that may affect export classification.
 - If you are uncertain about destination/end-user restrictions.
+
+## 7) What is the maintainer support boundary for this public repo?
+
+- Framework code and docs are published publicly for civilian use.
+- The maintainer does not provide direct operational support to non-U.S. users.
+- Requests for deployment/export consulting may be declined.
+- Users remain responsible for their own compliance decisions.
+
+See `docs/MAINTAINER_BOUNDARY_POLICY.md`.

@@ -144,6 +144,7 @@ class FaultI2c : public deltav::hal::MockI2c {
 | V&V stress | `cmake --build . --target vnv_stress` | Shuffled repeat stability gate |
 | Coverage report | `cmake --build . --target coverage` | lcov HTML report |
 | Coverage guard | `cmake --build . --target coverage_guard` | Enforce minimum coverage thresholds |
+| Coverage trend | `cmake --build . --target coverage_trend` | Emit coverage trend JSON snapshot |
 | Static analysis | `cmake --build . --target tidy` | clang-tidy |
 | Benchmark baseline | `cmake --build . --target benchmark_baseline` | Refresh benchmark evidence artifacts |
 | Benchmark guard | `cmake --build . --target benchmark_guard` | Enforce perf regression thresholds |
@@ -153,6 +154,8 @@ class FaultI2c : public deltav::hal::MockI2c {
 | Flight readiness gate | `cmake --build . --target flight_readiness` | Legal + tests + safety + traceability |
 | Qualification bundle | `cmake --build . --target qualification_bundle` | Evidence report and artifact hashes |
 | Software final gate | `cmake --build . --target software_final` | Sync docs evidence + final software check |
+
+Safety-case starter templates for mission teams are in `docs/safety_case/`.
 
 ---
 

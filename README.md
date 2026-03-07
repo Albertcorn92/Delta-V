@@ -8,6 +8,8 @@ Roadmap for raising assurance rigor: `docs/HIGH_ASSURANCE_ROADMAP.md`.
 Safety gates and traceability workflow: `docs/SAFETY_ASSURANCE.md`.
 ESP32 hardware bring-up plan: `docs/ESP32_BRINGUP.md`.
 ESP32 no-sensor baseline evidence: `docs/ESP32_SENSORLESS_BASELINE.md`.
+Coverage threshold ramp policy: `docs/COVERAGE_RAMP_PLAN.md`.
+Mission safety-case starter templates: `docs/safety_case/README.md`.
 
 ---
 
@@ -300,9 +302,11 @@ See `src/Requirements.hpp` for the full RTM. Every unit test references its gove
 - Command-path cryptography/encryption features are intentionally excluded from this baseline and blocked by legal policy checks.
 - This repository is intended for research/prototyping and is not certified for operational or safety-critical deployment.
 - This repository includes compliance guidance, but it is **not legal advice** and does not provide legal clearance by itself.
+- Maintainer does not provide direct operational support to non-U.S. users.
 - See `docs/CIVILIAN_USE_POLICY.md` and `docs/EXPORT_CONTROL_NOTE.md` before release or deployment.
 - Read `docs/LEGAL_FAQ.md` for plain-language release/deployment legal questions.
 - Maintainer release checklist: `docs/LEGAL_SCOPE_CHECKLIST.md`.
+- Maintainer interaction boundary: `docs/MAINTAINER_BOUNDARY_POLICY.md`.
 
 ---
 
@@ -331,3 +335,4 @@ topology.watchdog.injectBatteryLevel(1.5f); // → EMERGENCY
 - Disclaimer: `DISCLAIMER.md`
 - Civilian use policy: `docs/CIVILIAN_USE_POLICY.md`
 - Export-control note: `docs/EXPORT_CONTROL_NOTE.md`
+- Maintainer boundary policy: `docs/MAINTAINER_BOUNDARY_POLICY.md`

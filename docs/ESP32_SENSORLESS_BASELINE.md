@@ -79,17 +79,18 @@ python3 tools/esp32_reboot_campaign.py \
 
 ## Latest Run Evidence (2026-03-07 UTC)
 
+- Public-shareable evidence summary:
+  `docs/evidence/ESP32_SENSORLESS_EVIDENCE_20260307.md`
+- Raw logs/reports retained locally under `artifacts/` (gitignored).
 - Build/flash: PASS (`idf.py -B build_esp32 build flash -p /dev/cu.usbmodem101`).
 - Sensorless soak: PASS (`300s`) via `tools/esp32_soak.py`.
-- Evidence log: `artifacts/esp32_soak_20260307T005636Z.log`.
 - Extended sensorless soak: PASS (`1800s`) via `tools/esp32_soak.py`.
-- Evidence log: `artifacts/esp32_soak_20260307T010302Z.log`.
+- Reboot campaign: PASS (`10/10` cycles) via `tools/esp32_reboot_campaign.py`.
+- Runtime guard: PASS (`17` samples, `0` overruns) via `tools/esp32_runtime_guard.py`.
 - No detected panic/assert/stack-overflow/reboot-loop signatures in the soak window.
 
 ## Known Gaps
 
 - No real I2C sensor validation yet.
 - No extended soak (1h+) evidence committed yet.
-- No runtime guard (`tools/esp32_runtime_guard.py`) artifact committed yet.
-- No reboot campaign (`tools/esp32_reboot_campaign.py`) artifact committed yet.
-- No mission-specific HIL/fault campaign logs yet.
+- No sensor-attached HIL campaign logs yet (reset-fault campaign evidence exists).

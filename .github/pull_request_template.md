@@ -9,6 +9,7 @@
 - [ ] No military targeting, fire-control, weapon, munition, or combat behavior was added.
 - [ ] No command-path cryptography/encryption features were introduced.
 - [ ] No controlled third-party technical data was added.
+- [ ] This PR does not request direct non-U.S. operational support from the maintainer.
 
 ## Verification
 

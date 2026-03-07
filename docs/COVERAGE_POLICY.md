@@ -18,12 +18,31 @@ cmake --build build_cov --target coverage_guard
 
 Current minimums:
 
-- Line coverage: `>= 60%`
-- Branch coverage: `>= 40%`
-- Function coverage: `>= 70%`
+- Line coverage: `>= 65%`
+- Branch coverage: `>= 45%`
+- Function coverage: `>= 75%`
+
+Next staged target (after trend stability):
+
+- Line coverage: `>= 70%`
+- Branch coverage: `>= 50%`
+- Function coverage: `>= 80%`
+
+## Trend Tracking
+
+CI now publishes a coverage trend snapshot artifact (`coverage-trend`) generated
+from `build_cov/cov.info`:
+
+```bash
+python3 tools/coverage_trend.py \
+  --workspace . \
+  --build-dir build_cov
+```
+
+This snapshot is used to verify trend stability before raising thresholds again.
 
 ## Notes
 
 - Coverage generation is enabled in CMake when the active compiler is GCC.
-- Thresholds are set for cross-host CI stability and may be tightened over time.
+- Threshold increases are applied in staged increments to limit CI volatility.
 - This gate is software-only and does not replace on-target hardware verification.

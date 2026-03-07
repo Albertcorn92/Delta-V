@@ -13,6 +13,8 @@ idf_component_register(
     REQUIRES
         driver
         lwip
+        esp_timer
+        freertos
 )
 
 target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_20)

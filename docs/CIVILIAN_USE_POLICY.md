@@ -1,6 +1,6 @@
 # Civilian Use Policy
 
-Date: 2026-03-06
+Date: 2026-03-07
 
 ## Scope
 
@@ -31,5 +31,8 @@ By opening a pull request, contributors affirm that:
 This policy narrows project scope but does not itself provide legal clearance.
 Users are responsible for export, sanctions, and local-law compliance for their
 own deployment and distribution activities.
+
+Maintainer interaction boundaries are documented in
+`docs/MAINTAINER_BOUNDARY_POLICY.md`.
 
 For practical release questions, see `docs/LEGAL_FAQ.md`.

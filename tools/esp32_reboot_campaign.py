@@ -86,6 +86,23 @@ def reset_esp32(ser: serial.Serial) -> None:
     ser.reset_input_buffer()
 
 
+def read_available_lines(ser: serial.Serial, pending: bytearray) -> list[str]:
+    chunk = ser.read(max(ser.in_waiting, 1))
+    if not chunk:
+        return []
+
+    pending.extend(chunk)
+    lines: list[str] = []
+    while True:
+        newline_index = pending.find(b"\n")
+        if newline_index < 0:
+            break
+        raw = bytes(pending[: newline_index + 1])
+        del pending[: newline_index + 1]
+        lines.append(raw.decode("utf-8", errors="replace").rstrip("\r\n"))
+    return lines
+
+
 
 def run_cycle(
     *,
@@ -98,27 +115,29 @@ def run_cycle(
     required_found = {marker: False for marker in REQUIRED_MARKERS}
     failures: set[str] = set()
     rom_banners = 0
+    pending = bytearray()
 
     reset_esp32(ser)
 
     deadline = time.monotonic() + max(cycle_seconds, 1.0)
     while time.monotonic() < deadline:
-        raw = ser.readline()
-        if not raw:
+        lines = read_available_lines(ser, pending)
+        if not lines:
+            time.sleep(0.01)
             continue
-        line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
-        lower = line.lower()
-        log_handle.write(f"[cycle {cycle_index:03d}] {line}\n")
-        log_handle.flush()
+        for line in lines:
+            lower = line.lower()
+            log_handle.write(f"[cycle {cycle_index:03d}] {line}\n")
+            log_handle.flush()
 
-        if "esp-rom:" in line:
-            rom_banners += 1
-        for marker in REQUIRED_MARKERS:
-            if marker in line:
-                required_found[marker] = True
-        for marker in FAIL_MARKERS:
-            if marker in lower:
-                failures.add(marker)
+            if "esp-rom:" in line:
+                rom_banners += 1
+            for marker in REQUIRED_MARKERS:
+                if marker in line:
+                    required_found[marker] = True
+            for marker in FAIL_MARKERS:
+                if marker in lower:
+                    failures.add(marker)
 
     if rom_banners > max_rom_banners:
         return CycleResult(
@@ -178,7 +197,7 @@ def main() -> int:
     results: list[CycleResult] = []
 
     try:
-        with serial.Serial(args.port, args.baud, timeout=0.25) as ser, log_path.open(
+        with serial.Serial(args.port, args.baud, timeout=0) as ser, log_path.open(
             "w", encoding="utf-8", errors="replace"
         ) as log_handle:
             log_handle.write(

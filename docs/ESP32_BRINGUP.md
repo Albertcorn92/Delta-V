@@ -132,9 +132,9 @@ If serial shows `boot:0x0 (DOWNLOAD...)` or `waiting for download`:
 - No real I2C sensor validation yet (simulation fallback only).
 - Automated soak evidence exists (`300s` and `1800s`), but no long-duration soak
   evidence yet (multiple hours/days).
-- No mission-specific HIL campaign evidence yet.
-- No committed reboot-campaign artifact yet.
-- No committed WCET/stack-guard artifact yet.
+- Sensor-attached HIL campaign evidence is not yet available.
+- Reboot fault-campaign evidence is committed (`10/10` pass).
+- Runtime WCET/stack guard now has PASS evidence (`17` samples, `0` overruns).
 
 ## Next Hardware Tests (When Parts Are Available)
 
@@ -142,4 +142,5 @@ If serial shows `boot:0x0 (DOWNLOAD...)` or `waiting for download`:
 2. Command path + anti-replay checks with real uplink source.
 3. FDIR transition tests under injected fault conditions.
 4. Multi-hour soak test with reboot-cycle statistics.
-5. Archive `esp32_runtime_guard` and `esp32_reboot_campaign` JSON evidence.
+5. Re-run `esp32_runtime_guard` after each firmware/toolchain change and archive
+   the new PASS JSON.

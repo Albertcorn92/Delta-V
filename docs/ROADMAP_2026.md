@@ -8,7 +8,7 @@ Date: 2026-03-06
 - Stabilize 10-minute onboarding flow and quickstart script.
 - Publish benchmark protocol and first baseline metrics.
 - Add system test target and require it in flight-readiness gate.
-- Add coverage-threshold policy and CI enforcement (`coverage_guard`).
+- Add coverage-threshold policy, CI enforcement (`coverage_guard`), and trend artifact tracking.
 
 ## Q3 2026
 

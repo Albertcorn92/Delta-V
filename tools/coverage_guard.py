@@ -100,8 +100,15 @@ def main() -> int:
         print("[coverage-guard] ERROR: invalid coverage counters (line/function found == 0).")
         return 4
 
+    if branch_found == 0 and min_branch > 0.0:
+        print(
+            "[coverage-guard] ERROR: branch coverage counters were not captured "
+            f"(BRF=0) but minimum branch threshold is {min_branch:.2f}%."
+        )
+        return 5
+
     line_pct = pct(line_hit, line_found)
-    branch_pct = pct(branch_hit, branch_found) if branch_found > 0 else 100.0
+    branch_pct = pct(branch_hit, branch_found) if branch_found > 0 else 0.0
     fn_pct = pct(fn_hit, fn_found)
 
     failures: list[str] = []

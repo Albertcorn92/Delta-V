@@ -8,6 +8,7 @@ Validates DELTA-V requirements-to-evidence mapping and emits matrix artifacts.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import sys
@@ -15,14 +16,127 @@ from pathlib import Path
 
 try:
     import yaml
-except ImportError as exc:  # pragma: no cover
-    raise SystemExit(
-        "PyYAML is required for requirements_trace.py. Install with: pip install pyyaml"
-    ) from exc
+except ImportError:  # pragma: no cover
+    yaml = None
 
 
 REQ_ID_RE = re.compile(r"\b(DV-[A-Z]+-\d{2})\b")
 TEST_RE = re.compile(r"\bTEST(?:_F)?\s*\(\s*([^,]+?)\s*,\s*([^)]+?)\s*\)")
+
+
+def parse_scalar(raw: str) -> str:
+    value = raw.strip()
+    if not value:
+        return ""
+    if value[0] in {'"', "'"} and value[-1] == value[0]:
+        try:
+            parsed = ast.literal_eval(value)
+            return str(parsed)
+        except Exception:
+            return value[1:-1]
+    return value
+
+
+def split_key_value(line: str) -> tuple[str, str]:
+    if ":" not in line:
+        raise ValueError(f"Invalid mapping line (missing ':'): {line}")
+    key, value = line.split(":", 1)
+    key = key.strip()
+    if not key:
+        raise ValueError(f"Invalid mapping line (empty key): {line}")
+    return key, value.strip()
+
+
+def load_mapping_without_yaml(text: str) -> dict:
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+    if i >= len(lines) or lines[i].strip() != "requirements:":
+        raise ValueError(
+            "Mapping file must begin with 'requirements:' when PyYAML is unavailable."
+        )
+    i += 1
+
+    requirements: dict[str, dict] = {}
+    current_req: str | None = None
+
+    while i < len(lines):
+        raw = lines[i]
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            i += 1
+            continue
+
+        indent = len(raw) - len(raw.lstrip(" "))
+        if indent == 2 and stripped.endswith(":"):
+            current_req = stripped[:-1].strip()
+            if not current_req:
+                raise ValueError(f"Invalid requirement key on line {i + 1}")
+            requirements[current_req] = {"evidence": []}
+            i += 1
+            continue
+
+        if current_req is None:
+            raise ValueError(f"Unexpected content before requirement block on line {i + 1}")
+
+        if indent != 4:
+            raise ValueError(f"Unsupported indentation on line {i + 1}: {raw}")
+
+        key, value = split_key_value(stripped)
+        if key != "evidence":
+            requirements[current_req][key] = parse_scalar(value)
+            i += 1
+            continue
+
+        if value:
+            raise ValueError(f"'evidence' must not have an inline value (line {i + 1})")
+
+        evidence_items: list[dict[str, str]] = []
+        i += 1
+        while i < len(lines):
+            ev_raw = lines[i]
+            ev_stripped = ev_raw.strip()
+            if not ev_stripped or ev_stripped.startswith("#"):
+                i += 1
+                continue
+
+            ev_indent = len(ev_raw) - len(ev_raw.lstrip(" "))
+            if ev_indent <= 4:
+                break
+            if ev_indent != 6 or not ev_stripped.startswith("- "):
+                raise ValueError(f"Invalid evidence entry on line {i + 1}: {ev_raw}")
+
+            item: dict[str, str] = {}
+            first = ev_stripped[2:].strip()
+            if first:
+                k, v = split_key_value(first)
+                item[k] = parse_scalar(v)
+            i += 1
+
+            while i < len(lines):
+                field_raw = lines[i]
+                field_stripped = field_raw.strip()
+                if not field_stripped or field_stripped.startswith("#"):
+                    i += 1
+                    continue
+
+                field_indent = len(field_raw) - len(field_raw.lstrip(" "))
+                if field_indent <= 6:
+                    break
+                if field_indent != 8:
+                    raise ValueError(
+                        f"Invalid evidence field indentation on line {i + 1}: {field_raw}"
+                    )
+                fk, fv = split_key_value(field_stripped)
+                item[fk] = parse_scalar(fv)
+                i += 1
+
+            evidence_items.append(item)
+
+        requirements[current_req]["evidence"] = evidence_items
+
+    return {"requirements": requirements}
 
 
 def parse_requirement_ids(path: Path) -> list[str]:
@@ -42,7 +156,13 @@ def parse_test_names(path: Path) -> set[str]:
 
 
 def load_mapping(path: Path) -> dict:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw_text = path.read_text(encoding="utf-8")
+    if path.suffix.lower() == ".json":
+        data = json.loads(raw_text)
+    elif yaml is not None:
+        data = yaml.safe_load(raw_text)
+    else:
+        data = load_mapping_without_yaml(raw_text)
     if not isinstance(data, dict) or "requirements" not in data:
         raise ValueError("Mapping file must contain a top-level 'requirements' map.")
     if not isinstance(data["requirements"], dict):

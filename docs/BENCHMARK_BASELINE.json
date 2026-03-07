@@ -1,14 +1,14 @@
 {
-  "generated_utc": "2026-03-07T02:15:17.134913+00:00",
+  "generated_utc": "2026-03-07T08:01:56.508426+00:00",
   "workspace": "DELTA-V Framework",
   "host": {
-    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
-    "python": "3.14.3",
+    "platform": "macOS-26.2-arm64-arm-64bit",
+    "python": "3.12.12",
     "cmake": "cmake version 4.2.3"
   },
   "git": {
     "branch": "main",
-    "commit": "1567e346f6776030337c0cf0c8383b1a69b090c8",
+    "commit": "78941353402a04f6a11ae0cce4b30fefe7881598",
     "dirty_worktree": true
   },
   "metrics": {
@@ -16,23 +16,23 @@
       "frames": 20000,
       "accepted": 20000,
       "consumed": 20000,
-      "duration_s": 0.797018,
-      "throughput_cmd_per_s": 25093.551,
-      "latency_p50_us": 37.208,
-      "latency_p95_us": 49.708
+      "duration_s": 1.104958,
+      "throughput_cmd_per_s": 18100.235,
+      "latency_p50_us": 44.0,
+      "latency_p95_us": 121.0
     },
     "crc16": {
       "iterations": 300000,
       "bytes_per_iteration": 256,
-      "duration_s": 0.66297,
-      "throughput_mb_per_s": 115.842,
+      "duration_s": 1.022623,
+      "throughput_mb_per_s": 75.101,
       "accumulator": 0
     },
     "cobs_roundtrip": {
       "iterations": 300000,
       "bytes_per_iteration": 22,
-      "duration_s": 0.007806,
-      "throughput_mb_per_s": 845.54,
+      "duration_s": 0.008556,
+      "throughput_mb_per_s": 771.388,
       "accumulator": 38246416
     }
   }

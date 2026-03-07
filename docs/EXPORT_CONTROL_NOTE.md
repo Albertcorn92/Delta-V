@@ -1,6 +1,6 @@
 # Export Control Note (Not Legal Advice)
 
-Date: 2026-03-06
+Date: 2026-03-07
 
 This repository is published as open-source software for civilian development
 and research use. Export-control treatment still depends on mission context,
@@ -19,6 +19,10 @@ payload, customer, destination, and operational use.
   for open-source distribution.
 - The baseline repository profile intentionally avoids command-path
   cryptographic features to reduce export-compliance complexity.
+- Public repository access is global by default; maintainers who need stricter
+  access control should use private repositories.
+- This project maintainer uses a no-direct-non-U.S.-operational-support policy
+  documented in `docs/MAINTAINER_BOUNDARY_POLICY.md`.
 - For typical public open-source publication of this civilian baseline, users
   often do not perform special filings solely to publish code; deployment and
   export operations can still require formal review.

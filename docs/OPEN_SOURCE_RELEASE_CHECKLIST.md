@@ -1,6 +1,6 @@
 # Open-Source Release Checklist
 
-Date: 2026-03-06
+Date: 2026-03-07
 
 Use this checklist before publishing a DELTA-V framework release to GitHub.
 
@@ -39,19 +39,25 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
 - [ ] `docs/SAFETY_ASSURANCE.md` references current gate commands.
 - [ ] `docs/BENCHMARK_PROTOCOL.md` reflects current benchmark scope and artifacts.
 - [ ] `docs/COVERAGE_POLICY.md` and `docs/COVERAGE_THRESHOLDS.json` reflect current CI thresholds.
+- [ ] `docs/COVERAGE_RAMP_PLAN.md` is updated with current stage and next-stage criteria.
 - [ ] `docs/ESP32_BRINGUP.md` includes latest no-sensor and hardware validation steps.
 - [ ] `docs/ESP32_SENSORLESS_BASELINE.md` reflects the latest local-only hardware run.
+- [ ] `docs/evidence/ESP32_SENSORLESS_EVIDENCE_*.md` is refreshed for public review.
 - [ ] `docs/LEGAL_SCOPE_CHECKLIST.md` reflects current legal/civilian release guidance.
+- [ ] `docs/MAINTAINER_BOUNDARY_POLICY.md` reflects current maintainer support limits.
 - [ ] `docs/process/*.md` templates are present for mission teams.
+- [ ] `docs/safety_case/` templates are present and linked to release evidence.
 
 ## 3. Security and Safety Hygiene
 
 - [ ] No production secrets in repository history or source files.
+- [ ] `artifacts/` logs/reports are not committed (or are explicitly redacted).
 - [ ] No command-path cryptography/encryption features added to baseline framework.
 - [ ] Dev/test uplink keys are clearly marked as non-flight keys.
 - [ ] Safety-critical changes have review evidence recorded.
 - [ ] Civilian-use scope maintained (no weapon/military-targeting functionality).
 - [ ] Destination/end-user screening process is defined for deployment operations.
+- [ ] Maintainer boundary policy is enforced for public interactions.
 
 ## 4. Release Packaging
 
@@ -63,3 +69,4 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
   - [ ] known limitations
   - [ ] legal/compliance constraints (non-defense scope, export/sanctions responsibility)
   - [ ] required manual on-target qualification work
+  - [ ] safety-case evidence package location (`docs/safety_case/`)

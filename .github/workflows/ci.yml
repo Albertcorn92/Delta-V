@@ -178,6 +178,13 @@ jobs:
       - name: Enforce coverage thresholds
         run: cmake --build build_cov --target coverage_guard
 
+      - name: Generate coverage trend snapshot
+        run: |
+          python tools/coverage_trend.py \
+            --workspace "${{ github.workspace }}" \
+            --build-dir "${{ github.workspace }}/build_cov" \
+            --output-json "${{ github.workspace }}/build_cov/coverage_trend.json"
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -191,6 +198,13 @@ jobs:
           name: coverage-html
           path: build_cov/coverage_html/
           retention-days: 14
+
+      - name: Archive coverage trend snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-trend
+          path: build_cov/coverage_trend.json
+          retention-days: 30
 
   # ---------------------------------------------------------------------------
   # 4. Safety assurance gate (blocking)
@@ -263,7 +277,8 @@ jobs:
             tools/esp32_reboot_campaign.py \
             tools/legal_compliance_check.py \
             tools/software_final_check.py \
-            tools/qualification_report.py
+            tools/qualification_report.py \
+            tools/coverage_trend.py
 
       - name: dv-util list
         run: python tools/dv-util.py list

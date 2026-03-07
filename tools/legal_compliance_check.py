@@ -76,6 +76,16 @@ PROHIBITED_CLAIM_PATTERNS = [
     re.compile(r"\bear[-\s]*free\b", re.IGNORECASE),
     re.compile(r"\bno\s+itar\b", re.IGNORECASE),
     re.compile(r"\bno\s+ear\b", re.IGNORECASE),
+    re.compile(r"\bavoid\s+itar\b", re.IGNORECASE),
+    re.compile(r"\bavoid\s+ear\b", re.IGNORECASE),
+    re.compile(r"\bexempt\s+from\s+itar\b", re.IGNORECASE),
+    re.compile(r"\bexempt\s+from\s+ear\b", re.IGNORECASE),
+    re.compile(r"\boutside\s+itar\b", re.IGNORECASE),
+    re.compile(r"\boutside\s+ear\b", re.IGNORECASE),
+    re.compile(r"\bnot\s+subject\s+to\s+itar\b", re.IGNORECASE),
+    re.compile(r"\bnot\s+subject\s+to\s+ear\b", re.IGNORECASE),
+    re.compile(r"\bbypass\s+export\s+control(s)?\b", re.IGNORECASE),
+    re.compile(r"\bno\s+export\s+restrictions\b", re.IGNORECASE),
     re.compile(r"\bguaranteed\s+legal\b", re.IGNORECASE),
     re.compile(r"\bguaranteed\s+compliance\b", re.IGNORECASE),
     re.compile(r"\blegal\s+clearance\s+guaranteed\b", re.IGNORECASE),
@@ -111,8 +121,15 @@ REQUIRED_FILES = [
     ROOT / "LICENSE",
     ROOT / "docs" / "CIVILIAN_USE_POLICY.md",
     ROOT / "docs" / "EXPORT_CONTROL_NOTE.md",
+    ROOT / "docs" / "MAINTAINER_BOUNDARY_POLICY.md",
     ROOT / "docs" / "LEGAL_FAQ.md",
     ROOT / "docs" / "LEGAL_SCOPE_CHECKLIST.md",
+    ROOT / "docs" / "COVERAGE_RAMP_PLAN.md",
+    ROOT / "docs" / "safety_case" / "README.md",
+    ROOT / "docs" / "safety_case" / "hazards.md",
+    ROOT / "docs" / "safety_case" / "mitigations.md",
+    ROOT / "docs" / "safety_case" / "verification_links.md",
+    ROOT / "docs" / "safety_case" / "change_impact.md",
     ROOT / "DISCLAIMER.md",
 ]
 
@@ -140,6 +157,22 @@ REQUIRED_PHRASES = [
     (
         ROOT / "docs" / "LEGAL_FAQ.md",
         "not legal advice",
+    ),
+    (
+        ROOT / "README.md",
+        "maintainer does not provide direct operational support to non-u.s. users",
+    ),
+    (
+        ROOT / "docs" / "MAINTAINER_BOUNDARY_POLICY.md",
+        "maintainer does not provide direct operational support to non-u.s. users",
+    ),
+    (
+        ROOT / "docs" / "MAINTAINER_BOUNDARY_POLICY.md",
+        "not legal advice",
+    ),
+    (
+        ROOT / ".gitignore",
+        "artifacts/",
     ),
 ]
 

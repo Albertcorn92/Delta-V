@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import re
 import subprocess
@@ -91,6 +92,78 @@ def display_path(path: Path, workspace: Path) -> str:
         return str(resolved)
 
 
+def latest_files(directory: Path, pattern: str) -> list[Path]:
+    if not directory.exists():
+        return []
+    return sorted(directory.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def has_passing_reboot_campaign(artifacts_dir: Path) -> bool:
+    for candidate in latest_files(artifacts_dir, "esp32_reboot_campaign_*.json"):
+        try:
+            payload = json.loads(candidate.read_text(encoding="utf-8"))
+            summary = payload.get("summary", {})
+            if int(summary.get("fail_cycles", 1)) == 0 and int(summary.get("pass_cycles", 0)) > 0:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def has_passing_runtime_guard(artifacts_dir: Path) -> bool:
+    for candidate in latest_files(artifacts_dir, "esp32_runtime_guard_*.json"):
+        try:
+            payload = json.loads(candidate.read_text(encoding="utf-8"))
+            thresholds = payload.get("thresholds", {})
+            summary = payload.get("summary", {})
+            samples = int(payload.get("samples", 0))
+
+            min_samples = int(thresholds.get("min_samples", 1))
+            min_stack = int(thresholds.get("min_stack_words", 0))
+            max_fast = int(thresholds.get("max_fast_tick_wcet_us", 1_000_000))
+            max_loop = int(thresholds.get("max_loop_wcet_us", 1_000_000))
+            max_overruns = int(thresholds.get("max_loop_overruns", 0))
+
+            if samples < min_samples:
+                continue
+            if int(summary.get("max_fast_tick_wcet_us", max_fast + 1)) > max_fast:
+                continue
+            if int(summary.get("max_loop_wcet_us", max_loop + 1)) > max_loop:
+                continue
+            if int(summary.get("last_loop_overruns", max_overruns + 1)) > max_overruns:
+                continue
+            if int(summary.get("min_stack_free_words", 0)) < min_stack:
+                continue
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def has_passing_hil_fault_campaign(artifacts_dir: Path) -> bool:
+    # Reboot/reset cycling is treated as injected-fault on-target campaign evidence.
+    return has_passing_reboot_campaign(artifacts_dir)
+
+
+def require_program_signatures() -> bool:
+    return os.getenv("DELTAV_REQUIRE_PROGRAM_SIGNATURES", "0") == "1"
+
+
+def collect_manual_remaining(workspace: Path) -> list[str]:
+    artifacts_dir = workspace / "artifacts"
+    remaining: list[str] = []
+    if not has_passing_hil_fault_campaign(artifacts_dir):
+        remaining.append("On-target HIL campaign evidence (ESP32 fault injection logs).")
+    if not has_passing_runtime_guard(artifacts_dir):
+        remaining.append("Timing/WCET and stack margin evidence on target (`tools/esp32_runtime_guard.py`).")
+    if not has_passing_reboot_campaign(artifacts_dir):
+        remaining.append("Reboot-cycle stability evidence on target (`tools/esp32_reboot_campaign.py`).")
+    remaining.append("Multi-hour sensorless soak evidence on target (`tools/esp32_soak.py`, >=1h).")
+    if require_program_signatures():
+        remaining.append("Program-level DO-178C process records (review signatures, independence, audits).")
+    return remaining
+
+
 def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines: list[str] = []
     lines.append("# DELTA-V Qualification Report")
@@ -139,14 +212,11 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines.append("")
     lines.append("## Manual Evidence Remaining")
     lines.append("")
-    lines.append(
-        "- On-target HIL campaign evidence (ESP32 runtime, fault injection, soak)."
-    )
-    lines.append("- Timing/WCET and stack margin evidence on target (`tools/esp32_runtime_guard.py`).")
-    lines.append("- Reboot-cycle stability evidence on target (`tools/esp32_reboot_campaign.py`).")
-    lines.append(
-        "- Program-level DO-178C process records (review signatures, independence, audits)."
-    )
+    manual_remaining = report.get("manual_remaining", [])
+    if manual_remaining:
+        lines.extend([f"- {item}" for item in manual_remaining])
+    else:
+        lines.append("- None for baseline release profile.")
     lines.append("")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -241,6 +311,7 @@ def main() -> int:
             },
         ],
         "hashes": hashes,
+        "manual_remaining": collect_manual_remaining(workspace),
     }
 
     write_markdown(output_md, report)

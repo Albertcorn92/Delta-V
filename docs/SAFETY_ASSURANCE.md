@@ -45,6 +45,7 @@ The repository enforces these assurance gates in CI:
 - `sitl_smoke`: short runtime health check for startup markers, early process exit, and fatal signature scan.
 - `sitl_soak`: extended runtime soak to detect delayed failures and unstable shutdown behavior.
 - `coverage_guard`: enforces minimum line/branch/function coverage thresholds in CI.
+- `coverage-trend` artifact: captures per-run coverage percentages for staged threshold increases.
 - `quickstart_10min`: one-command local path for legal + build + tests + benchmark + smoke.
 - Coverage and Python tool checks remain active in CI.
 
@@ -80,3 +81,11 @@ cmake --build build --target quickstart_10min
 - `docs/qualification_report.md`
 - `docs/qualification_report.json`
 - `docs/SOFTWARE_FINAL_STATUS.md`
+
+Mission-team safety-case templates are maintained in:
+
+- `docs/safety_case/README.md`
+- `docs/safety_case/hazards.md`
+- `docs/safety_case/mitigations.md`
+- `docs/safety_case/verification_links.md`
+- `docs/safety_case/change_impact.md`

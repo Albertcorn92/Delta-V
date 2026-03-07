@@ -27,6 +27,7 @@ cmake --build build --target benchmark_guard
 cmake --build build --target sitl_smoke
 cmake --build build --target sitl_soak
 cmake --build build_cov --target coverage_guard
+python3 tools/coverage_trend.py --workspace . --build-dir build_cov
 cmake --build build --target software_final
 ```
 
@@ -36,6 +37,7 @@ cmake --build build --target software_final
 - `docs/qualification_report.md`
 - `docs/REQUIREMENTS_TRACE_MATRIX.md`
 - `docs/BENCHMARK_BASELINE.md`
+- `docs/safety_case/` package (hazards + mitigations + verification links)
 
 ## Changelog Discipline
 
