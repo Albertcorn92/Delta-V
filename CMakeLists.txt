@@ -238,6 +238,8 @@ if(GTest_FOUND OR GTEST_FOUND)
             '/usr/*'
             '*/tests/*'
             '*/googletest/*')
+        set(DELTAV_LCOV_CAPTURE_IGNORE_ARGS)
+        set(DELTAV_LCOV_REMOVE_IGNORE_ARGS)
         if(APPLE)
             if(EXISTS "/opt/homebrew")
                 list(APPEND DELTAV_LCOV_REMOVE_PATTERNS '/opt/homebrew/*')
@@ -245,6 +247,12 @@ if(GTest_FOUND OR GTEST_FOUND)
             if(EXISTS "/Library/Developer")
                 list(APPEND DELTAV_LCOV_REMOVE_PATTERNS '/Library/Developer/*')
             endif()
+            # Homebrew lcov/gcov on macOS can emit toolchain metadata mismatches
+            # and unused-exclude warnings; tolerate those only on Apple hosts.
+            set(DELTAV_LCOV_CAPTURE_IGNORE_ARGS
+                --ignore-errors inconsistent,mismatch,deprecated)
+            set(DELTAV_LCOV_REMOVE_IGNORE_ARGS
+                --ignore-errors inconsistent,mismatch,deprecated,unused)
         endif()
         add_custom_target(coverage
             COMMAND ${LCOV}    ${DELTAV_LCOV_GCOV_ARGS} --zerocounters
@@ -252,12 +260,12 @@ if(GTest_FOUND OR GTEST_FOUND)
             COMMAND run_tests_coverage --gtest_color=yes
             COMMAND ${LCOV}    ${DELTAV_LCOV_GCOV_ARGS} --capture --directory .
                                --rc branch_coverage=1
-                               --ignore-errors inconsistent,mismatch,deprecated
+                               ${DELTAV_LCOV_CAPTURE_IGNORE_ARGS}
                                --output-file cov_raw.info --quiet
             COMMAND ${LCOV}    ${DELTAV_LCOV_GCOV_ARGS} --remove  cov_raw.info
                                ${DELTAV_LCOV_REMOVE_PATTERNS}
                                --rc branch_coverage=1
-                               --ignore-errors inconsistent,mismatch,deprecated,unused
+                               ${DELTAV_LCOV_REMOVE_IGNORE_ARGS}
                                --output-file cov.info --quiet
             COMMAND ${GENHTML} cov.info --branch-coverage
                                --output-directory coverage_html --quiet
