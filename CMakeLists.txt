@@ -234,6 +234,32 @@ if(GTest_FOUND OR GTEST_FOUND)
         list(APPEND DELTAV_LCOV_GCOV_ARGS --gcov-tool ${DELTAV_GCOV_TOOL})
     endif()
     if(LCOV AND GENHTML AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        set(DELTAV_LCOV_VERSION_STDOUT "")
+        set(DELTAV_LCOV_VERSION_STDERR "")
+        execute_process(
+            COMMAND ${LCOV} --version
+            OUTPUT_VARIABLE DELTAV_LCOV_VERSION_STDOUT
+            ERROR_VARIABLE DELTAV_LCOV_VERSION_STDERR
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_STRIP_TRAILING_WHITESPACE
+        )
+        set(DELTAV_LCOV_VERSION_RAW "${DELTAV_LCOV_VERSION_STDOUT}")
+        if(NOT DELTAV_LCOV_VERSION_RAW AND DELTAV_LCOV_VERSION_STDERR)
+            # Some lcov builds print version text to stderr.
+            set(DELTAV_LCOV_VERSION_RAW "${DELTAV_LCOV_VERSION_STDERR}")
+        endif()
+        set(DELTAV_LCOV_BRANCH_RC_KEY "branch_coverage")
+        string(REGEX MATCH "([0-9]+)\\.([0-9]+)" DELTAV_LCOV_VERSION_MATCH "${DELTAV_LCOV_VERSION_RAW}")
+        if(DELTAV_LCOV_VERSION_MATCH)
+            set(DELTAV_LCOV_VERSION_MAJOR "${CMAKE_MATCH_1}")
+            if(DELTAV_LCOV_VERSION_MAJOR LESS 2)
+                # lcov 1.x expects this legacy key for branch data capture.
+                set(DELTAV_LCOV_BRANCH_RC_KEY "lcov_branch_coverage")
+            endif()
+        endif()
+        set(DELTAV_LCOV_BRANCH_RC_ARGS
+            --rc ${DELTAV_LCOV_BRANCH_RC_KEY}=1)
+
         set(DELTAV_LCOV_REMOVE_PATTERNS
             '/usr/*'
             '*/tests/*'
@@ -259,12 +285,12 @@ if(GTest_FOUND OR GTEST_FOUND)
                                --directory . --quiet
             COMMAND run_tests_coverage --gtest_color=yes
             COMMAND ${LCOV}    ${DELTAV_LCOV_GCOV_ARGS} --capture --directory .
-                               --rc branch_coverage=1
+                               ${DELTAV_LCOV_BRANCH_RC_ARGS}
                                ${DELTAV_LCOV_CAPTURE_IGNORE_ARGS}
                                --output-file cov_raw.info --quiet
             COMMAND ${LCOV}    ${DELTAV_LCOV_GCOV_ARGS} --remove  cov_raw.info
                                ${DELTAV_LCOV_REMOVE_PATTERNS}
-                               --rc branch_coverage=1
+                               ${DELTAV_LCOV_BRANCH_RC_ARGS}
                                ${DELTAV_LCOV_REMOVE_IGNORE_ARGS}
                                --output-file cov.info --quiet
             COMMAND ${GENHTML} cov.info --branch-coverage
@@ -280,6 +306,7 @@ if(GTest_FOUND OR GTEST_FOUND)
         else()
             message(WARNING "Coverage gcov tool not found explicitly; lcov default gcov will be used.")
         endif()
+        message(STATUS "Coverage lcov rc key: ${DELTAV_LCOV_BRANCH_RC_KEY} (${DELTAV_LCOV_VERSION_RAW})")
         message(STATUS "Coverage : ENABLED  (cmake --build build --target coverage)")
     elseif(LCOV AND GENHTML)
         message(STATUS "Coverage : DISABLED (configure with GCC to enable lcov coverage)")
