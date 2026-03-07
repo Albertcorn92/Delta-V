@@ -29,6 +29,7 @@ Artifacts:
 - `docs/BENCHMARK_BASELINE.md` (synced by default)
 - `docs/BENCHMARK_BASELINE.json` (synced by default)
 - `docs/BENCHMARK_THRESHOLDS.json` (regression gate thresholds)
+- `docs/BENCHMARK_THRESHOLDS_CI.json` (GitHub CI threshold profile)
 
 ## Metrics (Current Baseline)
 
@@ -49,6 +50,8 @@ Artifacts:
 
 - `benchmark_guard` validates current metrics against
   `docs/BENCHMARK_THRESHOLDS.json`.
+- CI safety-assurance jobs use `docs/BENCHMARK_THRESHOLDS_CI.json` to account
+  for shared-runner performance variance.
 - Thresholds are intentionally conservative cross-host minimums for CI.
 - If hardware/OS/compiler baseline changes materially, update thresholds with
   evidence in the release notes.

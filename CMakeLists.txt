@@ -373,10 +373,14 @@ if(PYTHON3 AND TARGET run_benchmarks)
 endif()
 
 if(PYTHON3 AND TARGET benchmark_baseline)
+    set(DELTAV_BENCHMARK_THRESHOLDS_FILE
+        "${CMAKE_SOURCE_DIR}/docs/BENCHMARK_THRESHOLDS.json"
+        CACHE FILEPATH "Benchmark threshold JSON file for benchmark_guard")
     add_custom_target(benchmark_guard
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/benchmark_guard.py
             --workspace ${CMAKE_SOURCE_DIR}
             --build-dir ${CMAKE_BINARY_DIR}
+            --thresholds ${DELTAV_BENCHMARK_THRESHOLDS_FILE}
         DEPENDS benchmark_baseline
         COMMENT "Validating benchmark regression thresholds"
     )

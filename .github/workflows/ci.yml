@@ -217,7 +217,8 @@ jobs:
         run: |
           cmake -B build_tidy -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DDELTAV_SITL_SOAK_SECONDS=60
+            -DDELTAV_SITL_SOAK_SECONDS=60 \
+            -DDELTAV_BENCHMARK_THRESHOLDS_FILE=${{ github.workspace }}/docs/BENCHMARK_THRESHOLDS_CI.json
       - name: Run software-final gate
         run: cmake --build build_tidy --target software_final
 
