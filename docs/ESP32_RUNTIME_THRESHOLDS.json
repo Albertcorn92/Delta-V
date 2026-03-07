@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "minimums": {
+    "metric_samples": 3,
+    "stack_min_free_words": 256
+  },
+  "maximums": {
+    "fast_tick_wcet_us": 60000,
+    "loop_wcet_us": 100000,
+    "loop_overruns": 0
+  }
+}

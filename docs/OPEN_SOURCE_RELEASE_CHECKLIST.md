@@ -20,6 +20,9 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
 - [ ] `cmake --build build --target software_final` passes.
 - [ ] ESP local-only build boots on hardware (`DELTAV_LOCAL_ONLY=ON`).
 - [ ] 3-5 minute ESP monitor smoke test passes with no reboot/panic/stack-overflow output.
+- [ ] `python3 tools/esp32_soak.py --project-dir ports/esp32 --build-dir build_esp32 --port /dev/cu.usbmodem101 --duration 1800` passes.
+- [ ] `python3 tools/esp32_runtime_guard.py --project-dir ports/esp32 --build-dir build_esp32 --port /dev/cu.usbmodem101 --duration 300` passes.
+- [ ] `python3 tools/esp32_reboot_campaign.py --project-dir ports/esp32 --build-dir build_esp32 --port /dev/cu.usbmodem101 --cycles 10 --cycle-seconds 12` passes.
 - [ ] `docs/REQUIREMENTS_TRACE_MATRIX.md` and `.json` are refreshed.
 - [ ] `docs/qualification_report.md` and `.json` are refreshed.
 - [ ] `docs/SOFTWARE_FINAL_STATUS.md` is refreshed.

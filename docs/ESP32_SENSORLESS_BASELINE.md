@@ -43,8 +43,53 @@ idf.py -B build_esp32 -p /dev/cu.usbmodem101 flash
 idf.py -B build_esp32 -p /dev/cu.usbmodem101 monitor
 ```
 
+Automated soak command (writes `artifacts/esp32_soak_*.log`):
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_soak.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --duration 1800
+```
+
+Runtime WCET/stack guard command:
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_runtime_guard.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --duration 300
+```
+
+Reboot campaign command:
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_reboot_campaign.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --cycles 10 \
+  --cycle-seconds 12
+```
+
+## Latest Run Evidence (2026-03-07 UTC)
+
+- Build/flash: PASS (`idf.py -B build_esp32 build flash -p /dev/cu.usbmodem101`).
+- Sensorless soak: PASS (`300s`) via `tools/esp32_soak.py`.
+- Evidence log: `artifacts/esp32_soak_20260307T005636Z.log`.
+- Extended sensorless soak: PASS (`1800s`) via `tools/esp32_soak.py`.
+- Evidence log: `artifacts/esp32_soak_20260307T010302Z.log`.
+- No detected panic/assert/stack-overflow/reboot-loop signatures in the soak window.
+
 ## Known Gaps
 
 - No real I2C sensor validation yet.
-- No extended soak (1h+) evidence yet.
+- No extended soak (1h+) evidence committed yet.
+- No runtime guard (`tools/esp32_runtime_guard.py`) artifact committed yet.
+- No reboot campaign (`tools/esp32_reboot_campaign.py`) artifact committed yet.
 - No mission-specific HIL/fault campaign logs yet.

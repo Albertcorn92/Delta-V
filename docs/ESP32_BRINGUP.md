@@ -50,6 +50,74 @@ Failure signatures (must not appear):
 - `Guru Meditation`
 - repeating reboot banners (`ESP-ROM ...` loop)
 
+## Automated Sensorless Soak (Recommended)
+
+Run this after flash to collect longer-run evidence and automatic pass/fail checks:
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_soak.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --duration 1800
+```
+
+Notes:
+
+- `--duration 1800` = 30 minutes. For stronger evidence, use `3600` (1 hour) or more.
+- A timestamped log file is written under `artifacts/`.
+- The soak fails if panic/assert/stack-overflow or reboot-loop signatures are detected.
+
+## Runtime WCET + Stack-Margin Guard
+
+Use this to collect and validate on-target scheduler runtime metrics.
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_runtime_guard.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --duration 300
+```
+
+The guard enforces thresholds from `docs/ESP32_RUNTIME_THRESHOLDS.json`:
+
+- FAST tick WCET upper bound (`fast_tick_wcet_us`)
+- loop WCET upper bound (`loop_wcet_us`)
+- loop overrun count upper bound (`loop_overruns`)
+- stack high-watermark minimum (`stack_min_free_words`)
+
+This script uses direct serial capture (no interactive `idf.py monitor` session
+required).
+
+## Reboot Stability Campaign
+
+Use this to verify repeated startup behavior under local USB power.
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_reboot_campaign.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --cycles 10 \
+  --cycle-seconds 12
+```
+
+The campaign fails if any cycle misses required startup markers or logs panic/
+assert/overflow signatures.
+
+## Safety Note (Local Hardware)
+
+Long soaks are generally safe for both host and board when using normal USB power:
+
+- ESP32-S3 can run continuously at its default clock in this profile.
+- Host load is typically low to moderate (serial monitor + log writes).
+- Keep the board on a non-conductive surface with normal airflow.
+- Remove accidental jumper connections unless explicitly needed.
+
 ## If Flash/Boot Gets Stuck
 
 If serial shows `boot:0x0 (DOWNLOAD...)` or `waiting for download`:
@@ -62,8 +130,11 @@ If serial shows `boot:0x0 (DOWNLOAD...)` or `waiting for download`:
 ## Current Limitations
 
 - No real I2C sensor validation yet (simulation fallback only).
-- No long-duration soak evidence yet (hours/days).
+- Automated soak evidence exists (`300s` and `1800s`), but no long-duration soak
+  evidence yet (multiple hours/days).
 - No mission-specific HIL campaign evidence yet.
+- No committed reboot-campaign artifact yet.
+- No committed WCET/stack-guard artifact yet.
 
 ## Next Hardware Tests (When Parts Are Available)
 
@@ -71,3 +142,4 @@ If serial shows `boot:0x0 (DOWNLOAD...)` or `waiting for download`:
 2. Command path + anti-replay checks with real uplink source.
 3. FDIR transition tests under injected fault conditions.
 4. Multi-hour soak test with reboot-cycle statistics.
+5. Archive `esp32_runtime_guard` and `esp32_reboot_campaign` JSON evidence.

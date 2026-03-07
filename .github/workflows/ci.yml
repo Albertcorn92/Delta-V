@@ -53,6 +53,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Install system dependencies (Ubuntu)
         if: startsWith(matrix.os, 'ubuntu')
         run: |
@@ -70,11 +75,11 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python3 -m pip install --break-system-packages pyyaml --quiet || \
-          python3 -m pip install pyyaml --quiet
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml --quiet
 
       - name: Run autocoder
-        run: python3 tools/autocoder.py
+        run: python tools/autocoder.py
 
       - name: Configure (Debug + ASan/UBSan)
         env:
@@ -120,13 +125,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - run: |
-          python3 -m pip install --break-system-packages pyyaml --quiet || \
-          python3 -m pip install pyyaml --quiet
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml --quiet
       - name: Dry-run validation
-        run: python3 tools/autocoder.py --dry-run
+        run: python tools/autocoder.py --dry-run
       - name: Full autocoder run
-        run: python3 tools/autocoder.py
+        run: python tools/autocoder.py
 
   # ---------------------------------------------------------------------------
   # 3. Coverage report (Ubuntu gcc only)
@@ -138,6 +147,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
@@ -145,16 +158,16 @@ jobs:
           sudo apt-get install -y cmake ninja-build libgtest-dev lcov g++-12
 
       - run: |
-          python3 -m pip install --break-system-packages pyyaml --quiet || \
-          python3 -m pip install pyyaml --quiet
-      - run: python3 tools/autocoder.py
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml --quiet
+      - run: python tools/autocoder.py
 
       - name: Configure with coverage
-        env:
-          CC:  gcc-12
-          CXX: g++-12
         run: |
-          cmake -B build_cov -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake -B build_cov -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=gcc-12 \
+            -DCMAKE_CXX_COMPILER=g++-12
 
       - name: Build coverage binary
         run: cmake --build build_cov --target run_tests_coverage
@@ -189,12 +202,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - run: |
           sudo apt-get update -q
           sudo apt-get install -y cmake ninja-build clang-14 clang-tidy-14 libgtest-dev
-          python3 -m pip install --break-system-packages pyyaml --quiet || \
-          python3 -m pip install pyyaml --quiet
-      - run: python3 tools/autocoder.py
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml --quiet
+      - run: python tools/autocoder.py
       - name: Configure
         env: { CC: clang-14, CXX: clang++-14 }
         run: |
@@ -226,24 +243,38 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - run: |
-          python3 -m pip install --break-system-packages pyyaml --quiet || \
-          python3 -m pip install pyyaml --quiet
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml --quiet
 
       - name: Autocoder dry-run
-        run: python3 tools/autocoder.py --dry-run
+        run: python tools/autocoder.py --dry-run
+
+      - name: Python syntax check (assurance tools)
+        run: |
+          python -m py_compile \
+            tools/esp32_soak.py \
+            tools/esp32_runtime_guard.py \
+            tools/esp32_reboot_campaign.py \
+            tools/legal_compliance_check.py \
+            tools/software_final_check.py \
+            tools/qualification_report.py
 
       - name: dv-util list
-        run: python3 tools/dv-util.py list
+        run: python tools/dv-util.py list
 
       - name: dv-util check
-        run: python3 tools/dv-util.py check
+        run: python tools/dv-util.py check
 
       - name: dv-util add-component roundtrip
         run: |
-          python3 tools/dv-util.py add-component TestWidget --rate fast
+          python tools/dv-util.py add-component TestWidget --rate fast
           test -f src/TestWidgetComponent.hpp
           echo "TestWidgetComponent.hpp created OK"
 
       - name: Autocoder after add-component
-        run: python3 tools/autocoder.py
+        run: python tools/autocoder.py

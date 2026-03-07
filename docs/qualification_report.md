@@ -1,6 +1,6 @@
 # DELTA-V Qualification Report
 
-- Generated (UTC): `2026-03-07T00:10:12.980215+00:00`
+- Generated (UTC): `2026-03-07T01:54:07.480824+00:00`
 - Workspace: `DELTA-V Framework`
 
 ## Build Provenance
@@ -8,7 +8,7 @@
 | Field | Value |
 |---|---|
 | Git branch | `main` |
-| Git commit | `6efbcff9ff1ed19fb79959c2a70a42726e4e612d` |
+| Git commit | `bed6ae40cd19491b747e65df280ebd8c3ecc47b8` |
 | Dirty worktree | `True` |
 | Host OS | `macOS-26.2-arm64-arm-64bit` |
 | Python | `3.12.12` |
@@ -38,12 +38,13 @@
 | `build/requirements_trace_matrix.json` | `93ea3889` |
 | `build/requirements_trace_matrix.md` | `0d46e8ba` |
 | `tests/unit_tests.cpp` | `4ebaedba` |
-| `build/flight_software` | `1178a4e9` |
-| `build/run_tests` | `37072520` |
+| `build/flight_software` | `74fb6113` |
+| `build/run_tests` | `64b6b549` |
 
 ## Manual Evidence Remaining
 
 - On-target HIL campaign evidence (ESP32 runtime, fault injection, soak).
-- Timing/WCET and stack margin evidence on target.
+- Timing/WCET and stack margin evidence on target (`tools/esp32_runtime_guard.py`).
+- Reboot-cycle stability evidence on target (`tools/esp32_reboot_campaign.py`).
 - Program-level DO-178C process records (review signatures, independence, audits).
 

@@ -10,10 +10,20 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <thread>
+
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+#include <esp_timer.h>
+#endif
+
+#if defined(DELTAV_OS_FREERTOS)
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#endif
 
 namespace deltav {
 
@@ -125,13 +135,33 @@ public:
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
         // ESP path: cooperative scheduler avoids heavy host-style threading stack use.
         constexpr uint32_t FAST_PERIOD_MS = 100; // 10 Hz
+        constexpr uint64_t FAST_PERIOD_US = static_cast<uint64_t>(FAST_PERIOD_MS) * 1000ULL;
+        constexpr uint32_t METRIC_REPORT_DIVIDER = 50; // 5s at 10 Hz
         uint32_t norm_divider = 0;
         uint32_t slow_divider = 0;
+        uint32_t metric_divider = 0;
+        uint64_t fast_tick_wcet_us = 0;
+        uint64_t loop_wcet_us = 0;
+        uint64_t loop_overruns = 0;
 
         std::printf("[RGE] Embedded cooperative scheduler running.\n\n");
 
+#if defined(DELTAV_OS_FREERTOS)
+        TickType_t next_wake = xTaskGetTickCount();
+        TickType_t fast_period_ticks = pdMS_TO_TICKS(FAST_PERIOD_MS);
+        if (fast_period_ticks == 0) {
+            fast_period_ticks = 1;
+        }
+#endif
+
         while (running_.load(std::memory_order_acquire)) {
+            const uint64_t loop_start_us = monotonicUs();
+            const uint64_t fast_start_us = loop_start_us;
             fast_.tick();
+            const uint64_t fast_elapsed_us = monotonicUs() - fast_start_us;
+            if (fast_elapsed_us > fast_tick_wcet_us) {
+                fast_tick_wcet_us = fast_elapsed_us;
+            }
 
             ++norm_divider;
             if (norm_divider >= 10) {
@@ -150,7 +180,40 @@ public:
                 }
             }
 
+            const uint64_t loop_elapsed_us = monotonicUs() - loop_start_us;
+            if (loop_elapsed_us > loop_wcet_us) {
+                loop_wcet_us = loop_elapsed_us;
+            }
+            if (loop_elapsed_us > FAST_PERIOD_US) {
+                ++loop_overruns;
+                if (loop_overruns == 1 || loop_overruns % 100 == 0) {
+                    (void)std::fprintf(
+                        stderr,
+                        "[RGE] WARN: FAST loop overrun #%llu (%lluus)\n",
+                        static_cast<unsigned long long>(loop_overruns),
+                        static_cast<unsigned long long>(loop_elapsed_us));
+                }
+            }
+
+            ++metric_divider;
+            if (metric_divider >= METRIC_REPORT_DIVIDER) {
+                metric_divider = 0;
+                std::printf(
+                    "[RGE_METRIC] fast_tick_wcet_us=%llu loop_wcet_us=%llu "
+                    "loop_overruns=%llu stack_min_free_words=%u\n",
+                    static_cast<unsigned long long>(fast_tick_wcet_us),
+                    static_cast<unsigned long long>(loop_wcet_us),
+                    static_cast<unsigned long long>(loop_overruns),
+                    static_cast<unsigned>(currentStackFreeWords()));
+                fast_tick_wcet_us = 0;
+                loop_wcet_us = 0;
+            }
+
+#if defined(DELTAV_OS_FREERTOS)
+            vTaskDelayUntil(&next_wake, fast_period_ticks);
+#else
             std::this_thread::sleep_for(std::chrono::milliseconds(FAST_PERIOD_MS));
+#endif
         }
         return;
 #else
@@ -275,6 +338,24 @@ private:
             return true;
         }
         return false;
+    }
+
+    [[nodiscard]] static auto monotonicUs() noexcept -> uint64_t {
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+        return static_cast<uint64_t>(esp_timer_get_time());
+#else
+        const auto now = std::chrono::steady_clock::now().time_since_epoch();
+        return static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(now).count());
+#endif
+    }
+
+    [[nodiscard]] static auto currentStackFreeWords() noexcept -> uint32_t {
+#if defined(DELTAV_OS_FREERTOS)
+        return static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr));
+#else
+        return 0U;
+#endif
     }
 
     auto runTier(RateTier& t) -> void {

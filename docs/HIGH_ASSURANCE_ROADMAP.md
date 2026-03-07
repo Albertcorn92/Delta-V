@@ -15,7 +15,8 @@ Date: 2026-03-06
 
 1. On-target assurance evidence
 - Run and archive ESP32 HIL campaign logs (fault injection, long soak, restart behavior).
-- Produce timing/WCET and stack headroom evidence on target hardware.
+- Run `tools/esp32_runtime_guard.py` and archive WCET/stack evidence.
+- Run `tools/esp32_reboot_campaign.py` and archive reboot-cycle stability evidence.
 
 2. Program/process assurance
 - Maintain independent review records and approval workflow for safety-critical changes.

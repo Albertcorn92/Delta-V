@@ -39,6 +39,50 @@ Run monitor for 3-5 minutes and confirm absence of:
 - `Guru Meditation`
 - reboot loops
 
+## Automated Soak
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_soak.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --duration 1800
+```
+
+This writes a timestamped log under `artifacts/` and validates required runtime
+markers plus failure signatures.
+
+## Runtime WCET/Stack Guard
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_runtime_guard.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --duration 300
+```
+
+This checks scheduler runtime metrics emitted by `[RGE_METRIC]` lines against
+`docs/ESP32_RUNTIME_THRESHOLDS.json`.
+The script reads USB serial directly, so it can run in non-interactive shells.
+
+## Reboot Stability Campaign
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_reboot_campaign.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --cycles 10 \
+  --cycle-seconds 12
+```
+
+This captures startup stability statistics and fails if boot markers are missing
+or panic/assert/overflow signatures appear in any cycle.
+
 Reference docs:
 
 - `docs/ESP32_BRINGUP.md`

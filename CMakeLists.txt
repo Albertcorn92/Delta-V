@@ -183,7 +183,7 @@ if(GTest_FOUND OR GTEST_FOUND)
     if(DELTAV_GCOV_TOOL)
         list(APPEND DELTAV_LCOV_GCOV_ARGS --gcov-tool ${DELTAV_GCOV_TOOL})
     endif()
-    if(LCOV AND GENHTML)
+    if(LCOV AND GENHTML AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         add_custom_target(coverage
             COMMAND run_tests_coverage --gtest_color=yes
             COMMAND ${LCOV}    ${DELTAV_LCOV_GCOV_ARGS} --capture --directory .
@@ -204,6 +204,8 @@ if(GTest_FOUND OR GTEST_FOUND)
             message(WARNING "Coverage gcov tool not found explicitly; lcov default gcov will be used.")
         endif()
         message(STATUS "Coverage : ENABLED  (cmake --build build --target coverage)")
+    elseif(LCOV AND GENHTML)
+        message(STATUS "Coverage : DISABLED (configure with GCC to enable lcov coverage)")
     endif()
 
     message(STATUS "Tests    : ENABLED  (cmake --build build --target run_tests)")
@@ -404,6 +406,43 @@ if(PYTHON3 AND TARGET flight_software)
     message(STATUS "SITLSoak : ENABLED  (cmake --build build --target sitl_soak)")
 endif()
 
+if(PYTHON3)
+    set(DELTAV_ESP32_PORT "/dev/cu.usbmodem101" CACHE STRING
+        "Serial port for optional ESP32 hardware validation commands")
+    set(DELTAV_ESP32_RUNTIME_SECONDS "300" CACHE STRING
+        "Duration in seconds for ESP32 runtime WCET/stack guard")
+    set(DELTAV_ESP32_REBOOT_CYCLES "10" CACHE STRING
+        "Cycle count for ESP32 reboot campaign")
+    set(DELTAV_ESP32_REBOOT_SECONDS "12" CACHE STRING
+        "Per-cycle monitor duration for ESP32 reboot campaign")
+
+    add_custom_target(esp32_runtime_guard
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/esp32_runtime_guard.py
+            --project-dir ${CMAKE_SOURCE_DIR}/ports/esp32
+            --build-dir build_esp32
+            --port ${DELTAV_ESP32_PORT}
+            --duration ${DELTAV_ESP32_RUNTIME_SECONDS}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Running optional ESP32 runtime WCET/stack-margin guard"
+        USES_TERMINAL
+    )
+
+    add_custom_target(esp32_reboot_campaign
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/esp32_reboot_campaign.py
+            --project-dir ${CMAKE_SOURCE_DIR}/ports/esp32
+            --build-dir build_esp32
+            --port ${DELTAV_ESP32_PORT}
+            --cycles ${DELTAV_ESP32_REBOOT_CYCLES}
+            --cycle-seconds ${DELTAV_ESP32_REBOOT_SECONDS}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Running optional ESP32 reboot stability campaign"
+        USES_TERMINAL
+    )
+
+    message(STATUS "ESP32Run : ENABLED  (cmake --build build --target esp32_runtime_guard)")
+    message(STATUS "ESP32Reb : ENABLED  (cmake --build build --target esp32_reboot_campaign)")
+endif()
+
 if(TARGET legal_compliance AND TARGET run_tests AND TARGET run_system_tests AND TARGET benchmark_guard AND TARGET sitl_smoke)
     add_custom_target(quickstart_10min
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target legal_compliance
@@ -424,6 +463,10 @@ endif()
 
 if(TARGET software_final AND TARGET sitl_soak)
     add_dependencies(software_final sitl_soak)
+endif()
+
+if(TARGET software_final AND TARGET coverage_guard)
+    add_dependencies(software_final coverage_guard)
 endif()
 
 # =============================================================================
@@ -456,6 +499,8 @@ message(STATUS "║    benchmark_baseline — perf report sync   ║")
 message(STATUS "║    benchmark_guard  — perf regression gate ║")
 message(STATUS "║    sitl_smoke       — short runtime check  ║")
 message(STATUS "║    sitl_soak        — extended runtime test║")
+message(STATUS "║    esp32_runtime_guard — WCET/stack check  ║")
+message(STATUS "║    esp32_reboot_campaign — reboot campaign ║")
 message(STATUS "║    quickstart_10min — one-command local UX ║")
 message(STATUS "║    gen              — run autocoder        ║")
 message(STATUS "╚════════════════════════════════════════════╝")

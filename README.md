@@ -113,12 +113,49 @@ idf.py -B build_esp32 build flash -p /dev/cu.usbmodem101
 idf.py -B build_esp32 -p /dev/cu.usbmodem101 monitor
 ```
 
+### ESP32-S3 Sensorless Soak (Automated)
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_soak.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --duration 1800
+```
+
 Expected runtime lines:
 
 - `[RadioLink] Local-only mode: UDP bridge disabled.`
 - `[RGE] Embedded cooperative scheduler running.`
 
 Port-specific quick reference: `ports/esp32/README.md`.
+
+### ESP32-S3 Runtime Guard (WCET + Stack)
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_runtime_guard.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --duration 300
+```
+
+This validates scheduler runtime metrics against
+`docs/ESP32_RUNTIME_THRESHOLDS.json`.
+
+### ESP32-S3 Reboot Stability Campaign
+
+```bash
+source $HOME/esp/esp-idf/export.sh
+python3 tools/esp32_reboot_campaign.py \
+  --project-dir ports/esp32 \
+  --build-dir build_esp32 \
+  --port /dev/cu.usbmodem101 \
+  --cycles 10 \
+  --cycle-seconds 12
+```
 
 ### Run Unit Tests
 
@@ -129,7 +166,9 @@ cd build && ctest --output-on-failure
 ### Generate Coverage + Enforce Thresholds
 
 ```bash
-cmake -B build_cov -DCMAKE_BUILD_TYPE=Debug
+cmake -B build_cov -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_C_COMPILER=gcc-12 \
+  -DCMAKE_CXX_COMPILER=g++-12
 cmake --build build_cov --target coverage
 cmake --build build_cov --target coverage_guard
 ```
@@ -211,6 +250,7 @@ cmake --build build --target software_final
 
 Process templates for mission certification work are in `docs/process/`.
 Open-source release checklist is in `docs/OPEN_SOURCE_RELEASE_CHECKLIST.md`.
+Mission assurance checklist is in `docs/MISSION_ASSURANCE_CHECKLIST.md`.
 Performance methodology is in `docs/BENCHMARK_PROTOCOL.md`.
 Coverage policy is in `docs/COVERAGE_POLICY.md`.
 

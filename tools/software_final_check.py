@@ -128,7 +128,8 @@ def write_status_report(
         "## Remaining Work (Non-Software)",
         "",
         "- ESP32 on-target HIL campaign evidence (fault injection and soak logs).",
-        "- On-target timing/WCET and stack-margin evidence.",
+        "- On-target timing/WCET and stack-margin evidence (`tools/esp32_runtime_guard.py`).",
+        "- ESP32 reboot stability evidence (`tools/esp32_reboot_campaign.py`).",
         "- Mission-program process records requiring independent review signatures.",
         "",
     ]

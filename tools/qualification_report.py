@@ -142,7 +142,8 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines.append(
         "- On-target HIL campaign evidence (ESP32 runtime, fault injection, soak)."
     )
-    lines.append("- Timing/WCET and stack margin evidence on target.")
+    lines.append("- Timing/WCET and stack margin evidence on target (`tools/esp32_runtime_guard.py`).")
+    lines.append("- Reboot-cycle stability evidence on target (`tools/esp32_reboot_campaign.py`).")
     lines.append(
         "- Program-level DO-178C process records (review signatures, independence, audits)."
     )
