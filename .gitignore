@@ -1,19 +1,42 @@
+# Python environments
 venv/
+.venv/
+
+# Build outputs and generated artifacts
 build/
 build_*/
 ports/esp32/build_*/
 ports/esp32/sdkconfig.old
 bin/
-.DS_Store
-__pycache__/
+artifacts/
+coverage_html/
+compile_commands.json
+
+# Runtime data / local state
+mission_params.db
 *.csv
 *.log
+
+# Coverage and profiling outputs
 *.gcda
 *.gcno
 *.profraw
 *.profdata
 *.info
-coverage_html/
-compile_commands.json
-mission_params.db
-artifacts/
+.coverage
+.coverage.*
+
+# Python caches
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local env files
+.env
+.env.local
+
+# OS / editor noise
+.DS_Store
+*.swp
+*.tmp
