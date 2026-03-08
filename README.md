@@ -6,6 +6,7 @@ The framework targets **DO-178C DAL-B compliance** and is designed for embedded 
 
 Roadmap for raising assurance rigor: `docs/HIGH_ASSURANCE_ROADMAP.md`.
 Safety gates and traceability workflow: `docs/SAFETY_ASSURANCE.md`.
+Documentation map for first-time users and mission teams: `docs/README.md`.
 ESP32 hardware bring-up plan: `docs/ESP32_BRINGUP.md`.
 ESP32 no-sensor baseline evidence: `docs/ESP32_SENSORLESS_BASELINE.md`.
 Coverage threshold ramp policy: `docs/COVERAGE_RAMP_PLAN.md`.
@@ -266,6 +267,7 @@ cmake --build build --target cubesat_readiness_scope
 ```
 
 Process templates for mission certification work are in `docs/process/`.
+Guided documentation index is in `docs/README.md`.
 Open-source release checklist is in `docs/OPEN_SOURCE_RELEASE_CHECKLIST.md`.
 Mission assurance checklist is in `docs/MISSION_ASSURANCE_CHECKLIST.md`.
 CubeSat mission-team readiness guide is in `docs/CUBESAT_TEAM_READINESS.md`.
