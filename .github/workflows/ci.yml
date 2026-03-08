@@ -186,7 +186,7 @@ jobs:
             --output-json "${{ github.workspace }}/build_cov/coverage_trend.json"
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: build_cov/cov.info
           fail_ci_if_error: false
