@@ -14,6 +14,7 @@
 #include "TimeService.hpp"
 #include "Types.hpp"
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
@@ -76,6 +77,11 @@ public:
             publishEvent(Severity::WARNING, "FILE_INGEST_BAD");
             return false;
         }
+        if (received_bytes_ + len > expected_bytes_) {
+            recordError();
+            publishEvent(Severity::WARNING, "FILE_EXCEEDS_EXPECTED");
+            return false;
+        }
         if (received_bytes_ + len > MAX_FILE_BYTES) {
             recordError();
             publishEvent(Severity::WARNING, "FILE_OVERFLOW");
@@ -93,6 +99,11 @@ public:
         if (!session_active_) {
             recordError();
             publishEvent(Severity::WARNING, "FILE_NOT_ACTIVE");
+            return false;
+        }
+        if (received_bytes_ != expected_bytes_) {
+            recordError();
+            publishEvent(Severity::WARNING, "FILE_SIZE_MISMATCH");
             return false;
         }
         session_active_ = false;
@@ -127,12 +138,12 @@ private:
     auto handleCommand(const CommandPacket& cmd) -> void {
         switch (cmd.opcode) {
         case OP_BEGIN_SESSION: {
-            const size_t bytes = clampToBounds(static_cast<int>(cmd.argument), 1, MAX_FILE_BYTES);
+            const size_t bytes = clampFloatToBounds(cmd.argument, 1U, MAX_FILE_BYTES);
             (void)beginSession(bytes);
             break;
         }
         case OP_PUSH_TEST_BYTE: {
-            const uint8_t v = static_cast<uint8_t>(clampToBounds(static_cast<int>(cmd.argument), 0, 255));
+            const uint8_t v = static_cast<uint8_t>(clampFloatToBounds(cmd.argument, 0U, 255U));
             (void)ingestChunk(&v, 1U);
             break;
         }
@@ -157,12 +168,15 @@ private:
         session_active_ = false;
     }
 
-    static auto clampToBounds(int value, int lo, int hi) -> size_t {
-        if (value < lo) {
-            return static_cast<size_t>(lo);
+    static auto clampFloatToBounds(float value, size_t lo, size_t hi) -> size_t {
+        if (!std::isfinite(value)) {
+            return lo;
         }
-        if (value > hi) {
-            return static_cast<size_t>(hi);
+        if (value < static_cast<float>(lo)) {
+            return lo;
+        }
+        if (value > static_cast<float>(hi)) {
+            return hi;
         }
         return static_cast<size_t>(value);
     }

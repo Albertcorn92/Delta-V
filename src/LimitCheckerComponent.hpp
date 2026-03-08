@@ -13,6 +13,7 @@
 #include "TimeService.hpp"
 #include "Types.hpp"
 #include <array>
+#include <cmath>
 #include <cstdint>
 
 namespace deltav {
@@ -234,7 +235,7 @@ private:
     }
 
     static auto toU32(float value) -> uint32_t {
-        if (value <= 0.0F) {
+        if (!std::isfinite(value) || value <= 0.0F) {
             return 0U;
         }
         if (value >= 4294967295.0F) {

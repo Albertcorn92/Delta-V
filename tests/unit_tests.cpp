@@ -27,6 +27,7 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <random>
 #include <string>
 #include <thread>
@@ -2112,6 +2113,36 @@ TEST(CommandSequencerComponent, StagedCommandDispatchesImmediately) {
     EXPECT_EQ(out.opcode, 1u);
 }
 
+TEST(CommandSequencerComponent, NonFiniteTargetAndOpcodeClampToZero) {
+    TimeService::initEpoch();
+    CommandSequencerComponent sequencer{"CmdSequencer", 40};
+    InputPort<CommandPacket, 8> sink{};
+    sequencer.command_out.connect(&sink);
+    sequencer.init();
+
+    ASSERT_TRUE(sequencer.cmd_in.receive(CommandPacket{
+        40u,
+        CommandSequencerComponent::OP_SET_TARGET,
+        std::numeric_limits<float>::infinity(),
+    }));
+    ASSERT_TRUE(sequencer.cmd_in.receive(CommandPacket{
+        40u,
+        CommandSequencerComponent::OP_SET_OPCODE,
+        std::numeric_limits<float>::quiet_NaN(),
+    }));
+    ASSERT_TRUE(sequencer.cmd_in.receive(
+        CommandPacket{40u, CommandSequencerComponent::OP_SET_ARGUMENT, 3.5f}));
+    ASSERT_TRUE(sequencer.cmd_in.receive(
+        CommandPacket{40u, CommandSequencerComponent::OP_COMMIT_DELAY_SECONDS, 0.0f}));
+    sequencer.step();
+
+    CommandPacket out{};
+    ASSERT_TRUE(sink.tryConsume(out));
+    EXPECT_EQ(out.target_id, 0u);
+    EXPECT_EQ(out.opcode, 0u);
+    EXPECT_FLOAT_EQ(out.argument, 3.5f);
+}
+
 TEST(FileTransferComponent, SessionStoresAndReadsChunkData) {
     FileTransferComponent file_mgr{"FileTransfer", 41};
     file_mgr.init();
@@ -2127,6 +2158,29 @@ TEST(FileTransferComponent, SessionStoresAndReadsChunkData) {
     for (size_t i = 0; i < payload.size(); ++i) {
         EXPECT_EQ(out[i], payload[i]);
     }
+}
+
+TEST(FileTransferComponent, FinalizeFailsWhenExpectedBytesNotReceived) {
+    FileTransferComponent file_mgr{"FileTransfer", 41};
+    file_mgr.init();
+
+    const std::array<uint8_t, 2> chunk{{8u, 9u}};
+    ASSERT_TRUE(file_mgr.beginSession(4u));
+    ASSERT_TRUE(file_mgr.ingestChunk(chunk.data(), chunk.size()));
+    EXPECT_FALSE(file_mgr.finalizeSession());
+    EXPECT_EQ(file_mgr.receivedBytes(), chunk.size());
+}
+
+TEST(FileTransferComponent, RejectsChunkThatExceedsExpectedSessionBytes) {
+    FileTransferComponent file_mgr{"FileTransfer", 41};
+    file_mgr.init();
+
+    const std::array<uint8_t, 2> chunk{{1u, 2u}};
+    const std::array<uint8_t, 1> extra{{3u}};
+    ASSERT_TRUE(file_mgr.beginSession(2u));
+    ASSERT_TRUE(file_mgr.ingestChunk(chunk.data(), chunk.size()));
+    EXPECT_FALSE(file_mgr.ingestChunk(extra.data(), extra.size()));
+    EXPECT_EQ(file_mgr.receivedBytes(), chunk.size());
 }
 
 TEST(MemoryDwellComponent, SampleNowEmitsTelemetry) {

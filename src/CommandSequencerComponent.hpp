@@ -13,6 +13,7 @@
 #include "TimeService.hpp"
 #include "Types.hpp"
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 
@@ -52,7 +53,7 @@ public:
 
         const uint32_t now_ms = TimeService::getMET();
         for (auto& entry : queue_) {
-            if (!entry.active || now_ms < entry.release_met_ms) {
+            if (!entry.active || !isDue(now_ms, entry.release_met_ms)) {
                 continue;
             }
 
@@ -129,8 +130,13 @@ private:
             publishEvent(Severity::INFO, "SEQ_ARG_SET");
             break;
         case OP_COMMIT_DELAY_SECONDS: {
-            const float delay_s = (cmd.argument < 0.0F) ? 0.0F : cmd.argument;
-            const uint32_t delay_ms = static_cast<uint32_t>(delay_s * 1000.0F);
+            const float delay_s = (!std::isfinite(cmd.argument) || cmd.argument < 0.0F)
+                ? 0.0F
+                : cmd.argument;
+            const float delay_ms_f = delay_s * 1000.0F;
+            const uint32_t delay_ms = delay_ms_f >= 4294967295.0F
+                ? 0xFFFFFFFFU
+                : static_cast<uint32_t>(delay_ms_f);
             if (!scheduleCommandInMs(staged_command_, delay_ms)) {
                 publishEvent(Severity::WARNING, "SEQ_COMMIT_FAIL");
             } else {
@@ -150,10 +156,18 @@ private:
     }
 
     static auto toNonNegativeUint(float value) -> uint32_t {
-        if (value <= 0.0F) {
+        if (!std::isfinite(value) || value <= 0.0F) {
             return 0U;
         }
+        if (value >= 4294967295.0F) {
+            return 0xFFFFFFFFU;
+        }
         return static_cast<uint32_t>(value);
+    }
+
+    static auto isDue(uint32_t now_ms, uint32_t release_ms) -> bool {
+        // Wrap-safe tick compare: due when now-release is in the forward half-range.
+        return (now_ms - release_ms) < 0x80000000U;
     }
 
     auto publishEvent(uint32_t severity, const char* msg) -> void {

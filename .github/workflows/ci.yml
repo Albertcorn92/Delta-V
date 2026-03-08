@@ -236,6 +236,11 @@ jobs:
       - name: Run software-final gate
         run: cmake --build build_tidy --target software_final
 
+      - name: Generate readiness reports (unwaived + scope)
+        run: |
+          cmake --build build_tidy --target cubesat_readiness
+          cmake --build build_tidy --target cubesat_readiness_scope
+
       - name: Archive safety artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -246,6 +251,10 @@ jobs:
             build_tidy/qualification/qualification_report.md
             build_tidy/qualification/qualification_report.json
             docs/SOFTWARE_FINAL_STATUS.md
+            docs/CUBESAT_READINESS_STATUS.md
+            docs/CUBESAT_READINESS_STATUS.json
+            docs/CUBESAT_READINESS_STATUS_SCOPE.md
+            docs/CUBESAT_READINESS_STATUS_SCOPE.json
           retention-days: 14
 
   # ---------------------------------------------------------------------------
@@ -275,9 +284,14 @@ jobs:
             tools/esp32_soak.py \
             tools/esp32_runtime_guard.py \
             tools/esp32_reboot_campaign.py \
+            tools/team_ready_esp32.py \
             tools/legal_compliance_check.py \
+            tools/cubesat_readiness_report.py \
             tools/software_final_check.py \
             tools/qualification_report.py \
+            tools/benchmark_report.py \
+            tools/benchmark_guard.py \
+            tools/coverage_guard.py \
             tools/coverage_trend.py
 
       - name: dv-util list

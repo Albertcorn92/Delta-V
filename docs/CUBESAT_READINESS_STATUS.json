@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-03-08T06:15:08.970389+00:00",
+  "generated_utc": "2026-03-08T17:23:54.847260+00:00",
   "workspace": "DELTA-V Framework",
   "build_dir": "/Users/albertcornelius/DELTA-V Framework/build",
   "framework_release_ready": true,
@@ -69,7 +69,7 @@
       "required_for": [
         "framework"
       ],
-      "evidence": "docs/evidence/ESP32_SENSORLESS_EVIDENCE_20260307.md (documented 1800s pass)"
+      "evidence": "docs/evidence/ESP32_SENSORLESS_EVIDENCE_20260307.md (documented soak pass)"
     },
     {
       "id": "esp32-soak-1h",
@@ -87,7 +87,7 @@
       "required_for": [
         "flight"
       ],
-      "evidence": "docs/evidence/ESP32_SENSOR_ATTACHED_EVIDENCE_20260307.md (record exists, execution pending)"
+      "evidence": "docs/evidence/ESP32_SENSOR_ATTACHED_EVIDENCE_20260307.md (status: NOT RUN (explicitly excluded from this closeout scope))"
     },
     {
       "id": "flight-env-test-matrix",
@@ -96,7 +96,7 @@
       "required_for": [
         "flight"
       ],
-      "evidence": "docs/process/FLIGHT_ENV_TEST_MATRIX_20260307.md"
+      "evidence": "docs/process/FLIGHT_ENV_TEST_MATRIX_20260307.md (status: COMPLETE (framework simulation baseline with explicit mission hardware handoff))"
     },
     {
       "id": "comms-link-validation",
@@ -105,7 +105,7 @@
       "required_for": [
         "flight"
       ],
-      "evidence": "docs/process/COMMS_LINK_VALIDATION_20260307.md"
+      "evidence": "docs/process/COMMS_LINK_VALIDATION_20260307.md (status: COMPLETE (local UDP/SITL validation baseline))"
     },
     {
       "id": "operations-readiness",
@@ -114,7 +114,7 @@
       "required_for": [
         "flight"
       ],
-      "evidence": "docs/process/OPERATIONS_READINESS_20260307.md"
+      "evidence": "docs/process/OPERATIONS_READINESS_20260307.md (status: COMPLETE (framework operations rehearsal in simulation scope))"
     },
     {
       "id": "release-manifest",
@@ -123,7 +123,7 @@
       "required_for": [
         "flight"
       ],
-      "evidence": "docs/process/RELEASE_MANIFEST_20260307.md"
+      "evidence": "docs/process/RELEASE_MANIFEST_20260307.md (status: COMPLETE (framework + simulation closeout; explicit hardware exclusions documented))"
     },
     {
       "id": "independent-review-record",
@@ -168,6 +168,6 @@
   ],
   "remaining_gaps": [
     "esp32-soak-1h: no passing esp32_soak_*.json with duration >= 3600s",
-    "sensor-attached-evidence: docs/evidence/ESP32_SENSOR_ATTACHED_EVIDENCE_20260307.md (record exists, execution pending)"
+    "sensor-attached-evidence: docs/evidence/ESP32_SENSOR_ATTACHED_EVIDENCE_20260307.md (status: NOT RUN (explicitly excluded from this closeout scope))"
   ]
 }

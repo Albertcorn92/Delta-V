@@ -14,6 +14,7 @@
 #include "TimeService.hpp"
 #include "Types.hpp"
 #include <array>
+#include <cmath>
 #include <cinttypes>
 #include <cstdio>
 #include <cstdint>
@@ -89,7 +90,12 @@ private:
     auto handleCommand(const CommandPacket& cmd) -> void {
         switch (cmd.opcode) {
         case OP_SELECT_CHANNEL:
-            selected_channel_ = static_cast<uint32_t>(cmd.argument < 0.0F ? 0.0F : cmd.argument);
+            if (!std::isfinite(cmd.argument) || cmd.argument < 0.0F) {
+                selected_channel_ = 0U;
+                recordError();
+            } else {
+                selected_channel_ = static_cast<uint32_t>(cmd.argument);
+            }
             publishEvent(Severity::INFO, "DWELL_CH_SET");
             break;
         case OP_SET_PERIOD_SECONDS: {
@@ -241,7 +247,7 @@ private:
     }
 
     static auto toU16(float value) -> uint16_t {
-        if (value < 0.0F) {
+        if (!std::isfinite(value) || value < 0.0F) {
             return 0U;
         }
         if (value > 65535.0F) {

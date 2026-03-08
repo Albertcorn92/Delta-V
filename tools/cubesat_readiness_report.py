@@ -158,15 +158,113 @@ def has_passing_soak(
         except Exception:
             continue
 
-    # Legacy evidence fallback for baseline 30-minute sensorless runs where
-    # log evidence exists in docs but JSON artifacts are not archived.
+    # Legacy evidence fallback for baseline sensorless runs where
+    # markdown evidence exists but JSON artifacts are not archived.
     if min_duration_s <= 1800.0:
         for doc in latest_files(workspace / "docs" / "evidence", "ESP32_SENSORLESS_EVIDENCE_*.md"):
-            text = doc.read_text(encoding="utf-8", errors="ignore").lower()
-            if "1800" in text and "pass" in text:
-                return True, f"{display_path(doc, workspace)} (documented 1800s pass)"
+            text = doc.read_text(encoding="utf-8", errors="ignore")
+            status = _sensorless_soak_status_from_markdown(text, min_duration_s)
+            if status == PASS:
+                return True, f"{display_path(doc, workspace)} (documented soak pass)"
+            if status == FAIL:
+                return False, f"{display_path(doc, workspace)} (documented soak fail)"
 
     return False, f"no passing esp32_soak_*.json with duration >= {min_duration_s:.0f}s"
+
+
+def _sensorless_soak_status_from_markdown(text: str, min_duration_s: float) -> str | None:
+    # Matches lines like: "Sensorless soak (1800s): PASS"
+    pattern = re.compile(
+        r"sensorless\s+soak\s*\(\s*(\d+(?:\.\d+)?)\s*s\s*\)\s*:\s*([A-Z ]+)",
+        re.IGNORECASE,
+    )
+    matched_any = False
+    saw_pass = False
+    for duration_s_text, status_text in pattern.findall(text):
+        try:
+            duration_s = float(duration_s_text)
+        except ValueError:
+            continue
+        if duration_s < min_duration_s:
+            continue
+        matched_any = True
+        status = _classify_status_text(status_text)
+        if status == FAIL:
+            return FAIL
+        if status == PASS:
+            saw_pass = True
+    if saw_pass:
+        return PASS
+    if matched_any:
+        return MANUAL
+    return None
+
+
+def _classify_status_text(value: str) -> str | None:
+    normalized = re.sub(r"\s+", " ", value).strip().upper()
+    if not normalized:
+        return None
+
+    if "NOT RUN" in normalized or "PENDING" in normalized:
+        return MANUAL
+
+    if any(token in normalized for token in ("FAIL", "FAILED", "REJECTED", "BLOCKED", "ERROR")):
+        return FAIL
+
+    if any(token in normalized for token in ("PASS", "COMPLETE", "APPROVED", "DONE")):
+        return PASS
+
+    if any(token in normalized for token in ("MISSION HANDOFF", "TBD", "IN PROGRESS")):
+        return MANUAL
+
+    return None
+
+
+def _status_from_markdown_table_rows(text: str) -> str | None:
+    saw_pass = False
+    saw_manual = False
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("|"):
+            continue
+        if re.fullmatch(r"\|[-:\s|]+\|", line):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        for cell in cells:
+            status = _classify_status_text(cell)
+            if status == FAIL:
+                return FAIL
+            if status == PASS:
+                saw_pass = True
+            if status == MANUAL:
+                saw_manual = True
+    if saw_pass:
+        return PASS
+    if saw_manual:
+        return MANUAL
+    return None
+
+
+def _record_status(text: str) -> tuple[str, str]:
+    status_line = re.search(r"^\s*Status\s*:\s*(.+)$", text, flags=re.IGNORECASE | re.MULTILINE)
+    if status_line:
+        raw_status = status_line.group(1).strip()
+        classified = _classify_status_text(raw_status)
+        if classified is not None:
+            return classified, f"status: {raw_status}"
+
+    table_status = _status_from_markdown_table_rows(text)
+    if table_status == FAIL:
+        return FAIL, "table includes FAIL result"
+    if table_status == PASS:
+        return PASS, "table includes PASS results"
+    if table_status == MANUAL:
+        return MANUAL, "table shows manual/pending results"
+
+    if re.search(r"\bNOT\s+RUN\b", text, re.IGNORECASE):
+        return MANUAL, "record exists, execution pending"
+
+    return MANUAL, "record exists, no explicit pass/fail status"
 
 
 def record_or_template_state(
@@ -183,9 +281,8 @@ def record_or_template_state(
     ]
     if records:
         text = records[0].read_text(encoding="utf-8", errors="ignore")
-        if re.search(r"\bNOT\s+RUN\b", text, re.IGNORECASE):
-            return MANUAL, f"{display_path(records[0], workspace)} (record exists, execution pending)"
-        return PASS, display_path(records[0], workspace)
+        status, reason = _record_status(text)
+        return status, f"{display_path(records[0], workspace)} ({reason})"
 
     template = workspace / template_relpath
     if template.exists():
