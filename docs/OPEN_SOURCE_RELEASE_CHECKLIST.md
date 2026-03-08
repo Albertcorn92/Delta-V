@@ -55,7 +55,7 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
 
 ## 3. Security and Safety Hygiene
 
-- [ ] No production secrets in repository history or source files.
+- [x] No production secrets in repository history or source files (`docs/process/SECRETS_SCAN_20260308.md`).
 - [x] `artifacts/` logs/reports are not committed (or are explicitly redacted).
 - [x] No command-path cryptography/encryption features added to baseline framework.
 - [x] Host/SITL uplink safety toggles are documented (`DELTAV_ENABLE_UNAUTH_UPLINK`, `DELTAV_UPLINK_ALLOW_IP`).

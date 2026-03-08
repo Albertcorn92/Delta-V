@@ -1,7 +1,7 @@
 # DELTA-V Benchmark Baseline
 
-- Generated (UTC): `2026-03-07T23:53:08.716097+00:00`
-- Git commit: `01ebc70467a76e04aab3233fc3749a92bc58595d`
+- Generated (UTC): `2026-03-08T00:19:49.997010+00:00`
+- Git commit: `688145aa49732155fc701dcec800b0207b708b6b`
 - Git branch: `main`
 - Dirty worktree: `False`
 - Host: `macOS-26.2-arm64-arm-64bit`
@@ -10,20 +10,20 @@
 
 | Metric | Value |
 |---|---|
-| Uplink throughput (cmd/s) | `24831.340` |
-| Uplink latency p50 (us) | `37.291` |
-| Uplink latency p95 (us) | `49.209` |
-| CRC-16 throughput (MB/s) | `96.407` |
-| COBS roundtrip throughput (MB/s) | `792.749` |
+| Uplink throughput (cmd/s) | `25078.644` |
+| Uplink latency p50 (us) | `37.542` |
+| Uplink latency p95 (us) | `47.583` |
+| CRC-16 throughput (MB/s) | `117.221` |
+| COBS roundtrip throughput (MB/s) | `833.886` |
 
 ## Comparison Template (Fill with External Baselines)
 
 | Metric | DELTA-V | F Prime (external data) |
 |---|---|---|
-| Uplink throughput (cmd/s) | `24831.340` | `N/A` |
-| Uplink latency p95 (us) | `49.209` | `N/A` |
-| CRC-16 throughput (MB/s) | `96.407` | `N/A` |
-| COBS roundtrip throughput (MB/s) | `792.749` | `N/A` |
+| Uplink throughput (cmd/s) | `25078.644` | `N/A` |
+| Uplink latency p95 (us) | `47.583` | `N/A` |
+| CRC-16 throughput (MB/s) | `117.221` | `N/A` |
+| COBS roundtrip throughput (MB/s) | `833.886` | `N/A` |
 
 ## Reproducibility
 
