@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-03-08T04:49:47.179633+00:00",
+  "generated_utc": "2026-03-08T06:15:08.970389+00:00",
   "workspace": "DELTA-V Framework",
   "build_dir": "/Users/albertcornelius/DELTA-V Framework/build",
   "framework_release_ready": true,
@@ -50,7 +50,7 @@
         "framework",
         "flight"
       ],
-      "evidence": "artifacts/esp32_runtime_guard_20260307T071843Z.json"
+      "evidence": "artifacts/esp32_runtime_guard_20260308T060432Z.json"
     },
     {
       "id": "esp32-reboot-campaign",
@@ -60,7 +60,7 @@
         "framework",
         "flight"
       ],
-      "evidence": "artifacts/esp32_reboot_campaign_20260307T072234Z.json"
+      "evidence": "artifacts/esp32_reboot_campaign_20260308T060703Z.json"
     },
     {
       "id": "esp32-soak-30m",

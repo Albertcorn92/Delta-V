@@ -1,6 +1,6 @@
 # DELTA-V CubeSat Readiness Status
 
-- Generated (UTC): `2026-03-08T04:49:47.179633+00:00`
+- Generated (UTC): `2026-03-08T06:15:08.970389+00:00`
 - Framework release readiness: `True`
 - CubeSat flight readiness: `False`
 
@@ -12,8 +12,8 @@
 | software-final | Software | PASS | framework | docs/SOFTWARE_FINAL_STATUS.md |
 | qualification-report | Software | PASS | framework | docs/qualification_report.json |
 | requirements-traceability | Software | PASS | framework | docs/REQUIREMENTS_TRACE_MATRIX.json (37/37) |
-| esp32-runtime-guard | Hardware | PASS | framework, flight | artifacts/esp32_runtime_guard_20260307T071843Z.json |
-| esp32-reboot-campaign | Hardware | PASS | framework, flight | artifacts/esp32_reboot_campaign_20260307T072234Z.json |
+| esp32-runtime-guard | Hardware | PASS | framework, flight | artifacts/esp32_runtime_guard_20260308T060432Z.json |
+| esp32-reboot-campaign | Hardware | PASS | framework, flight | artifacts/esp32_reboot_campaign_20260308T060703Z.json |
 | esp32-soak-30m | Hardware | PASS | framework | docs/evidence/ESP32_SENSORLESS_EVIDENCE_20260307.md (documented 1800s pass) |
 | esp32-soak-1h | Hardware | FAIL | flight | no passing esp32_soak_*.json with duration >= 3600s |
 | sensor-attached-evidence | Hardware | MANUAL | flight | docs/evidence/ESP32_SENSOR_ATTACHED_EVIDENCE_20260307.md (record exists, execution pending) |

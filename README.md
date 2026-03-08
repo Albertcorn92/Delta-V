@@ -13,6 +13,19 @@ ESP32 golden-image bootchain workflow: `docs/ESP32_GOLDEN_IMAGE_BOOTCHAIN.md`.
 Coverage threshold ramp policy: `docs/COVERAGE_RAMP_PLAN.md`.
 Mission safety-case starter templates: `docs/safety_case/README.md`.
 
+## Status Snapshot (2026-03-08 UTC)
+
+- `software_final`: PASS (`37/37` requirements with direct test evidence)
+- `esp32_runtime_guard`: PASS (`artifacts/esp32_runtime_guard_20260308T060432Z.json`)
+- `esp32_reboot_campaign`: PASS (`artifacts/esp32_reboot_campaign_20260308T060703Z.json`)
+- `cubesat_readiness` (unwaived): `cubesat_flight_ready=false`
+- `cubesat_readiness_scope` (waived 1h soak + sensor-attached): `cubesat_flight_ready=true`
+
+Current open items for unwaived flight-ready status:
+
+1. `esp32-soak-1h` passing evidence
+2. Sensor-attached hardware evidence execution
+
 ---
 
 ## 🚀 Philosophy: Compile-Time Mission Safety
@@ -203,6 +216,15 @@ python3 tools/esp32_reboot_campaign.py \
   --cycle-seconds 12
 ```
 
+### ESP32 Team-Ready Evidence Run (One Command)
+
+```bash
+python3 tools/team_ready_esp32.py --soak-duration 3600
+```
+
+This runs host gates plus runtime guard, reboot campaign, 1-hour soak, and
+readiness report generation in one sequence.
+
 ### Run Unit Tests
 
 ```bash
@@ -315,6 +337,7 @@ Guided documentation index is in `docs/README.md`.
 Open-source release checklist is in `docs/OPEN_SOURCE_RELEASE_CHECKLIST.md`.
 Mission assurance checklist is in `docs/MISSION_ASSURANCE_CHECKLIST.md`.
 CubeSat mission-team readiness guide is in `docs/CUBESAT_TEAM_READINESS.md`.
+Master team-ready closeout checklist is in `docs/TEAM_READY_MASTER_CHECKLIST.md`.
 Latest release notes snapshot is in `docs/RELEASE_NOTES_20260308.md`.
 Performance methodology is in `docs/BENCHMARK_PROTOCOL.md`.
 Coverage policy is in `docs/COVERAGE_POLICY.md`.

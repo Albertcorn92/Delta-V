@@ -25,6 +25,12 @@ The report is written to:
 - `docs/CUBESAT_READINESS_STATUS.md`
 - `docs/CUBESAT_READINESS_STATUS.json`
 
+One-command host + on-target sequence (when ESP32 is connected):
+
+```bash
+python3 tools/team_ready_esp32.py --soak-duration 3600
+```
+
 ## 2) Hardware Evidence (Mission-Dependent)
 
 Minimum recommended evidence set:

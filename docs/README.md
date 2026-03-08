@@ -19,6 +19,7 @@ This map keeps onboarding simple for first-time users and CubeSat teams.
 ## CubeSat Team Readiness
 
 - `docs/CUBESAT_TEAM_READINESS.md`: mission-team readiness checklist
+- `docs/TEAM_READY_MASTER_CHECKLIST.md`: end-to-end execution checklist for team handoff
 - `docs/CUBESAT_READINESS_STATUS_SCOPE.md`: current scoped readiness snapshot
 - Scoped readiness runs record excluded checks as `WAIVED` with explicit `--exclude-check` rationale in the evidence column
 - `docs/ESP32_GOLDEN_IMAGE_BOOTCHAIN.md`: OTA rollback + golden-image partition workflow

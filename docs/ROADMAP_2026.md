@@ -1,6 +1,6 @@
 # DELTA-V Roadmap 2026 (Software Focus)
 
-Date: 2026-03-06
+Date: 2026-03-08
 
 ## Q2 2026
 
@@ -22,7 +22,6 @@ Date: 2026-03-06
 - Expand integration/system tests for command/event/telemetry failure paths.
 - Add deterministic SITL smoke artifacts in CI.
 - Add deterministic SITL soak artifacts in CI.
-- Publish first cross-framework comparison report with reproducible data.
 - Add migration guide format for minor/major releases.
 
 ## Q4 2026

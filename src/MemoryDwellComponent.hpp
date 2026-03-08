@@ -14,6 +14,7 @@
 #include "TimeService.hpp"
 #include "Types.hpp"
 #include <array>
+#include <cinttypes>
 #include <cstdio>
 #include <cstdint>
 
@@ -182,7 +183,13 @@ private:
         (void)telemetry_out.send(Serializer::pack(p));
 
         char msg[28]{};
-        (void)std::snprintf(msg, sizeof(msg), "DW:%08X=%08X", addr, value);
+        (void)std::snprintf(
+            msg,
+            sizeof(msg),
+            "DW:%08" PRIX32 "=%08" PRIX32,
+            static_cast<uint32_t>(addr),
+            static_cast<uint32_t>(value)
+        );
         (void)event_out.send(EventPacket::create(Severity::INFO, getId(), msg));
     }
 
@@ -198,7 +205,13 @@ private:
         const uint32_t value = composeValue();
         debug_mem_[static_cast<size_t>(idx)] = value;
         char msg[28]{};
-        (void)std::snprintf(msg, sizeof(msg), "PT:%08X=%08X", addr, value);
+        (void)std::snprintf(
+            msg,
+            sizeof(msg),
+            "PT:%08" PRIX32 "=%08" PRIX32,
+            static_cast<uint32_t>(addr),
+            static_cast<uint32_t>(value)
+        );
         (void)event_out.send(EventPacket::create(Severity::INFO, getId(), msg));
     }
 
