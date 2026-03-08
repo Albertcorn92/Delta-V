@@ -7,6 +7,7 @@ Run from the project root directory.
 
 Commands:
   boot-menu
+  guide
   quickstart-component <Name> [options]
   add-component <Name> [--active] [--rate fast|norm|slow] [--profile ...]
   add-command   <NAME> --target-id N --opcode N [--op-class ...] [--description ...]
@@ -15,6 +16,7 @@ Commands:
 
 Examples:
   python3 tools/dv-util.py boot-menu
+  python3 tools/dv-util.py guide
   python3 tools/dv-util.py quickstart-component ThermalControl --build
   python3 tools/dv-util.py add-component ThermalControl --profile controller
   python3 tools/dv-util.py add-component AttitudeController --active --rate fast
@@ -430,6 +432,48 @@ def run_subprocess_step(argv: list[str], label: str) -> int:
     return result.returncode
 
 
+def print_guide() -> None:
+    print(
+        f"""
+{B}DELTA-V First-Run Guide (Plug-and-Play){N}
+
+{C}Goal:{N}
+  Add your own component, auto-wire it into topology and dictionary, build,
+  and view it in GDS with minimal manual edits.
+
+{C}Recommended route:{N}
+  1) python3 tools/dv-util.py boot-menu
+  2) Choose: Quickstart: component + command + regenerate
+  3) Accept defaults unless you need custom IDs/names
+  4) Say YES to:
+     - Run autocoder now
+     - Run topology dry-run check now
+     - Build flight_software now
+
+{C}What each stage does:{N}
+  - Create component: writes src/<YourComponent>.hpp scaffold
+  - Register component: updates topology.yaml
+  - Create command: updates topology.yaml command table
+  - Autocoder: regenerates src/Types.hpp, src/TopologyManager.hpp, dictionary.json
+  - Dry-run/build: validates topology and compiles flight_software
+
+{C}Command classes (MissionFsm):{N}
+  HOUSEKEEPING -> allowed in all mission states
+  OPERATIONAL  -> blocked in SAFE_MODE and EMERGENCY
+  RESTRICTED   -> NOMINAL only
+
+{C}How to view your new component in GDS:{N}
+  Terminal 1: ./build/flight_software
+  Terminal 2: streamlit run gds/gds_dash.py
+
+{C}Legit framework workflow after changes:{N}
+  - cmake --build build --target run_tests
+  - cmake --build build --target run_system_tests
+  - cmake --build build --target quickstart_10min
+"""
+    )
+
+
 def verify_dictionary_entries(component_name: str | None = None, command_name: str | None = None) -> None:
     path = Path("dictionary.json")
     if not path.exists():
@@ -676,6 +720,7 @@ def cmd_boot_menu(_args) -> None:
         ("command", "Create new command"),
         ("list", "Show topology summary"),
         ("check", "Run topology check (autocoder dry-run)"),
+        ("guide", "Help: how the boot flow works"),
         ("exit", "Exit"),
     ]
 
@@ -703,6 +748,8 @@ def cmd_boot_menu(_args) -> None:
                 print(f"{G}[dv-util] topology check passed{N}")
             else:
                 print(f"{Y}[dv-util] topology check failed with exit code {rc}{N}")
+        elif action == "guide":
+            print_guide()
         else:
             print("[dv-util] Exiting boot menu.")
             return
@@ -939,6 +986,10 @@ def cmd_check(_args) -> None:
     sys.exit(rc)
 
 
+def cmd_guide(_args) -> None:
+    print_guide()
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -953,6 +1004,12 @@ def main() -> None:
 
     boot = sub.add_parser("boot-menu", help="Interactive scaffolding wizard")
     boot.set_defaults(func=cmd_boot_menu)
+
+    guide = sub.add_parser(
+        "guide",
+        help="Print first-run plug-and-play workflow",
+    )
+    guide.set_defaults(func=cmd_guide)
 
     quick = sub.add_parser(
         "quickstart-component",

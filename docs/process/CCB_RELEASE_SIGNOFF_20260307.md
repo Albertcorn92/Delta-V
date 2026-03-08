@@ -3,7 +3,7 @@
 Date: 2026-03-07
 Release Candidate: DELTA-V civilian baseline update
 Branch: `main`
-Commit (HEAD): `1b7036a`
+Commit reference: see release manifest/tag for finalized hash
 
 ## Change Package
 

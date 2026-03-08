@@ -86,13 +86,13 @@ runtime compatibility with ESP-IDF/FreeRTOS internals.
 - Python 3.9+ (GDS dashboard)
 - `python3 -m venv .venv && source .venv/bin/activate`
 - `pip install -r requirements.txt`
+- `python3 tools/dv-util.py guide` (optional first-run walkthrough)
 
 ### Compile
 
 ```bash
-mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Debug ..
-cmake --build .
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
 ```
 
 ### Run SITL
@@ -283,6 +283,7 @@ Coverage policy is in `docs/COVERAGE_POLICY.md`.
 # Interactive wizard (recommended)
 python3 tools/dv-util.py boot-menu
 # then choose: "Quickstart: component + command + regenerate"
+# use "Help: how the boot flow works" any time in the menu
 
 # One command (best for first-time setup)
 python3 tools/dv-util.py quickstart-component ThermalControl --build

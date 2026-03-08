@@ -13,6 +13,14 @@ This guide covers creating custom flight software components, integrating them i
 ### 2.1 Scaffold with dv-util
 
 ```bash
+# One-time setup (from repo root)
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Optional quick walkthrough
+python3 tools/dv-util.py guide
+
 # Interactive wizard (recommended)
 python3 tools/dv-util.py boot-menu
 # then choose: "Quickstart: component + command + regenerate"
@@ -149,23 +157,23 @@ class FaultI2c : public deltav::hal::MockI2c {
 
 | Target | Command | Purpose |
 |---|---|---|
-| Flight binary | `cmake --build . --target flight_software` | SITL executable |
-| Unit tests | `cmake --build . --target run_tests` | GTest suite |
-| System tests | `cmake --build . --target run_system_tests` | End-to-end integration checks |
-| V&V stress | `cmake --build . --target vnv_stress` | Shuffled repeat stability gate |
-| Coverage report | `cmake --build . --target coverage` | lcov HTML report |
-| Coverage guard | `cmake --build . --target coverage_guard` | Enforce minimum coverage thresholds |
-| Coverage trend | `cmake --build . --target coverage_trend` | Emit coverage trend JSON snapshot |
-| Static analysis | `cmake --build . --target tidy` | clang-tidy |
-| Benchmark baseline | `cmake --build . --target benchmark_baseline` | Refresh benchmark evidence artifacts |
-| Benchmark guard | `cmake --build . --target benchmark_guard` | Enforce perf regression thresholds |
-| SITL smoke | `cmake --build . --target sitl_smoke` | Short runtime marker/fatal scan |
-| SITL soak | `cmake --build . --target sitl_soak` | Extended runtime stability gate |
-| Quickstart gate | `cmake --build . --target quickstart_10min` | One-command local validation path |
-| Flight readiness gate | `cmake --build . --target flight_readiness` | Legal + tests + safety + traceability |
-| Qualification bundle | `cmake --build . --target qualification_bundle` | Evidence report and artifact hashes |
-| Software final gate | `cmake --build . --target software_final` | Sync docs evidence + final software check |
-| CubeSat readiness report | `cmake --build . --target cubesat_readiness` | Consolidated framework + mission gap snapshot |
+| Flight binary | `cmake --build build --target flight_software` | SITL executable |
+| Unit tests | `cmake --build build --target run_tests` | GTest suite |
+| System tests | `cmake --build build --target run_system_tests` | End-to-end integration checks |
+| V&V stress | `cmake --build build --target vnv_stress` | Shuffled repeat stability gate |
+| Coverage report | `cmake --build build_cov --target coverage` | lcov HTML report |
+| Coverage guard | `cmake --build build_cov --target coverage_guard` | Enforce minimum coverage thresholds |
+| Coverage trend | `cmake --build build_cov --target coverage_trend` | Emit coverage trend JSON snapshot |
+| Static analysis | `cmake --build build --target tidy` | clang-tidy |
+| Benchmark baseline | `cmake --build build --target benchmark_baseline` | Refresh benchmark evidence artifacts |
+| Benchmark guard | `cmake --build build --target benchmark_guard` | Enforce perf regression thresholds |
+| SITL smoke | `cmake --build build --target sitl_smoke` | Short runtime marker/fatal scan |
+| SITL soak | `cmake --build build --target sitl_soak` | Extended runtime stability gate |
+| Quickstart gate | `cmake --build build --target quickstart_10min` | One-command local validation path |
+| Flight readiness gate | `cmake --build build --target flight_readiness` | Legal + tests + safety + traceability |
+| Qualification bundle | `cmake --build build --target qualification_bundle` | Evidence report and artifact hashes |
+| Software final gate | `cmake --build build --target software_final` | Sync docs evidence + final software check |
+| CubeSat readiness report | `cmake --build build --target cubesat_readiness` | Consolidated framework + mission gap snapshot |
 
 Safety-case starter templates for mission teams are in `docs/safety_case/`.
 
