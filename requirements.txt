@@ -1,4 +1,4 @@
-PyYAML==6.0.2
+PyYAML==6.0.3
 pandas==2.2.3
 streamlit==1.41.1
 altair==5.5.0
