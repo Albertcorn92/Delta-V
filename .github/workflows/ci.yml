@@ -193,14 +193,14 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Archive HTML report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-html
           path: build_cov/coverage_html/
           retention-days: 14
 
       - name: Archive coverage trend snapshot
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-trend
           path: build_cov/coverage_trend.json
@@ -237,7 +237,7 @@ jobs:
         run: cmake --build build_tidy --target software_final
 
       - name: Archive safety artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: safety-assurance-artifacts
           path: |
