@@ -184,6 +184,7 @@ export DELTAV_UPLINK_ALLOW_IP="127.0.0.1"
 - DELTA-V is scoped for civilian, scientific, and educational use.
 - Military, weapons, targeting, or fire-control behavior is out of scope and rejected.
 - Command-path cryptography/encryption features are intentionally excluded in this baseline.
+- This repository is not certified for operational or safety-critical deployment.
 - Repository evidence and checklists are engineering guidance, not legal advice or certification.
 - Maintainer does not provide direct operational support to non-U.S. users.
 
