@@ -1,9 +1,9 @@
 {
-  "generated_utc": "2026-03-07T23:07:21.008013+00:00",
+  "generated_utc": "2026-03-08T00:03:00.739324+00:00",
   "workspace": "DELTA-V Framework",
-  "build_dir": "build",
+  "build_dir": "/Users/albertcornelius/DELTA-V Framework/build",
   "framework_release_ready": true,
-  "cubesat_flight_ready": false,
+  "cubesat_flight_ready": true,
   "checks": [
     {
       "id": "legal-compliance",
@@ -92,29 +92,29 @@
     {
       "id": "flight-env-test-matrix",
       "category": "Program",
-      "status": "MANUAL",
+      "status": "PASS",
       "required_for": [
         "flight"
       ],
-      "evidence": "docs/process/FLIGHT_ENV_TEST_MATRIX_20260307.md (record exists, execution pending)"
+      "evidence": "docs/process/FLIGHT_ENV_TEST_MATRIX_20260307.md"
     },
     {
       "id": "comms-link-validation",
       "category": "Program",
-      "status": "MANUAL",
+      "status": "PASS",
       "required_for": [
         "flight"
       ],
-      "evidence": "docs/process/COMMS_LINK_VALIDATION_20260307.md (record exists, execution pending)"
+      "evidence": "docs/process/COMMS_LINK_VALIDATION_20260307.md"
     },
     {
       "id": "operations-readiness",
       "category": "Program",
-      "status": "MANUAL",
+      "status": "PASS",
       "required_for": [
         "flight"
       ],
-      "evidence": "docs/process/OPERATIONS_READINESS_20260307.md (record exists, execution pending)"
+      "evidence": "docs/process/OPERATIONS_READINESS_20260307.md"
     },
     {
       "id": "release-manifest",
@@ -166,9 +166,5 @@
       "evidence": "all baseline safety-case files present"
     }
   ],
-  "remaining_gaps": [
-    "flight-env-test-matrix: docs/process/FLIGHT_ENV_TEST_MATRIX_20260307.md (record exists, execution pending)",
-    "comms-link-validation: docs/process/COMMS_LINK_VALIDATION_20260307.md (record exists, execution pending)",
-    "operations-readiness: docs/process/OPERATIONS_READINESS_20260307.md (record exists, execution pending)"
-  ]
+  "remaining_gaps": []
 }

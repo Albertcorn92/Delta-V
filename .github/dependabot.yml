@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    allow:
+      - dependency-name: "PyYAML"
+      - dependency-name: "pandas"
+      - dependency-name: "streamlit"
+      - dependency-name: "altair"
+      - dependency-name: "pyserial"

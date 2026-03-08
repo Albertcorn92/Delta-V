@@ -85,7 +85,7 @@ runtime compatibility with ESP-IDF/FreeRTOS internals.
 - CMake 3.15+
 - Python 3.9+ (GDS dashboard)
 - `python3 -m venv .venv && source .venv/bin/activate`
-- `pip install streamlit pyyaml`
+- `pip install -r requirements.txt`
 
 ### Compile
 
@@ -255,6 +255,14 @@ cmake --build build --target software_final
 ```bash
 cmake --build build --target cubesat_readiness
 # emits docs/CUBESAT_READINESS_STATUS.{md,json}
+```
+
+### Generate Scope-Limited Readiness Snapshot
+
+```bash
+cmake --build build --target cubesat_readiness_scope
+# emits docs/CUBESAT_READINESS_STATUS_SCOPE.{md,json}
+# applies scope waivers for: esp32-soak-1h, sensor-attached-evidence
 ```
 
 Process templates for mission certification work are in `docs/process/`.

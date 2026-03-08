@@ -63,7 +63,13 @@ If `cubesat_flight_ready=false`, read the `Remaining Gaps` section in
 `docs/CUBESAT_READINESS_STATUS.md` and close each item with evidence.
 
 For scope-limited closeout runs (for example, excluding 1h soak or sensor-HIL),
-generate a separate waived report:
+use:
+
+```bash
+cmake --build build --target cubesat_readiness_scope
+```
+
+Equivalent direct command:
 
 ```bash
 python3 tools/cubesat_readiness_report.py \

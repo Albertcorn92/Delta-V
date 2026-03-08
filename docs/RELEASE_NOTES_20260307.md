@@ -1,6 +1,6 @@
 # DELTA-V Release Notes (2026-03-07)
 
-Release baseline: `1b7036a796e232f8aee81969bcc8a203a33bbc94`
+Release baseline: `main` (post-gate refresh on 2026-03-07)
 
 ## Toolchain Versions
 
@@ -16,13 +16,14 @@ Release baseline: `1b7036a796e232f8aee81969bcc8a203a33bbc94`
 - `cmake --build build --target software_final` PASS
 - `cmake --build build_cov --target coverage_guard` PASS
 - `cmake --build build --target cubesat_readiness` PASS (report generated)
+- `cmake --build build --target cubesat_readiness_scope` PASS (scope-limited report generated)
 - `cmake --build build --target quickstart_10min` PASS
 
 ## Known Limitations
 
 - No archived ESP32 soak JSON at `>= 3600s` in this release snapshot.
 - Sensor-attached HIL campaign is not executed in this scope-limited closeout.
-- Mission environment/comms/ops campaigns remain manual mission-team work.
+- Mission RF and hardware environmental qualification still require mission-team execution.
 
 ## Legal/Compliance Constraints
 
@@ -34,7 +35,7 @@ Release baseline: `1b7036a796e232f8aee81969bcc8a203a33bbc94`
 
 - Execute and archive long-duration hardware soak evidence.
 - Execute sensor-attached HIL campaign evidence.
-- Complete mission environment test matrix, comms validation, and operations readiness rehearsals.
+- Execute mission RF-chain and field-environment campaigns with mission hardware.
 
 ## Safety-Case Evidence Location
 

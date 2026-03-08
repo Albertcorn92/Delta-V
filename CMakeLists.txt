@@ -467,7 +467,20 @@ if(PYTHON3)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Generating CubeSat readiness status report"
     )
+    add_custom_target(cubesat_readiness_scope
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/cubesat_readiness_report.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+            --python-exe ${PYTHON3}
+            --exclude-check esp32-soak-1h
+            --exclude-check sensor-attached-evidence
+            --output-md docs/CUBESAT_READINESS_STATUS_SCOPE.md
+            --output-json docs/CUBESAT_READINESS_STATUS_SCOPE.json
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Generating scope-limited CubeSat readiness report (1h soak + sensor-attached waived)"
+    )
     message(STATUS "CubeSat  : ENABLED  (cmake --build build --target cubesat_readiness)")
+    message(STATUS "CubeSatS : ENABLED  (cmake --build build --target cubesat_readiness_scope)")
 endif()
 
 if(PYTHON3 AND TARGET coverage)
@@ -629,6 +642,7 @@ message(STATUS "║    flight_readiness — full assurance gate  ║")
 message(STATUS "║    qualification_bundle — audit artifacts  ║")
 message(STATUS "║    software_final   — software release gate║")
 message(STATUS "║    cubesat_readiness — mission status rpt  ║")
+message(STATUS "║    cubesat_readiness_scope — waived rpt    ║")
 message(STATUS "║    benchmark_baseline — perf report sync   ║")
 message(STATUS "║    benchmark_guard  — perf regression gate ║")
 message(STATUS "║    sitl_smoke       — short runtime check  ║")
