@@ -1,5 +1,20 @@
 # Changelog
 
+## v4.0.1-rc (2026-03-08)
+
+### Changed
+- GDS runtime logs now write to `gds/runtime/` instead of the repo root.
+- GDS sidebar now includes a first-time setup panel with direct boot-menu pathing.
+- Developer/docs references updated for `gds/runtime/{live_telem.csv,events.log}`.
+- CubeSat readiness docs now define explicit scope waivers and the `WAIVED` semantics.
+
+### Verification Snapshot
+- Unit + system tests: passing.
+- V&V stress gate: passing.
+- Requirements traceability: `37/37` with direct test evidence.
+- Blocking safety gate (`tidy_safety`): passing.
+- Qualification bundle and software final gates: passing.
+
 ## v4.0.0-rc (2026-03-06)
 
 ### Added

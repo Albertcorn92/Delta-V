@@ -24,6 +24,7 @@
 namespace deltav {
 
 constexpr size_t MAX_COMMAND_ROUTES = 32;
+constexpr size_t MAX_HOUSEKEEPING_TARGETS = 32;
 
 struct RouteEntry {
     uint32_t                  comp_id{0};
@@ -67,6 +68,23 @@ public:
         }
     }
 
+    void registerHousekeepingTarget(uint32_t comp_id) {
+        if (comp_id == 0U) {
+            recordError();
+            return;
+        }
+        for (size_t i = 0; i < housekeeping_target_count; ++i) {
+            if (housekeeping_targets.at(i) == comp_id) {
+                return;
+            }
+        }
+        if (housekeeping_target_count >= MAX_HOUSEKEEPING_TARGETS) {
+            recordError();
+            return;
+        }
+        housekeeping_targets.at(housekeeping_target_count++) = comp_id;
+    }
+
     // Wire in the Watchdog so FSM state can be checked per-command (DV-SEC-02).
     // Call this from TopologyManager::wire() after constructing both objects.
     void setMissionStateSource(WatchdogComponent* wd) { watchdog = wd; }
@@ -77,11 +95,22 @@ public:
 private:
     std::array<RouteEntry, MAX_COMMAND_ROUTES> routes{};
     size_t              route_count{0};
+    std::array<uint32_t, MAX_HOUSEKEEPING_TARGETS> housekeeping_targets{};
+    size_t              housekeeping_target_count{0};
     WatchdogComponent*  watchdog{nullptr};
+
+    [[nodiscard]] auto isHousekeepingTarget(uint32_t target_id) const -> bool {
+        for (size_t i = 0; i < housekeeping_target_count; ++i) {
+            if (housekeeping_targets.at(i) == target_id) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     void dispatchCommand(const CommandPacket& cmd) {
         // --- DV-SEC-02: FSM gating ---
-        if (watchdog != nullptr) {
+        if (watchdog != nullptr && !isHousekeepingTarget(cmd.target_id)) {
             uint8_t state_raw = watchdog->getMissionStateRaw();
             if (!MissionFsm::isAllowed(state_raw, cmd.opcode)) {
                 char msg[28];

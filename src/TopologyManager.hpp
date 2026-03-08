@@ -9,25 +9,28 @@
 #include "RateGroupExecutive.hpp"
 #include "TmrStore.hpp"
 #include "Hal.hpp"
-#include <cstdio>
+#include <iostream>
 #include "WatchdogComponent.hpp"
 #include "TelemHub.hpp"
 #include "CommandHub.hpp"
 #include "EventHub.hpp"
 #include "TelemetryBridge.hpp"
 #include "LoggerComponent.hpp"
+#include "CommandSequencerComponent.hpp"
+#include "FileTransferComponent.hpp"
+#include "MemoryDwellComponent.hpp"
+#include "TimeSyncComponent.hpp"
+#include "PlaybackComponent.hpp"
+#include "OtaComponent.hpp"
+#include "AtsRtsSequencerComponent.hpp"
+#include "LimitCheckerComponent.hpp"
+#include "CfdpComponent.hpp"
+#include "ModeManagerComponent.hpp"
 #include "SensorComponent.hpp"
 #include "PowerComponent.hpp"
 #include "ImuComponent.hpp"
-#if defined(ESP_PLATFORM)
-#include "esp_log.h"
-#endif
 
 namespace deltav {
-
-#if defined(ESP_PLATFORM)
-static constexpr const char* TOPOLOGY_LOG_TAG = "Topology";
-#endif
 
 struct TopologyManager {
 private:
@@ -43,6 +46,16 @@ public:
     EventHub               event_hub       {"EventHub", 12};
     TelemetryBridge        radio           {"RadioLink", 20};
     LoggerComponent        recorder        {"BlackBox", 30};
+    CommandSequencerComponent cmd_sequencer   {"CmdSequencer", 40};
+    FileTransferComponent  file_transfer   {"FileTransfer", 41};
+    MemoryDwellComponent   memory_dwell    {"MemoryDwell", 42};
+    TimeSyncComponent      time_sync       {"TimeSync", 43};
+    PlaybackComponent      playback        {"Playback", 44};
+    OtaComponent           ota_manager     {"OtaManager", 45};
+    AtsRtsSequencerComponent ats_rts         {"AtsRtsSequencer", 46};
+    LimitCheckerComponent  limit_checker   {"LimitChecker", 47};
+    CfdpComponent          cfdp_manager    {"CfdpManager", 48};
+    ModeManagerComponent   mode_manager    {"ModeManager", 49};
     SensorComponent        star_tracker    {"StarTracker", 100};
     PowerComponent         battery         {"BatterySystem", 200};
     ImuComponent           imu_unit        {"IMU_01", 300, *i2c_};
@@ -59,11 +72,7 @@ public:
         wireCommands();
         wireEvents();
         wireCustom();
-#if defined(ESP_PLATFORM)
-        ESP_LOGI(TOPOLOGY_LOG_TAG, "All ports connected.");
-#else
-        std::printf("[Topology] All ports connected.\n");
-#endif
+        std::cout << "[Topology] All ports connected.\n";
     }
 
     auto registerAll(RateGroupExecutive& rge) -> void {
@@ -76,6 +85,16 @@ public:
         rge.registerNorm(&cmd_hub);
         rge.registerNorm(&event_hub);
         rge.registerNorm(&recorder);
+        rge.registerNorm(&cmd_sequencer);
+        rge.registerNorm(&file_transfer);
+        rge.registerNorm(&memory_dwell);
+        rge.registerNorm(&time_sync);
+        rge.registerNorm(&playback);
+        rge.registerNorm(&ota_manager);
+        rge.registerNorm(&ats_rts);
+        rge.registerNorm(&limit_checker);
+        rge.registerNorm(&cfdp_manager);
+        rge.registerNorm(&mode_manager);
         rge.registerNorm(&battery);
         // ── Active (own thread) ────────────────────────
         rge.registerComponent(&radio);
@@ -87,6 +106,16 @@ public:
         watchdog.registerSubsystem(&cmd_hub);
         watchdog.registerSubsystem(&event_hub);
         watchdog.registerSubsystem(&radio);
+        watchdog.registerSubsystem(&cmd_sequencer);
+        watchdog.registerSubsystem(&file_transfer);
+        watchdog.registerSubsystem(&memory_dwell);
+        watchdog.registerSubsystem(&time_sync);
+        watchdog.registerSubsystem(&playback);
+        watchdog.registerSubsystem(&ota_manager);
+        watchdog.registerSubsystem(&ats_rts);
+        watchdog.registerSubsystem(&limit_checker);
+        watchdog.registerSubsystem(&cfdp_manager);
+        watchdog.registerSubsystem(&mode_manager);
         watchdog.registerSubsystem(&star_tracker);
         watchdog.registerSubsystem(&battery);
         watchdog.registerSubsystem(&imu_unit);
@@ -96,11 +125,7 @@ public:
         bool ok = true;
         auto check = [&](bool cond, const char* label) -> void {
             if (!cond) {
-#if defined(ESP_PLATFORM)
-                ESP_LOGE(TOPOLOGY_LOG_TAG, "UNCONNECTED: %s", label);
-#else
-                (void)std::fprintf(stderr, "[Topology] UNCONNECTED: %s\n", label);
-#endif
+                std::cerr << "[Topology] UNCONNECTED: " << label << "\n";
                 ok = false;
             }
         };
@@ -108,27 +133,51 @@ public:
         check(cmd_hub.ack_out.isConnected(),   "cmd_hub.ack_out → event_hub");
         check(cmd_hub.hasMissionStateSource(), "cmd_hub mission state source");
         check(watchdog.hasBatteryThresholdSources(), "watchdog battery threshold sources");
+        check(cmd_sequencer.telemetry_out.isConnected(), "cmd_sequencer.telemetry_out → telem_hub");
+        check(file_transfer.telemetry_out.isConnected(), "file_transfer.telemetry_out → telem_hub");
+        check(memory_dwell.telemetry_out.isConnected(), "memory_dwell.telemetry_out → telem_hub");
+        check(time_sync.telemetry_out.isConnected(), "time_sync.telemetry_out → telem_hub");
+        check(playback.telemetry_out.isConnected(), "playback.telemetry_out → telem_hub");
+        check(ota_manager.telemetry_out.isConnected(), "ota_manager.telemetry_out → telem_hub");
+        check(ats_rts.telemetry_out.isConnected(), "ats_rts.telemetry_out → telem_hub");
+        check(limit_checker.telemetry_out.isConnected(), "limit_checker.telemetry_out → telem_hub");
+        check(cfdp_manager.telemetry_out.isConnected(), "cfdp_manager.telemetry_out → telem_hub");
+        check(mode_manager.telemetry_out.isConnected(), "mode_manager.telemetry_out → telem_hub");
         check(star_tracker.telemetry_out.isConnected(), "star_tracker.telemetry_out → telem_hub");
         check(battery.telemetry_out.isConnected(), "battery.telemetry_out → telem_hub");
         check(imu_unit.telemetry_out.isConnected(), "imu_unit.telemetry_out → telem_hub");
         check(event_hub.getSourceCount()   >= 2, "event_hub: need >=2 sources");
         check(event_hub.getListenerCount() >= 2, "event_hub: need >=2 listeners");
-        if (!ok) {
-#if defined(ESP_PLATFORM)
-            ESP_LOGE(TOPOLOGY_LOG_TAG, "FATAL: wiring incomplete.");
-#else
-            (void)std::fprintf(stderr, "[Topology] FATAL: wiring incomplete.\n");
-#endif
-        }
+        if (!ok) std::cerr << "[Topology] FATAL: wiring incomplete.\n";
         return ok;
     }
 
 private:
+    OutputPort<CommandPacket> cmd_sequencer_route_{};
+    OutputPort<CommandPacket> file_transfer_route_{};
+    OutputPort<CommandPacket> memory_dwell_route_{};
+    OutputPort<CommandPacket> time_sync_route_{};
+    OutputPort<CommandPacket> playback_route_{};
+    OutputPort<CommandPacket> ota_manager_route_{};
+    OutputPort<CommandPacket> ats_rts_route_{};
+    OutputPort<CommandPacket> limit_checker_route_{};
+    OutputPort<CommandPacket> cfdp_manager_route_{};
+    OutputPort<CommandPacket> mode_manager_route_{};
     OutputPort<CommandPacket> star_tracker_route_{};
     OutputPort<CommandPacket> battery_route_{};
     OutputPort<CommandPacket> imu_unit_route_{};
     InputPort<EventPacket> e_watchdog_{};
     InputPort<EventPacket> e_cmd_hub_{};
+    InputPort<EventPacket> e_cmd_sequencer_{};
+    InputPort<EventPacket> e_file_transfer_{};
+    InputPort<EventPacket> e_memory_dwell_{};
+    InputPort<EventPacket> e_time_sync_{};
+    InputPort<EventPacket> e_playback_{};
+    InputPort<EventPacket> e_ota_manager_{};
+    InputPort<EventPacket> e_ats_rts_{};
+    InputPort<EventPacket> e_limit_checker_{};
+    InputPort<EventPacket> e_cfdp_manager_{};
+    InputPort<EventPacket> e_mode_manager_{};
     InputPort<EventPacket> e_star_tracker_{};
     InputPort<EventPacket> e_battery_{};
     InputPort<EventPacket> e_imu_unit_{};
@@ -136,6 +185,16 @@ private:
     auto wireTelemetry() -> void {
         telem_hub.registerListener(&radio.telem_in);
         telem_hub.registerListener(&recorder.telemetry_in);
+        telem_hub.connectInput(cmd_sequencer.telemetry_out);
+        telem_hub.connectInput(file_transfer.telemetry_out);
+        telem_hub.connectInput(memory_dwell.telemetry_out);
+        telem_hub.connectInput(time_sync.telemetry_out);
+        telem_hub.connectInput(playback.telemetry_out);
+        telem_hub.connectInput(ota_manager.telemetry_out);
+        telem_hub.connectInput(ats_rts.telemetry_out);
+        telem_hub.connectInput(limit_checker.telemetry_out);
+        telem_hub.connectInput(cfdp_manager.telemetry_out);
+        telem_hub.connectInput(mode_manager.telemetry_out);
         telem_hub.connectInput(star_tracker.telemetry_out);
         telem_hub.connectInput(battery.telemetry_out);
         telem_hub.connectInput(imu_unit.telemetry_out);
@@ -143,6 +202,26 @@ private:
 
     auto wireCommands() -> void {
         radio.command_out.connect(&cmd_hub.cmd_input);
+        cmd_sequencer_route_.connect(&cmd_sequencer.cmd_in);
+        cmd_hub.registerRoute(40, &cmd_sequencer_route_);
+        file_transfer_route_.connect(&file_transfer.cmd_in);
+        cmd_hub.registerRoute(41, &file_transfer_route_);
+        memory_dwell_route_.connect(&memory_dwell.cmd_in);
+        cmd_hub.registerRoute(42, &memory_dwell_route_);
+        time_sync_route_.connect(&time_sync.cmd_in);
+        cmd_hub.registerRoute(43, &time_sync_route_);
+        playback_route_.connect(&playback.cmd_in);
+        cmd_hub.registerRoute(44, &playback_route_);
+        ota_manager_route_.connect(&ota_manager.cmd_in);
+        cmd_hub.registerRoute(45, &ota_manager_route_);
+        ats_rts_route_.connect(&ats_rts.cmd_in);
+        cmd_hub.registerRoute(46, &ats_rts_route_);
+        limit_checker_route_.connect(&limit_checker.cmd_in);
+        cmd_hub.registerRoute(47, &limit_checker_route_);
+        cfdp_manager_route_.connect(&cfdp_manager.cmd_in);
+        cmd_hub.registerRoute(48, &cfdp_manager_route_);
+        mode_manager_route_.connect(&mode_manager.cmd_in);
+        cmd_hub.registerRoute(49, &mode_manager_route_);
         star_tracker_route_.connect(&star_tracker.cmd_in);
         cmd_hub.registerRoute(100, &star_tracker_route_);
         battery_route_.connect(&battery.cmd_in);
@@ -158,6 +237,26 @@ private:
         event_hub.registerEventSource(&e_watchdog_);
         cmd_hub.ack_out.connect(&e_cmd_hub_);
         event_hub.registerEventSource(&e_cmd_hub_);
+        cmd_sequencer.event_out.connect(&e_cmd_sequencer_);
+        event_hub.registerEventSource(&e_cmd_sequencer_);
+        file_transfer.event_out.connect(&e_file_transfer_);
+        event_hub.registerEventSource(&e_file_transfer_);
+        memory_dwell.event_out.connect(&e_memory_dwell_);
+        event_hub.registerEventSource(&e_memory_dwell_);
+        time_sync.event_out.connect(&e_time_sync_);
+        event_hub.registerEventSource(&e_time_sync_);
+        playback.event_out.connect(&e_playback_);
+        event_hub.registerEventSource(&e_playback_);
+        ota_manager.event_out.connect(&e_ota_manager_);
+        event_hub.registerEventSource(&e_ota_manager_);
+        ats_rts.event_out.connect(&e_ats_rts_);
+        event_hub.registerEventSource(&e_ats_rts_);
+        limit_checker.event_out.connect(&e_limit_checker_);
+        event_hub.registerEventSource(&e_limit_checker_);
+        cfdp_manager.event_out.connect(&e_cfdp_manager_);
+        event_hub.registerEventSource(&e_cfdp_manager_);
+        mode_manager.event_out.connect(&e_mode_manager_);
+        event_hub.registerEventSource(&e_mode_manager_);
         star_tracker.event_out.connect(&e_star_tracker_);
         event_hub.registerEventSource(&e_star_tracker_);
         battery.event_out.connect(&e_battery_);
@@ -169,7 +268,22 @@ private:
     auto wireCustom() -> void {
         battery.battery_out_internal.connect(&watchdog.battery_level_in);
         cmd_hub.setMissionStateSource(&watchdog);
+        cmd_hub.registerHousekeepingTarget(cmd_sequencer.getId());
+        cmd_hub.registerHousekeepingTarget(file_transfer.getId());
+        cmd_hub.registerHousekeepingTarget(memory_dwell.getId());
+        cmd_hub.registerHousekeepingTarget(time_sync.getId());
+        cmd_hub.registerHousekeepingTarget(playback.getId());
+        cmd_hub.registerHousekeepingTarget(ota_manager.getId());
+        cmd_hub.registerHousekeepingTarget(ats_rts.getId());
+        cmd_hub.registerHousekeepingTarget(limit_checker.getId());
+        cmd_hub.registerHousekeepingTarget(cfdp_manager.getId());
+        cmd_hub.registerHousekeepingTarget(mode_manager.getId());
         watchdog.setBatteryThresholdSources(&tmr_emergency_battery_pct, &tmr_safe_mode_battery_pct, &tmr_degraded_battery_pct);
+        cmd_sequencer.command_out.connect(&cmd_hub.cmd_input);
+        ats_rts.command_out.connect(&cmd_hub.cmd_input);
+        mode_manager.command_out.connect(&cmd_hub.cmd_input);
+        event_hub.registerListener(&ats_rts.event_in);
+        telem_hub.registerListener(&limit_checker.telem_in);
     }
 };
 

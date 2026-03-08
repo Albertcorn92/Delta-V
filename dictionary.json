@@ -46,6 +46,66 @@
             "rate_group": "norm",
             "class": "LoggerComponent"
         },
+        "40": {
+            "name": "CmdSequencer",
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "CommandSequencerComponent"
+        },
+        "41": {
+            "name": "FileTransfer",
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "FileTransferComponent"
+        },
+        "42": {
+            "name": "MemoryDwell",
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "MemoryDwellComponent"
+        },
+        "43": {
+            "name": "TimeSync",
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "TimeSyncComponent"
+        },
+        "44": {
+            "name": "Playback",
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "PlaybackComponent"
+        },
+        "45": {
+            "name": "OtaManager",
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "OtaComponent"
+        },
+        "46": {
+            "name": "AtsRtsSequencer",
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "AtsRtsSequencerComponent"
+        },
+        "47": {
+            "name": "LimitChecker",
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "LimitCheckerComponent"
+        },
+        "48": {
+            "name": "CfdpManager",
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "CfdpComponent"
+        },
+        "49": {
+            "name": "ModeManager",
+            "type": "Passive",
+            "rate_group": "norm",
+            "class": "ModeManagerComponent"
+        },
         "100": {
             "name": "StarTracker",
             "type": "Passive",
@@ -92,6 +152,538 @@
             "opcode": 1,
             "op_class": "OPERATIONAL",
             "description": "Triggers IMU self-calibration sequence. arg: unused (0.0)",
+            "apid": 30
+        },
+        "SEQ_SET_TARGET": {
+            "target_id": 40,
+            "opcode": 1,
+            "op_class": "HOUSEKEEPING",
+            "description": "Sequencer stage: set target component ID",
+            "apid": 30
+        },
+        "SEQ_SET_OPCODE": {
+            "target_id": 40,
+            "opcode": 2,
+            "op_class": "HOUSEKEEPING",
+            "description": "Sequencer stage: set opcode",
+            "apid": 30
+        },
+        "SEQ_SET_ARGUMENT": {
+            "target_id": 40,
+            "opcode": 3,
+            "op_class": "HOUSEKEEPING",
+            "description": "Sequencer stage: set argument",
+            "apid": 30
+        },
+        "SEQ_COMMIT_DELAY": {
+            "target_id": 40,
+            "opcode": 4,
+            "op_class": "HOUSEKEEPING",
+            "description": "Sequencer commit: schedule staged command after arg seconds",
+            "apid": 30
+        },
+        "SEQ_CLEAR_QUEUE": {
+            "target_id": 40,
+            "opcode": 5,
+            "op_class": "HOUSEKEEPING",
+            "description": "Sequencer: clear queued commands",
+            "apid": 30
+        },
+        "FILE_BEGIN_SESSION": {
+            "target_id": 41,
+            "opcode": 1,
+            "op_class": "HOUSEKEEPING",
+            "description": "File transfer: begin session with expected bytes (arg)",
+            "apid": 30
+        },
+        "FILE_PUSH_TEST_BYTE": {
+            "target_id": 41,
+            "opcode": 2,
+            "op_class": "HOUSEKEEPING",
+            "description": "File transfer: push one test byte from arg",
+            "apid": 30
+        },
+        "FILE_FINALIZE_SESSION": {
+            "target_id": 41,
+            "opcode": 3,
+            "op_class": "HOUSEKEEPING",
+            "description": "File transfer: finalize session",
+            "apid": 30
+        },
+        "FILE_RESET_SESSION": {
+            "target_id": 41,
+            "opcode": 4,
+            "op_class": "HOUSEKEEPING",
+            "description": "File transfer: reset session state",
+            "apid": 30
+        },
+        "DWELL_SELECT_CHANNEL": {
+            "target_id": 42,
+            "opcode": 1,
+            "op_class": "HOUSEKEEPING",
+            "description": "Dwell: select diagnostic channel",
+            "apid": 30
+        },
+        "DWELL_SET_PERIOD": {
+            "target_id": 42,
+            "opcode": 2,
+            "op_class": "HOUSEKEEPING",
+            "description": "Dwell: set period seconds",
+            "apid": 30
+        },
+        "DWELL_SAMPLE_NOW": {
+            "target_id": 42,
+            "opcode": 3,
+            "op_class": "HOUSEKEEPING",
+            "description": "Dwell: force immediate sample",
+            "apid": 30
+        },
+        "DWELL_SET_ADDR_HI16": {
+            "target_id": 42,
+            "opcode": 10,
+            "op_class": "HOUSEKEEPING",
+            "description": "Dwell/Patch: set address upper 16 bits",
+            "apid": 30
+        },
+        "DWELL_SET_ADDR_LO16": {
+            "target_id": 42,
+            "opcode": 11,
+            "op_class": "HOUSEKEEPING",
+            "description": "Dwell/Patch: set address lower 16 bits",
+            "apid": 30
+        },
+        "DWELL_READ_ADDRESS": {
+            "target_id": 42,
+            "opcode": 12,
+            "op_class": "HOUSEKEEPING",
+            "description": "Dwell: read staged address word",
+            "apid": 30
+        },
+        "DWELL_SET_VALUE_HI16": {
+            "target_id": 42,
+            "opcode": 13,
+            "op_class": "HOUSEKEEPING",
+            "description": "Patch: set value upper 16 bits",
+            "apid": 30
+        },
+        "DWELL_SET_VALUE_LO16": {
+            "target_id": 42,
+            "opcode": 14,
+            "op_class": "HOUSEKEEPING",
+            "description": "Patch: set value lower 16 bits",
+            "apid": 30
+        },
+        "DWELL_PATCH_ADDRESS": {
+            "target_id": 42,
+            "opcode": 15,
+            "op_class": "HOUSEKEEPING",
+            "description": "Patch: write staged value to staged address",
+            "apid": 30
+        },
+        "TIME_SET_UTC_HI16": {
+            "target_id": 43,
+            "opcode": 1,
+            "op_class": "HOUSEKEEPING",
+            "description": "Time sync: set UTC word 0 (hi16)",
+            "apid": 30
+        },
+        "TIME_SET_UTC_MIDHI16": {
+            "target_id": 43,
+            "opcode": 2,
+            "op_class": "HOUSEKEEPING",
+            "description": "Time sync: set UTC word 1",
+            "apid": 30
+        },
+        "TIME_SET_UTC_MIDLO16": {
+            "target_id": 43,
+            "opcode": 3,
+            "op_class": "HOUSEKEEPING",
+            "description": "Time sync: set UTC word 2",
+            "apid": 30
+        },
+        "TIME_SET_UTC_LO16": {
+            "target_id": 43,
+            "opcode": 4,
+            "op_class": "HOUSEKEEPING",
+            "description": "Time sync: set UTC word 3 (lo16)",
+            "apid": 30
+        },
+        "TIME_APPLY_SYNC": {
+            "target_id": 43,
+            "opcode": 5,
+            "op_class": "HOUSEKEEPING",
+            "description": "Time sync: apply staged UTC words",
+            "apid": 30
+        },
+        "TIME_PUBLISH_STATUS": {
+            "target_id": 43,
+            "opcode": 6,
+            "op_class": "HOUSEKEEPING",
+            "description": "Time sync: publish sync status",
+            "apid": 30
+        },
+        "PLAYBACK_LOAD_LOG": {
+            "target_id": 44,
+            "opcode": 1,
+            "op_class": "HOUSEKEEPING",
+            "description": "Playback: load historical telemetry log",
+            "apid": 30
+        },
+        "PLAYBACK_START": {
+            "target_id": 44,
+            "opcode": 2,
+            "op_class": "HOUSEKEEPING",
+            "description": "Playback: start continuous replay",
+            "apid": 30
+        },
+        "PLAYBACK_STOP": {
+            "target_id": 44,
+            "opcode": 3,
+            "op_class": "HOUSEKEEPING",
+            "description": "Playback: stop replay",
+            "apid": 30
+        },
+        "PLAYBACK_REWIND": {
+            "target_id": 44,
+            "opcode": 4,
+            "op_class": "HOUSEKEEPING",
+            "description": "Playback: rewind replay cursor",
+            "apid": 30
+        },
+        "PLAYBACK_STEP_ONCE": {
+            "target_id": 44,
+            "opcode": 5,
+            "op_class": "HOUSEKEEPING",
+            "description": "Playback: send one historical sample",
+            "apid": 30
+        },
+        "PLAYBACK_SET_RATE_HZ": {
+            "target_id": 44,
+            "opcode": 6,
+            "op_class": "HOUSEKEEPING",
+            "description": "Playback: set replay output rate in Hz",
+            "apid": 30
+        },
+        "OTA_BEGIN_SESSION": {
+            "target_id": 45,
+            "opcode": 1,
+            "op_class": "HOUSEKEEPING",
+            "description": "OTA: begin session with expected byte count",
+            "apid": 30
+        },
+        "OTA_PUSH_TEST_BYTE": {
+            "target_id": 45,
+            "opcode": 2,
+            "op_class": "HOUSEKEEPING",
+            "description": "OTA: append one test byte",
+            "apid": 30
+        },
+        "OTA_SET_CRC_HI16": {
+            "target_id": 45,
+            "opcode": 3,
+            "op_class": "HOUSEKEEPING",
+            "description": "OTA: set expected CRC upper 16 bits",
+            "apid": 30
+        },
+        "OTA_SET_CRC_LO16": {
+            "target_id": 45,
+            "opcode": 4,
+            "op_class": "HOUSEKEEPING",
+            "description": "OTA: set expected CRC lower 16 bits",
+            "apid": 30
+        },
+        "OTA_VERIFY_IMAGE": {
+            "target_id": 45,
+            "opcode": 5,
+            "op_class": "HOUSEKEEPING",
+            "description": "OTA: verify received image CRC",
+            "apid": 30
+        },
+        "OTA_STAGE_ACTIVATE": {
+            "target_id": 45,
+            "opcode": 6,
+            "op_class": "HOUSEKEEPING",
+            "description": "OTA: stage update and request reboot",
+            "apid": 30
+        },
+        "OTA_RESET_SESSION": {
+            "target_id": 45,
+            "opcode": 7,
+            "op_class": "HOUSEKEEPING",
+            "description": "OTA: reset session state",
+            "apid": 30
+        },
+        "ATS_SET_TARGET": {
+            "target_id": 46,
+            "opcode": 1,
+            "op_class": "HOUSEKEEPING",
+            "description": "ATS/RTS stage: set target component ID",
+            "apid": 30
+        },
+        "ATS_SET_OPCODE": {
+            "target_id": 46,
+            "opcode": 2,
+            "op_class": "HOUSEKEEPING",
+            "description": "ATS/RTS stage: set opcode",
+            "apid": 30
+        },
+        "ATS_SET_ARGUMENT": {
+            "target_id": 46,
+            "opcode": 3,
+            "op_class": "HOUSEKEEPING",
+            "description": "ATS/RTS stage: set command argument",
+            "apid": 30
+        },
+        "ATS_SET_TRIGGER_TYPE": {
+            "target_id": 46,
+            "opcode": 4,
+            "op_class": "HOUSEKEEPING",
+            "description": "ATS/RTS stage: trigger type (0=MET,1=UTC,2=event-delay)",
+            "apid": 30
+        },
+        "ATS_SET_TIME_HI16": {
+            "target_id": 46,
+            "opcode": 5,
+            "op_class": "HOUSEKEEPING",
+            "description": "ATS/RTS stage: time word hi16",
+            "apid": 30
+        },
+        "ATS_SET_TIME_LO16": {
+            "target_id": 46,
+            "opcode": 6,
+            "op_class": "HOUSEKEEPING",
+            "description": "ATS/RTS stage: time word lo16",
+            "apid": 30
+        },
+        "ATS_SET_EVENT_SOURCE": {
+            "target_id": 46,
+            "opcode": 7,
+            "op_class": "HOUSEKEEPING",
+            "description": "ATS/RTS stage: event source component ID",
+            "apid": 30
+        },
+        "ATS_COMMIT_ENTRY": {
+            "target_id": 46,
+            "opcode": 8,
+            "op_class": "HOUSEKEEPING",
+            "description": "ATS/RTS: commit staged entry",
+            "apid": 30
+        },
+        "ATS_ARM": {
+            "target_id": 46,
+            "opcode": 9,
+            "op_class": "HOUSEKEEPING",
+            "description": "ATS/RTS: arm execution",
+            "apid": 30
+        },
+        "ATS_DISARM": {
+            "target_id": 46,
+            "opcode": 10,
+            "op_class": "HOUSEKEEPING",
+            "description": "ATS/RTS: disarm execution",
+            "apid": 30
+        },
+        "ATS_CLEAR": {
+            "target_id": 46,
+            "opcode": 11,
+            "op_class": "HOUSEKEEPING",
+            "description": "ATS/RTS: clear all entries",
+            "apid": 30
+        },
+        "LIM_SET_TARGET": {
+            "target_id": 47,
+            "opcode": 1,
+            "op_class": "HOUSEKEEPING",
+            "description": "Limit checker stage: target component ID",
+            "apid": 30
+        },
+        "LIM_SET_WARN_LOW": {
+            "target_id": 47,
+            "opcode": 2,
+            "op_class": "HOUSEKEEPING",
+            "description": "Limit checker stage: warning low threshold",
+            "apid": 30
+        },
+        "LIM_SET_WARN_HIGH": {
+            "target_id": 47,
+            "opcode": 3,
+            "op_class": "HOUSEKEEPING",
+            "description": "Limit checker stage: warning high threshold",
+            "apid": 30
+        },
+        "LIM_SET_CRIT_LOW": {
+            "target_id": 47,
+            "opcode": 4,
+            "op_class": "HOUSEKEEPING",
+            "description": "Limit checker stage: critical low threshold",
+            "apid": 30
+        },
+        "LIM_SET_CRIT_HIGH": {
+            "target_id": 47,
+            "opcode": 5,
+            "op_class": "HOUSEKEEPING",
+            "description": "Limit checker stage: critical high threshold",
+            "apid": 30
+        },
+        "LIM_APPLY": {
+            "target_id": 47,
+            "opcode": 6,
+            "op_class": "HOUSEKEEPING",
+            "description": "Limit checker: apply staged thresholds",
+            "apid": 30
+        },
+        "LIM_CLEAR_TARGET": {
+            "target_id": 47,
+            "opcode": 7,
+            "op_class": "HOUSEKEEPING",
+            "description": "Limit checker: clear staged target thresholds",
+            "apid": 30
+        },
+        "LIM_ENABLE": {
+            "target_id": 47,
+            "opcode": 8,
+            "op_class": "HOUSEKEEPING",
+            "description": "Limit checker: enable evaluation",
+            "apid": 30
+        },
+        "LIM_DISABLE": {
+            "target_id": 47,
+            "opcode": 9,
+            "op_class": "HOUSEKEEPING",
+            "description": "Limit checker: disable evaluation",
+            "apid": 30
+        },
+        "CFDP_BEGIN_SESSION": {
+            "target_id": 48,
+            "opcode": 1,
+            "op_class": "HOUSEKEEPING",
+            "description": "CFDP: begin session with expected chunk count",
+            "apid": 30
+        },
+        "CFDP_SET_CHUNK_INDEX": {
+            "target_id": 48,
+            "opcode": 2,
+            "op_class": "HOUSEKEEPING",
+            "description": "CFDP: stage chunk index",
+            "apid": 30
+        },
+        "CFDP_PUSH_TEST_BYTE": {
+            "target_id": 48,
+            "opcode": 3,
+            "op_class": "HOUSEKEEPING",
+            "description": "CFDP: append one staged test byte",
+            "apid": 30
+        },
+        "CFDP_COMMIT_CHUNK": {
+            "target_id": 48,
+            "opcode": 4,
+            "op_class": "HOUSEKEEPING",
+            "description": "CFDP: commit staged chunk data",
+            "apid": 30
+        },
+        "CFDP_REPORT_MISSING_COUNT": {
+            "target_id": 48,
+            "opcode": 5,
+            "op_class": "HOUSEKEEPING",
+            "description": "CFDP: report number of missing chunks",
+            "apid": 30
+        },
+        "CFDP_REPORT_NEXT_MISSING": {
+            "target_id": 48,
+            "opcode": 6,
+            "op_class": "HOUSEKEEPING",
+            "description": "CFDP: report next missing chunk index",
+            "apid": 30
+        },
+        "CFDP_COMPLETE_SESSION": {
+            "target_id": 48,
+            "opcode": 7,
+            "op_class": "HOUSEKEEPING",
+            "description": "CFDP: mark session complete",
+            "apid": 30
+        },
+        "CFDP_RESET_SESSION": {
+            "target_id": 48,
+            "opcode": 8,
+            "op_class": "HOUSEKEEPING",
+            "description": "CFDP: reset session state",
+            "apid": 30
+        },
+        "MODE_STAGE_TARGET": {
+            "target_id": 49,
+            "opcode": 1,
+            "op_class": "HOUSEKEEPING",
+            "description": "Mode manager stage: target component ID",
+            "apid": 30
+        },
+        "MODE_STAGE_ENABLE_OPCODE": {
+            "target_id": 49,
+            "opcode": 2,
+            "op_class": "HOUSEKEEPING",
+            "description": "Mode manager stage: enable opcode",
+            "apid": 30
+        },
+        "MODE_STAGE_ENABLE_ARG": {
+            "target_id": 49,
+            "opcode": 3,
+            "op_class": "HOUSEKEEPING",
+            "description": "Mode manager stage: enable argument",
+            "apid": 30
+        },
+        "MODE_STAGE_DISABLE_OPCODE": {
+            "target_id": 49,
+            "opcode": 4,
+            "op_class": "HOUSEKEEPING",
+            "description": "Mode manager stage: disable opcode",
+            "apid": 30
+        },
+        "MODE_STAGE_DISABLE_ARG": {
+            "target_id": 49,
+            "opcode": 5,
+            "op_class": "HOUSEKEEPING",
+            "description": "Mode manager stage: disable argument",
+            "apid": 30
+        },
+        "MODE_STAGE_MASK": {
+            "target_id": 49,
+            "opcode": 6,
+            "op_class": "HOUSEKEEPING",
+            "description": "Mode manager stage: mode mask bitfield",
+            "apid": 30
+        },
+        "MODE_COMMIT_RULE": {
+            "target_id": 49,
+            "opcode": 7,
+            "op_class": "HOUSEKEEPING",
+            "description": "Mode manager: commit staged rule",
+            "apid": 30
+        },
+        "MODE_CLEAR_RULES": {
+            "target_id": 49,
+            "opcode": 8,
+            "op_class": "HOUSEKEEPING",
+            "description": "Mode manager: clear all rules",
+            "apid": 30
+        },
+        "MODE_SET_MODE": {
+            "target_id": 49,
+            "opcode": 9,
+            "op_class": "HOUSEKEEPING",
+            "description": "Mode manager: set mode (1=DETUMBLE,2=SUN,3=SCIENCE,4=DOWNLINK)",
+            "apid": 30
+        },
+        "MODE_APPLY": {
+            "target_id": 49,
+            "opcode": 10,
+            "op_class": "HOUSEKEEPING",
+            "description": "Mode manager: apply current mode to all rules",
+            "apid": 30
+        },
+        "MODE_REPORT_STATUS": {
+            "target_id": 49,
+            "opcode": 11,
+            "op_class": "HOUSEKEEPING",
+            "description": "Mode manager: publish transition and dispatch counters",
             "apid": 30
         }
     },

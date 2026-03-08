@@ -15,6 +15,7 @@ compile_commands.json
 # Runtime data / local state
 mission_params.db
 *.csv
+!ports/esp32/partitions_golden.csv
 *.log
 
 # Coverage and profiling outputs

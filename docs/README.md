@@ -20,6 +20,8 @@ This map keeps onboarding simple for first-time users and CubeSat teams.
 
 - `docs/CUBESAT_TEAM_READINESS.md`: mission-team readiness checklist
 - `docs/CUBESAT_READINESS_STATUS_SCOPE.md`: current scoped readiness snapshot
+- Scoped readiness runs record excluded checks as `WAIVED` with explicit `--exclude-check` rationale in the evidence column
+- `docs/ESP32_GOLDEN_IMAGE_BOOTCHAIN.md`: OTA rollback + golden-image partition workflow
 - `docs/MISSION_ASSURANCE_CHECKLIST.md`: review/acceptance checklist
 - `docs/process/OPERATIONS_RUNBOOK.md`: operations runbook starter
 
@@ -36,7 +38,7 @@ This map keeps onboarding simple for first-time users and CubeSat teams.
 - `docs/SOFTWARE_FINAL_STATUS.md`: software closeout status
 - `docs/qualification_report.md`: qualification bundle summary
 - `docs/REQUIREMENTS_TRACE_MATRIX.md`: generated RTM snapshot
-- `docs/RELEASE_NOTES_20260307.md`: release notes snapshot
+- `docs/RELEASE_NOTES_20260308.md`: release notes snapshot
 - `docs/process/`: process records and release signoff templates
 - `docs/evidence/`: test/validation evidence records
 

@@ -80,6 +80,77 @@ components:
     type: "Passive"
     rate_group: "norm"
 
+  # ── Civilian Operations Apps ───────────────────────────────────────────────
+  - id: 40
+    name: "CmdSequencer"
+    class: "CommandSequencerComponent"
+    instance: "cmd_sequencer"
+    type: "Passive"
+    rate_group: "norm"
+
+  - id: 41
+    name: "FileTransfer"
+    class: "FileTransferComponent"
+    instance: "file_transfer"
+    type: "Passive"
+    rate_group: "norm"
+
+  - id: 42
+    name: "MemoryDwell"
+    class: "MemoryDwellComponent"
+    instance: "memory_dwell"
+    type: "Passive"
+    rate_group: "norm"
+
+  - id: 43
+    name: "TimeSync"
+    class: "TimeSyncComponent"
+    instance: "time_sync"
+    type: "Passive"
+    rate_group: "norm"
+
+  - id: 44
+    name: "Playback"
+    class: "PlaybackComponent"
+    instance: "playback"
+    type: "Passive"
+    rate_group: "norm"
+
+  - id: 45
+    name: "OtaManager"
+    class: "OtaComponent"
+    instance: "ota_manager"
+    type: "Passive"
+    rate_group: "norm"
+
+  - id: 46
+    name: "AtsRtsSequencer"
+    class: "AtsRtsSequencerComponent"
+    instance: "ats_rts"
+    type: "Passive"
+    rate_group: "norm"
+
+  - id: 47
+    name: "LimitChecker"
+    class: "LimitCheckerComponent"
+    instance: "limit_checker"
+    type: "Passive"
+    rate_group: "norm"
+
+  - id: 48
+    name: "CfdpManager"
+    class: "CfdpComponent"
+    instance: "cfdp_manager"
+    type: "Passive"
+    rate_group: "norm"
+
+  - id: 49
+    name: "ModeManager"
+    class: "ModeManagerComponent"
+    instance: "mode_manager"
+    type: "Passive"
+    rate_group: "norm"
+
   # ── Application Components — add your own below this line ──────────────────
   - id: 100
     name: "StarTracker"
@@ -136,6 +207,472 @@ commands:
     op_class: "OPERATIONAL"
     description: "Triggers IMU self-calibration sequence. arg: unused (0.0)"
 
+  # ── Sequencer controls (target_id 40) ──────────────────────────────────────
+  - name: "SEQ_SET_TARGET"
+    target_id: 40
+    opcode: 1
+    op_class: "HOUSEKEEPING"
+    description: "Sequencer stage: set target component ID"
+
+  - name: "SEQ_SET_OPCODE"
+    target_id: 40
+    opcode: 2
+    op_class: "HOUSEKEEPING"
+    description: "Sequencer stage: set opcode"
+
+  - name: "SEQ_SET_ARGUMENT"
+    target_id: 40
+    opcode: 3
+    op_class: "HOUSEKEEPING"
+    description: "Sequencer stage: set argument"
+
+  - name: "SEQ_COMMIT_DELAY"
+    target_id: 40
+    opcode: 4
+    op_class: "HOUSEKEEPING"
+    description: "Sequencer commit: schedule staged command after arg seconds"
+
+  - name: "SEQ_CLEAR_QUEUE"
+    target_id: 40
+    opcode: 5
+    op_class: "HOUSEKEEPING"
+    description: "Sequencer: clear queued commands"
+
+  # ── File transfer controls (target_id 41) ─────────────────────────────────
+  - name: "FILE_BEGIN_SESSION"
+    target_id: 41
+    opcode: 1
+    op_class: "HOUSEKEEPING"
+    description: "File transfer: begin session with expected bytes (arg)"
+
+  - name: "FILE_PUSH_TEST_BYTE"
+    target_id: 41
+    opcode: 2
+    op_class: "HOUSEKEEPING"
+    description: "File transfer: push one test byte from arg"
+
+  - name: "FILE_FINALIZE_SESSION"
+    target_id: 41
+    opcode: 3
+    op_class: "HOUSEKEEPING"
+    description: "File transfer: finalize session"
+
+  - name: "FILE_RESET_SESSION"
+    target_id: 41
+    opcode: 4
+    op_class: "HOUSEKEEPING"
+    description: "File transfer: reset session state"
+
+  # ── Dwell controls (target_id 42) ─────────────────────────────────────────
+  - name: "DWELL_SELECT_CHANNEL"
+    target_id: 42
+    opcode: 1
+    op_class: "HOUSEKEEPING"
+    description: "Dwell: select diagnostic channel"
+
+  - name: "DWELL_SET_PERIOD"
+    target_id: 42
+    opcode: 2
+    op_class: "HOUSEKEEPING"
+    description: "Dwell: set period seconds"
+
+  - name: "DWELL_SAMPLE_NOW"
+    target_id: 42
+    opcode: 3
+    op_class: "HOUSEKEEPING"
+    description: "Dwell: force immediate sample"
+
+  - name: "DWELL_SET_ADDR_HI16"
+    target_id: 42
+    opcode: 10
+    op_class: "HOUSEKEEPING"
+    description: "Dwell/Patch: set address upper 16 bits"
+
+  - name: "DWELL_SET_ADDR_LO16"
+    target_id: 42
+    opcode: 11
+    op_class: "HOUSEKEEPING"
+    description: "Dwell/Patch: set address lower 16 bits"
+
+  - name: "DWELL_READ_ADDRESS"
+    target_id: 42
+    opcode: 12
+    op_class: "HOUSEKEEPING"
+    description: "Dwell: read staged address word"
+
+  - name: "DWELL_SET_VALUE_HI16"
+    target_id: 42
+    opcode: 13
+    op_class: "HOUSEKEEPING"
+    description: "Patch: set value upper 16 bits"
+
+  - name: "DWELL_SET_VALUE_LO16"
+    target_id: 42
+    opcode: 14
+    op_class: "HOUSEKEEPING"
+    description: "Patch: set value lower 16 bits"
+
+  - name: "DWELL_PATCH_ADDRESS"
+    target_id: 42
+    opcode: 15
+    op_class: "HOUSEKEEPING"
+    description: "Patch: write staged value to staged address"
+
+  # ── Time synchronization controls (target_id 43) ─────────────────────────
+  - name: "TIME_SET_UTC_HI16"
+    target_id: 43
+    opcode: 1
+    op_class: "HOUSEKEEPING"
+    description: "Time sync: set UTC word 0 (hi16)"
+
+  - name: "TIME_SET_UTC_MIDHI16"
+    target_id: 43
+    opcode: 2
+    op_class: "HOUSEKEEPING"
+    description: "Time sync: set UTC word 1"
+
+  - name: "TIME_SET_UTC_MIDLO16"
+    target_id: 43
+    opcode: 3
+    op_class: "HOUSEKEEPING"
+    description: "Time sync: set UTC word 2"
+
+  - name: "TIME_SET_UTC_LO16"
+    target_id: 43
+    opcode: 4
+    op_class: "HOUSEKEEPING"
+    description: "Time sync: set UTC word 3 (lo16)"
+
+  - name: "TIME_APPLY_SYNC"
+    target_id: 43
+    opcode: 5
+    op_class: "HOUSEKEEPING"
+    description: "Time sync: apply staged UTC words"
+
+  - name: "TIME_PUBLISH_STATUS"
+    target_id: 43
+    opcode: 6
+    op_class: "HOUSEKEEPING"
+    description: "Time sync: publish sync status"
+
+  # ── Store-and-forward playback controls (target_id 44) ───────────────────
+  - name: "PLAYBACK_LOAD_LOG"
+    target_id: 44
+    opcode: 1
+    op_class: "HOUSEKEEPING"
+    description: "Playback: load historical telemetry log"
+
+  - name: "PLAYBACK_START"
+    target_id: 44
+    opcode: 2
+    op_class: "HOUSEKEEPING"
+    description: "Playback: start continuous replay"
+
+  - name: "PLAYBACK_STOP"
+    target_id: 44
+    opcode: 3
+    op_class: "HOUSEKEEPING"
+    description: "Playback: stop replay"
+
+  - name: "PLAYBACK_REWIND"
+    target_id: 44
+    opcode: 4
+    op_class: "HOUSEKEEPING"
+    description: "Playback: rewind replay cursor"
+
+  - name: "PLAYBACK_STEP_ONCE"
+    target_id: 44
+    opcode: 5
+    op_class: "HOUSEKEEPING"
+    description: "Playback: send one historical sample"
+
+  - name: "PLAYBACK_SET_RATE_HZ"
+    target_id: 44
+    opcode: 6
+    op_class: "HOUSEKEEPING"
+    description: "Playback: set replay output rate in Hz"
+
+  # ── OTA session controls (target_id 45) ───────────────────────────────────
+  - name: "OTA_BEGIN_SESSION"
+    target_id: 45
+    opcode: 1
+    op_class: "HOUSEKEEPING"
+    description: "OTA: begin session with expected byte count"
+
+  - name: "OTA_PUSH_TEST_BYTE"
+    target_id: 45
+    opcode: 2
+    op_class: "HOUSEKEEPING"
+    description: "OTA: append one test byte"
+
+  - name: "OTA_SET_CRC_HI16"
+    target_id: 45
+    opcode: 3
+    op_class: "HOUSEKEEPING"
+    description: "OTA: set expected CRC upper 16 bits"
+
+  - name: "OTA_SET_CRC_LO16"
+    target_id: 45
+    opcode: 4
+    op_class: "HOUSEKEEPING"
+    description: "OTA: set expected CRC lower 16 bits"
+
+  - name: "OTA_VERIFY_IMAGE"
+    target_id: 45
+    opcode: 5
+    op_class: "HOUSEKEEPING"
+    description: "OTA: verify received image CRC"
+
+  - name: "OTA_STAGE_ACTIVATE"
+    target_id: 45
+    opcode: 6
+    op_class: "HOUSEKEEPING"
+    description: "OTA: stage update and request reboot"
+
+  - name: "OTA_RESET_SESSION"
+    target_id: 45
+    opcode: 7
+    op_class: "HOUSEKEEPING"
+    description: "OTA: reset session state"
+
+  # ── ATS/RTS sequence controls (target_id 46) ─────────────────────────────
+  - name: "ATS_SET_TARGET"
+    target_id: 46
+    opcode: 1
+    op_class: "HOUSEKEEPING"
+    description: "ATS/RTS stage: set target component ID"
+
+  - name: "ATS_SET_OPCODE"
+    target_id: 46
+    opcode: 2
+    op_class: "HOUSEKEEPING"
+    description: "ATS/RTS stage: set opcode"
+
+  - name: "ATS_SET_ARGUMENT"
+    target_id: 46
+    opcode: 3
+    op_class: "HOUSEKEEPING"
+    description: "ATS/RTS stage: set command argument"
+
+  - name: "ATS_SET_TRIGGER_TYPE"
+    target_id: 46
+    opcode: 4
+    op_class: "HOUSEKEEPING"
+    description: "ATS/RTS stage: trigger type (0=MET,1=UTC,2=event-delay)"
+
+  - name: "ATS_SET_TIME_HI16"
+    target_id: 46
+    opcode: 5
+    op_class: "HOUSEKEEPING"
+    description: "ATS/RTS stage: time word hi16"
+
+  - name: "ATS_SET_TIME_LO16"
+    target_id: 46
+    opcode: 6
+    op_class: "HOUSEKEEPING"
+    description: "ATS/RTS stage: time word lo16"
+
+  - name: "ATS_SET_EVENT_SOURCE"
+    target_id: 46
+    opcode: 7
+    op_class: "HOUSEKEEPING"
+    description: "ATS/RTS stage: event source component ID"
+
+  - name: "ATS_COMMIT_ENTRY"
+    target_id: 46
+    opcode: 8
+    op_class: "HOUSEKEEPING"
+    description: "ATS/RTS: commit staged entry"
+
+  - name: "ATS_ARM"
+    target_id: 46
+    opcode: 9
+    op_class: "HOUSEKEEPING"
+    description: "ATS/RTS: arm execution"
+
+  - name: "ATS_DISARM"
+    target_id: 46
+    opcode: 10
+    op_class: "HOUSEKEEPING"
+    description: "ATS/RTS: disarm execution"
+
+  - name: "ATS_CLEAR"
+    target_id: 46
+    opcode: 11
+    op_class: "HOUSEKEEPING"
+    description: "ATS/RTS: clear all entries"
+
+  # ── Dynamic limit checking controls (target_id 47) ───────────────────────
+  - name: "LIM_SET_TARGET"
+    target_id: 47
+    opcode: 1
+    op_class: "HOUSEKEEPING"
+    description: "Limit checker stage: target component ID"
+
+  - name: "LIM_SET_WARN_LOW"
+    target_id: 47
+    opcode: 2
+    op_class: "HOUSEKEEPING"
+    description: "Limit checker stage: warning low threshold"
+
+  - name: "LIM_SET_WARN_HIGH"
+    target_id: 47
+    opcode: 3
+    op_class: "HOUSEKEEPING"
+    description: "Limit checker stage: warning high threshold"
+
+  - name: "LIM_SET_CRIT_LOW"
+    target_id: 47
+    opcode: 4
+    op_class: "HOUSEKEEPING"
+    description: "Limit checker stage: critical low threshold"
+
+  - name: "LIM_SET_CRIT_HIGH"
+    target_id: 47
+    opcode: 5
+    op_class: "HOUSEKEEPING"
+    description: "Limit checker stage: critical high threshold"
+
+  - name: "LIM_APPLY"
+    target_id: 47
+    opcode: 6
+    op_class: "HOUSEKEEPING"
+    description: "Limit checker: apply staged thresholds"
+
+  - name: "LIM_CLEAR_TARGET"
+    target_id: 47
+    opcode: 7
+    op_class: "HOUSEKEEPING"
+    description: "Limit checker: clear staged target thresholds"
+
+  - name: "LIM_ENABLE"
+    target_id: 47
+    opcode: 8
+    op_class: "HOUSEKEEPING"
+    description: "Limit checker: enable evaluation"
+
+  - name: "LIM_DISABLE"
+    target_id: 47
+    opcode: 9
+    op_class: "HOUSEKEEPING"
+    description: "Limit checker: disable evaluation"
+
+  # ── CFDP-style file reliability controls (target_id 48) ──────────────────
+  - name: "CFDP_BEGIN_SESSION"
+    target_id: 48
+    opcode: 1
+    op_class: "HOUSEKEEPING"
+    description: "CFDP: begin session with expected chunk count"
+
+  - name: "CFDP_SET_CHUNK_INDEX"
+    target_id: 48
+    opcode: 2
+    op_class: "HOUSEKEEPING"
+    description: "CFDP: stage chunk index"
+
+  - name: "CFDP_PUSH_TEST_BYTE"
+    target_id: 48
+    opcode: 3
+    op_class: "HOUSEKEEPING"
+    description: "CFDP: append one staged test byte"
+
+  - name: "CFDP_COMMIT_CHUNK"
+    target_id: 48
+    opcode: 4
+    op_class: "HOUSEKEEPING"
+    description: "CFDP: commit staged chunk data"
+
+  - name: "CFDP_REPORT_MISSING_COUNT"
+    target_id: 48
+    opcode: 5
+    op_class: "HOUSEKEEPING"
+    description: "CFDP: report number of missing chunks"
+
+  - name: "CFDP_REPORT_NEXT_MISSING"
+    target_id: 48
+    opcode: 6
+    op_class: "HOUSEKEEPING"
+    description: "CFDP: report next missing chunk index"
+
+  - name: "CFDP_COMPLETE_SESSION"
+    target_id: 48
+    opcode: 7
+    op_class: "HOUSEKEEPING"
+    description: "CFDP: mark session complete"
+
+  - name: "CFDP_RESET_SESSION"
+    target_id: 48
+    opcode: 8
+    op_class: "HOUSEKEEPING"
+    description: "CFDP: reset session state"
+
+  # ── Operational mode manager controls (target_id 49) ─────────────────────
+  - name: "MODE_STAGE_TARGET"
+    target_id: 49
+    opcode: 1
+    op_class: "HOUSEKEEPING"
+    description: "Mode manager stage: target component ID"
+
+  - name: "MODE_STAGE_ENABLE_OPCODE"
+    target_id: 49
+    opcode: 2
+    op_class: "HOUSEKEEPING"
+    description: "Mode manager stage: enable opcode"
+
+  - name: "MODE_STAGE_ENABLE_ARG"
+    target_id: 49
+    opcode: 3
+    op_class: "HOUSEKEEPING"
+    description: "Mode manager stage: enable argument"
+
+  - name: "MODE_STAGE_DISABLE_OPCODE"
+    target_id: 49
+    opcode: 4
+    op_class: "HOUSEKEEPING"
+    description: "Mode manager stage: disable opcode"
+
+  - name: "MODE_STAGE_DISABLE_ARG"
+    target_id: 49
+    opcode: 5
+    op_class: "HOUSEKEEPING"
+    description: "Mode manager stage: disable argument"
+
+  - name: "MODE_STAGE_MASK"
+    target_id: 49
+    opcode: 6
+    op_class: "HOUSEKEEPING"
+    description: "Mode manager stage: mode mask bitfield"
+
+  - name: "MODE_COMMIT_RULE"
+    target_id: 49
+    opcode: 7
+    op_class: "HOUSEKEEPING"
+    description: "Mode manager: commit staged rule"
+
+  - name: "MODE_CLEAR_RULES"
+    target_id: 49
+    opcode: 8
+    op_class: "HOUSEKEEPING"
+    description: "Mode manager: clear all rules"
+
+  - name: "MODE_SET_MODE"
+    target_id: 49
+    opcode: 9
+    op_class: "HOUSEKEEPING"
+    description: "Mode manager: set mode (1=DETUMBLE,2=SUN,3=SCIENCE,4=DOWNLINK)"
+
+  - name: "MODE_APPLY"
+    target_id: 49
+    opcode: 10
+    op_class: "HOUSEKEEPING"
+    description: "Mode manager: apply current mode to all rules"
+
+  - name: "MODE_REPORT_STATUS"
+    target_id: 49
+    opcode: 11
+    op_class: "HOUSEKEEPING"
+    description: "Mode manager: publish transition and dispatch counters"
+
 # ---------------------------------------------------------------------------
 # Mission-critical parameters
 #
@@ -178,4 +715,19 @@ params:
 custom_wiring:
   - "battery.battery_out_internal.connect(&watchdog.battery_level_in);"
   - "cmd_hub.setMissionStateSource(&watchdog);"
+  - "cmd_hub.registerHousekeepingTarget(cmd_sequencer.getId());"
+  - "cmd_hub.registerHousekeepingTarget(file_transfer.getId());"
+  - "cmd_hub.registerHousekeepingTarget(memory_dwell.getId());"
+  - "cmd_hub.registerHousekeepingTarget(time_sync.getId());"
+  - "cmd_hub.registerHousekeepingTarget(playback.getId());"
+  - "cmd_hub.registerHousekeepingTarget(ota_manager.getId());"
+  - "cmd_hub.registerHousekeepingTarget(ats_rts.getId());"
+  - "cmd_hub.registerHousekeepingTarget(limit_checker.getId());"
+  - "cmd_hub.registerHousekeepingTarget(cfdp_manager.getId());"
+  - "cmd_hub.registerHousekeepingTarget(mode_manager.getId());"
   - "watchdog.setBatteryThresholdSources(&tmr_emergency_battery_pct, &tmr_safe_mode_battery_pct, &tmr_degraded_battery_pct);"
+  - "cmd_sequencer.command_out.connect(&cmd_hub.cmd_input);"
+  - "ats_rts.command_out.connect(&cmd_hub.cmd_input);"
+  - "mode_manager.command_out.connect(&cmd_hub.cmd_input);"
+  - "event_hub.registerListener(&ats_rts.event_in);"
+  - "telem_hub.registerListener(&limit_checker.telem_in);"

@@ -8,6 +8,7 @@ Run from the project root directory.
 Commands:
   boot-menu
   guide
+  install-standard-apps
   quickstart-component <Name> [options]
   add-component <Name> [--active] [--rate fast|norm|slow] [--profile ...]
   add-command   <NAME> --target-id N --opcode N [--op-class ...] [--description ...]
@@ -17,6 +18,7 @@ Commands:
 Examples:
   python3 tools/dv-util.py boot-menu
   python3 tools/dv-util.py guide
+  python3 tools/dv-util.py install-standard-apps
   python3 tools/dv-util.py quickstart-component ThermalControl --build
   python3 tools/dv-util.py add-component ThermalControl --profile controller
   python3 tools/dv-util.py add-component AttitudeController --active --rate fast
@@ -56,6 +58,168 @@ PROFILE_NOTES = {
     "controller": "// Profile hint: consume sensor feeds, run control law, and command actuators deterministically.",
     "utility": "// Profile hint: implement utility logic (logging, health checks, housekeeping, etc.).",
 }
+
+STANDARD_COMPONENTS = [
+    {
+        "id": 40,
+        "name": "CmdSequencer",
+        "class": "CommandSequencerComponent",
+        "instance": "cmd_sequencer",
+        "type": "Passive",
+        "rate_group": "norm",
+    },
+    {
+        "id": 41,
+        "name": "FileTransfer",
+        "class": "FileTransferComponent",
+        "instance": "file_transfer",
+        "type": "Passive",
+        "rate_group": "norm",
+    },
+    {
+        "id": 42,
+        "name": "MemoryDwell",
+        "class": "MemoryDwellComponent",
+        "instance": "memory_dwell",
+        "type": "Passive",
+        "rate_group": "norm",
+    },
+    {
+        "id": 43,
+        "name": "TimeSync",
+        "class": "TimeSyncComponent",
+        "instance": "time_sync",
+        "type": "Passive",
+        "rate_group": "norm",
+    },
+    {
+        "id": 44,
+        "name": "Playback",
+        "class": "PlaybackComponent",
+        "instance": "playback",
+        "type": "Passive",
+        "rate_group": "norm",
+    },
+    {
+        "id": 45,
+        "name": "OtaManager",
+        "class": "OtaComponent",
+        "instance": "ota_manager",
+        "type": "Passive",
+        "rate_group": "norm",
+    },
+    {
+        "id": 46,
+        "name": "AtsRtsSequencer",
+        "class": "AtsRtsSequencerComponent",
+        "instance": "ats_rts",
+        "type": "Passive",
+        "rate_group": "norm",
+    },
+    {
+        "id": 47,
+        "name": "LimitChecker",
+        "class": "LimitCheckerComponent",
+        "instance": "limit_checker",
+        "type": "Passive",
+        "rate_group": "norm",
+    },
+    {
+        "id": 48,
+        "name": "CfdpManager",
+        "class": "CfdpComponent",
+        "instance": "cfdp_manager",
+        "type": "Passive",
+        "rate_group": "norm",
+    },
+    {
+        "id": 49,
+        "name": "ModeManager",
+        "class": "ModeManagerComponent",
+        "instance": "mode_manager",
+        "type": "Passive",
+        "rate_group": "norm",
+    },
+]
+
+STANDARD_COMMANDS = [
+    ("SEQ_SET_TARGET", 40, 1, "HOUSEKEEPING", "Sequencer stage: set target component ID"),
+    ("SEQ_SET_OPCODE", 40, 2, "HOUSEKEEPING", "Sequencer stage: set opcode"),
+    ("SEQ_SET_ARGUMENT", 40, 3, "HOUSEKEEPING", "Sequencer stage: set argument"),
+    ("SEQ_COMMIT_DELAY", 40, 4, "HOUSEKEEPING", "Sequencer commit: schedule staged command after arg seconds"),
+    ("SEQ_CLEAR_QUEUE", 40, 5, "HOUSEKEEPING", "Sequencer: clear queued commands"),
+    ("FILE_BEGIN_SESSION", 41, 1, "HOUSEKEEPING", "File transfer: begin session with expected bytes (arg)"),
+    ("FILE_PUSH_TEST_BYTE", 41, 2, "HOUSEKEEPING", "File transfer: push one test byte from arg"),
+    ("FILE_FINALIZE_SESSION", 41, 3, "HOUSEKEEPING", "File transfer: finalize session"),
+    ("FILE_RESET_SESSION", 41, 4, "HOUSEKEEPING", "File transfer: reset session state"),
+    ("DWELL_SELECT_CHANNEL", 42, 1, "HOUSEKEEPING", "Dwell: select diagnostic channel"),
+    ("DWELL_SET_PERIOD", 42, 2, "HOUSEKEEPING", "Dwell: set period seconds"),
+    ("DWELL_SAMPLE_NOW", 42, 3, "HOUSEKEEPING", "Dwell: force immediate sample"),
+    ("DWELL_SET_ADDR_HI16", 42, 10, "HOUSEKEEPING", "Dwell/Patch: set address upper 16 bits"),
+    ("DWELL_SET_ADDR_LO16", 42, 11, "HOUSEKEEPING", "Dwell/Patch: set address lower 16 bits"),
+    ("DWELL_READ_ADDRESS", 42, 12, "HOUSEKEEPING", "Dwell: read staged address word"),
+    ("DWELL_SET_VALUE_HI16", 42, 13, "HOUSEKEEPING", "Patch: set value upper 16 bits"),
+    ("DWELL_SET_VALUE_LO16", 42, 14, "HOUSEKEEPING", "Patch: set value lower 16 bits"),
+    ("DWELL_PATCH_ADDRESS", 42, 15, "HOUSEKEEPING", "Patch: write staged value to staged address"),
+    ("TIME_SET_UTC_HI16", 43, 1, "HOUSEKEEPING", "Time sync: set UTC word 0 (hi16)"),
+    ("TIME_SET_UTC_MIDHI16", 43, 2, "HOUSEKEEPING", "Time sync: set UTC word 1"),
+    ("TIME_SET_UTC_MIDLO16", 43, 3, "HOUSEKEEPING", "Time sync: set UTC word 2"),
+    ("TIME_SET_UTC_LO16", 43, 4, "HOUSEKEEPING", "Time sync: set UTC word 3 (lo16)"),
+    ("TIME_APPLY_SYNC", 43, 5, "HOUSEKEEPING", "Time sync: apply staged UTC words"),
+    ("TIME_PUBLISH_STATUS", 43, 6, "HOUSEKEEPING", "Time sync: publish sync status"),
+    ("PLAYBACK_LOAD_LOG", 44, 1, "HOUSEKEEPING", "Playback: load historical telemetry log"),
+    ("PLAYBACK_START", 44, 2, "HOUSEKEEPING", "Playback: start continuous replay"),
+    ("PLAYBACK_STOP", 44, 3, "HOUSEKEEPING", "Playback: stop replay"),
+    ("PLAYBACK_REWIND", 44, 4, "HOUSEKEEPING", "Playback: rewind replay cursor"),
+    ("PLAYBACK_STEP_ONCE", 44, 5, "HOUSEKEEPING", "Playback: send one historical sample"),
+    ("PLAYBACK_SET_RATE_HZ", 44, 6, "HOUSEKEEPING", "Playback: set replay output rate in Hz"),
+    ("OTA_BEGIN_SESSION", 45, 1, "HOUSEKEEPING", "OTA: begin session with expected byte count"),
+    ("OTA_PUSH_TEST_BYTE", 45, 2, "HOUSEKEEPING", "OTA: append one test byte"),
+    ("OTA_SET_CRC_HI16", 45, 3, "HOUSEKEEPING", "OTA: set expected CRC upper 16 bits"),
+    ("OTA_SET_CRC_LO16", 45, 4, "HOUSEKEEPING", "OTA: set expected CRC lower 16 bits"),
+    ("OTA_VERIFY_IMAGE", 45, 5, "HOUSEKEEPING", "OTA: verify received image CRC"),
+    ("OTA_STAGE_ACTIVATE", 45, 6, "HOUSEKEEPING", "OTA: stage update and request reboot"),
+    ("OTA_RESET_SESSION", 45, 7, "HOUSEKEEPING", "OTA: reset session state"),
+    ("ATS_SET_TARGET", 46, 1, "HOUSEKEEPING", "ATS/RTS stage: set target component ID"),
+    ("ATS_SET_OPCODE", 46, 2, "HOUSEKEEPING", "ATS/RTS stage: set opcode"),
+    ("ATS_SET_ARGUMENT", 46, 3, "HOUSEKEEPING", "ATS/RTS stage: set command argument"),
+    ("ATS_SET_TRIGGER_TYPE", 46, 4, "HOUSEKEEPING", "ATS/RTS stage: trigger type (0=MET,1=UTC,2=event-delay)"),
+    ("ATS_SET_TIME_HI16", 46, 5, "HOUSEKEEPING", "ATS/RTS stage: time word hi16"),
+    ("ATS_SET_TIME_LO16", 46, 6, "HOUSEKEEPING", "ATS/RTS stage: time word lo16"),
+    ("ATS_SET_EVENT_SOURCE", 46, 7, "HOUSEKEEPING", "ATS/RTS stage: event source component ID"),
+    ("ATS_COMMIT_ENTRY", 46, 8, "HOUSEKEEPING", "ATS/RTS: commit staged entry"),
+    ("ATS_ARM", 46, 9, "HOUSEKEEPING", "ATS/RTS: arm execution"),
+    ("ATS_DISARM", 46, 10, "HOUSEKEEPING", "ATS/RTS: disarm execution"),
+    ("ATS_CLEAR", 46, 11, "HOUSEKEEPING", "ATS/RTS: clear all entries"),
+    ("LIM_SET_TARGET", 47, 1, "HOUSEKEEPING", "Limit checker stage: target component ID"),
+    ("LIM_SET_WARN_LOW", 47, 2, "HOUSEKEEPING", "Limit checker stage: warning low threshold"),
+    ("LIM_SET_WARN_HIGH", 47, 3, "HOUSEKEEPING", "Limit checker stage: warning high threshold"),
+    ("LIM_SET_CRIT_LOW", 47, 4, "HOUSEKEEPING", "Limit checker stage: critical low threshold"),
+    ("LIM_SET_CRIT_HIGH", 47, 5, "HOUSEKEEPING", "Limit checker stage: critical high threshold"),
+    ("LIM_APPLY", 47, 6, "HOUSEKEEPING", "Limit checker: apply staged thresholds"),
+    ("LIM_CLEAR_TARGET", 47, 7, "HOUSEKEEPING", "Limit checker: clear staged target thresholds"),
+    ("LIM_ENABLE", 47, 8, "HOUSEKEEPING", "Limit checker: enable evaluation"),
+    ("LIM_DISABLE", 47, 9, "HOUSEKEEPING", "Limit checker: disable evaluation"),
+    ("CFDP_BEGIN_SESSION", 48, 1, "HOUSEKEEPING", "CFDP: begin session with expected chunk count"),
+    ("CFDP_SET_CHUNK_INDEX", 48, 2, "HOUSEKEEPING", "CFDP: stage chunk index"),
+    ("CFDP_PUSH_TEST_BYTE", 48, 3, "HOUSEKEEPING", "CFDP: append one staged test byte"),
+    ("CFDP_COMMIT_CHUNK", 48, 4, "HOUSEKEEPING", "CFDP: commit staged chunk data"),
+    ("CFDP_REPORT_MISSING_COUNT", 48, 5, "HOUSEKEEPING", "CFDP: report number of missing chunks"),
+    ("CFDP_REPORT_NEXT_MISSING", 48, 6, "HOUSEKEEPING", "CFDP: report next missing chunk index"),
+    ("CFDP_COMPLETE_SESSION", 48, 7, "HOUSEKEEPING", "CFDP: mark session complete"),
+    ("CFDP_RESET_SESSION", 48, 8, "HOUSEKEEPING", "CFDP: reset session state"),
+    ("MODE_STAGE_TARGET", 49, 1, "HOUSEKEEPING", "Mode manager stage: target component ID"),
+    ("MODE_STAGE_ENABLE_OPCODE", 49, 2, "HOUSEKEEPING", "Mode manager stage: enable opcode"),
+    ("MODE_STAGE_ENABLE_ARG", 49, 3, "HOUSEKEEPING", "Mode manager stage: enable argument"),
+    ("MODE_STAGE_DISABLE_OPCODE", 49, 4, "HOUSEKEEPING", "Mode manager stage: disable opcode"),
+    ("MODE_STAGE_DISABLE_ARG", 49, 5, "HOUSEKEEPING", "Mode manager stage: disable argument"),
+    ("MODE_STAGE_MASK", 49, 6, "HOUSEKEEPING", "Mode manager stage: mode mask bitfield"),
+    ("MODE_COMMIT_RULE", 49, 7, "HOUSEKEEPING", "Mode manager: commit staged rule"),
+    ("MODE_CLEAR_RULES", 49, 8, "HOUSEKEEPING", "Mode manager: clear all rules"),
+    ("MODE_SET_MODE", 49, 9, "HOUSEKEEPING", "Mode manager: set mode (1=DETUMBLE,2=SUN,3=SCIENCE,4=DOWNLINK)"),
+    ("MODE_APPLY", 49, 10, "HOUSEKEEPING", "Mode manager: apply current mode to all rules"),
+    ("MODE_REPORT_STATUS", 49, 11, "HOUSEKEEPING", "Mode manager: publish transition and dispatch counters"),
+]
 
 # ---------------------------------------------------------------------------
 # Component templates
@@ -330,6 +494,120 @@ def add_command_entry(
     )
 
 
+def ensure_custom_wiring_line(topo: dict, line: str) -> bool:
+    wiring = topo.setdefault("custom_wiring", [])
+    if line in wiring:
+        return False
+    wiring.append(line)
+    return True
+
+
+def install_standard_apps(topo: dict) -> tuple[bool, list[str]]:
+    changed = False
+    notes: list[str] = []
+
+    component_classes = {c.get("class"): c for c in topo.get("components", [])}
+    component_ids = {c.get("id"): c for c in topo.get("components", [])}
+    component_instances = {c.get("instance") for c in topo.get("components", [])}
+
+    for comp in STANDARD_COMPONENTS:
+        existing_by_class = component_classes.get(comp["class"])
+        if existing_by_class is not None:
+            notes.append(f"component {comp['class']} already present")
+            continue
+
+        requested_id = comp["id"]
+        entry = dict(comp)
+        if requested_id in component_ids:
+            entry["id"] = next_component_id(topo)
+            notes.append(
+                f"component id {requested_id} in use, assigned {entry['id']} for {entry['class']}"
+            )
+        while entry["instance"] in component_instances:
+            entry["instance"] = f"{entry['instance']}_{entry['id']}"
+
+        add_component_entry(topo, entry)
+        changed = True
+        component_classes[entry["class"]] = entry
+        component_ids[entry["id"]] = entry
+        component_instances.add(entry["instance"])
+        notes.append(f"added component {entry['class']} (id={entry['id']})")
+
+    class_to_id = {
+        c.get("class"): c.get("id")
+        for c in topo.get("components", [])
+        if isinstance(c.get("id"), int)
+    }
+    default_target_to_class = {
+        40: "CommandSequencerComponent",
+        41: "FileTransferComponent",
+        42: "MemoryDwellComponent",
+        43: "TimeSyncComponent",
+        44: "PlaybackComponent",
+        45: "OtaComponent",
+        46: "AtsRtsSequencerComponent",
+        47: "LimitCheckerComponent",
+        48: "CfdpComponent",
+        49: "ModeManagerComponent",
+    }
+
+    existing_cmd_names = {cmd.get("name") for cmd in topo.get("commands", [])}
+    existing_pairs = {(cmd.get("target_id"), cmd.get("opcode")) for cmd in topo.get("commands", [])}
+    for name, default_target_id, default_opcode, op_class, description in STANDARD_COMMANDS:
+        if name in existing_cmd_names:
+            notes.append(f"command {name} already present")
+            continue
+
+        target_id = default_target_id
+        mapped_class = default_target_to_class.get(default_target_id)
+        if mapped_class and mapped_class in class_to_id:
+            target_id = class_to_id[mapped_class]
+
+        opcode = default_opcode
+        while (target_id, opcode) in existing_pairs:
+            opcode += 1
+
+        add_command_entry(topo, name, target_id, opcode, op_class, description)
+        changed = True
+        existing_cmd_names.add(name)
+        existing_pairs.add((target_id, opcode))
+        notes.append(f"added command {name} (target={target_id}, opcode={opcode})")
+
+    instance_by_class = {
+        c.get("class"): c.get("instance")
+        for c in topo.get("components", [])
+        if c.get("class") and c.get("instance")
+    }
+
+    wiring_specs = [
+        ("CommandSequencerComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
+        ("FileTransferComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
+        ("MemoryDwellComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
+        ("TimeSyncComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
+        ("PlaybackComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
+        ("OtaComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
+        ("CommandSequencerComponent", "{instance}.command_out.connect(&cmd_hub.cmd_input);", "cmd_hub command ingress"),
+        ("AtsRtsSequencerComponent", "{instance}.command_out.connect(&cmd_hub.cmd_input);", "cmd_hub command ingress"),
+        ("AtsRtsSequencerComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
+        ("LimitCheckerComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
+        ("CfdpComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
+        ("ModeManagerComponent", "{instance}.command_out.connect(&cmd_hub.cmd_input);", "cmd_hub command ingress"),
+        ("ModeManagerComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
+        ("AtsRtsSequencerComponent", "event_hub.registerListener(&{instance}.event_in);", "ats/rts event listener"),
+        ("LimitCheckerComponent", "telem_hub.registerListener(&{instance}.telem_in);", "limit checker telemetry tap"),
+    ]
+    for cls_name, template, label in wiring_specs:
+        instance = instance_by_class.get(cls_name)
+        if not instance:
+            continue
+        line = template.format(instance=instance)
+        if ensure_custom_wiring_line(topo, line):
+            changed = True
+            notes.append(f"added custom wiring: {label}")
+
+    return changed, notes
+
+
 def create_component_header(
     name: str,
     active: bool,
@@ -443,9 +721,10 @@ def print_guide() -> None:
 
 {C}Recommended route:{N}
   1) python3 tools/dv-util.py boot-menu
-  2) Choose: Quickstart: component + command + regenerate
-  3) Accept defaults unless you need custom IDs/names
-  4) Say YES to:
+  2) Choose: Install standard civilian ops apps (one time)
+  3) Choose: Quickstart: component + command + regenerate
+  4) Accept defaults unless you need custom IDs/names
+  5) Say YES to:
      - Run autocoder now
      - Run topology dry-run check now
      - Build flight_software now
@@ -709,12 +988,26 @@ def run_command_wizard(default_target_id: int | None = None) -> tuple[bool, str 
     return True, name
 
 
+def cmd_install_standard_apps(_args) -> bool:
+    topo = load_topology()
+    changed, notes = install_standard_apps(topo)
+    if changed:
+        save_topology(topo)
+        print(f"{G}[dv-util] Standard civilian ops apps installed/updated in {TOPOLOGY_FILE}{N}")
+    else:
+        print(f"{Y}[dv-util] Standard civilian ops apps already present; no topology changes.{N}")
+    for line in notes:
+        print(f"  - {line}")
+    return changed
+
+
 def cmd_boot_menu(_args) -> None:
     print(f"\n{B}{'=' * 68}{N}")
     print(f"{B}  DELTA-V Boot Menu  -  Civilian Open Framework Scaffolder{N}")
     print(f"{B}{'=' * 68}{N}")
 
     actions = [
+        ("install_standard", "Install standard civilian ops apps"),
         ("quickstart", "Quickstart: component + command + regenerate"),
         ("component", "Create new component"),
         ("command", "Create new command"),
@@ -728,7 +1021,10 @@ def cmd_boot_menu(_args) -> None:
         print(f"\n{C}Select action:{N}")
         action = prompt_choice("Menu", actions, default_index=1)
 
-        if action == "quickstart":
+        if action == "install_standard":
+            changed = cmd_install_standard_apps(argparse.Namespace())
+            post_creation_pipeline(changed)
+        elif action == "quickstart":
             changed, component_name, command_name = run_component_wizard(
                 force_register=True,
                 force_create_command=True,
@@ -1010,6 +1306,12 @@ def main() -> None:
         help="Print first-run plug-and-play workflow",
     )
     guide.set_defaults(func=cmd_guide)
+
+    install_standard = sub.add_parser(
+        "install-standard-apps",
+        help="Install/verify standard civilian ops apps in topology.yaml",
+    )
+    install_standard.set_defaults(func=cmd_install_standard_apps)
 
     quick = sub.add_parser(
         "quickstart-component",

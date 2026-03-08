@@ -28,6 +28,10 @@
 | DV-MEM-01 | A | PASS | HeapGuard.ArmAndIsArmed<br>HeapGuard.NewAfterArmTriggersFatal | - |
 | DV-MEM-02 | A | PASS | MemorySafety.StaticBoundsAreNonZero | analysis:src/Port.hpp<br>analysis:src/Types.hpp |
 | DV-MEM-03 | B | PASS | RingBuffer.DrainOverflowCount<br>RingBuffer.OverflowCounted | - |
+| DV-OPS-01 | B | PASS | OtaComponent.SizeMismatchPreventsActivation<br>OtaComponent.StageWritesArtifactAndManifest<br>OtaComponent.VerifiesImageAndRequestsReboot | - |
+| DV-OPS-02 | B | PASS | TimeService.UtcSyncHelpers<br>TimeSyncComponent.ApplySyncFromWordCommands | - |
+| DV-OPS-03 | C | PASS | PlaybackComponent.LoadsAndReplaysHistoricalSamples | - |
+| DV-OPS-04 | B | PASS | MemoryDwellComponent.PatchAndDwellAddressWord<br>MemoryDwellComponent.SampleNowEmitsTelemetry | - |
 | DV-SEC-01 | A | PASS | TelemetryBridge.RejectsInvalidHeaderFields | - |
 | DV-SEC-02 | B | PASS | CommandHubFixture.BlocksOperationalInSafeMode<br>MissionFsm.SafeModeBlocksOperational | - |
 | DV-SEC-03 | A | PASS | TelemetryBridge.RejectsNonCanonicalFrameLength<br>TelemetryBridge.RejectsTruncatedFrame | - |

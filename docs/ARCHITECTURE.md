@@ -55,6 +55,16 @@ Every data flow uses typed `InputPort<T>` / `OutputPort<T>` pairs backed by a th
 | `TelemHub` | N-to-M telemetry fan-out (sensors → radio + logger) |
 | `CommandHub` | 1-to-N command routing by component ID + MissionFsm gating |
 | `EventHub` | N-to-M event broadcast (any component → radio + logger) |
+| `CommandSequencerComponent` | Delayed timeline dispatch into `CommandHub` |
+| `FileTransferComponent` | Bounded chunk session manager for payload products |
+| `MemoryDwellComponent` | Address dwell/patch diagnostics over a bounded memory window |
+| `TimeSyncComponent` | Ground-driven UTC synchronization offset service |
+| `PlaybackComponent` | Store-and-forward replay of recorder telemetry logs |
+| `OtaComponent` | CRC32-verified update staging with reboot-request signaling |
+| `AtsRtsSequencerComponent` | Absolute/relative sequence execution with event triggers |
+| `LimitCheckerComponent` | Ground-updatable threshold table and alarm generation |
+| `CfdpComponent` | CFDP-style chunk receipt/missing tracking |
+| `ModeManagerComponent` | Mode-to-command orchestration (detumble/sun/science/downlink) |
 
 ### 3.3 Thread Safety
 
@@ -118,19 +128,25 @@ CCSDS Header (10B): sync=0x1ACFFC1D | APID | SeqCount | Length
       │  + strict header/length validation on uplink
       │
       ▼
-COBS encoding (byte stuffing for serial sync)
-      │
-      ▼
-UDP socket (port 9001 ↓ / 9002 ↑)
+Transport mode:
+  - UDP (default, SITL)
+  - UART KISS (DELTAV_LINK_MODE=serial_kiss)
 ```
 
 ### Sync Word
 
 `0x1ACFFC1D` is the CCSDS standard sync marker (replaces the incorrect `0xDEADBEEF` noted in earlier ARCHITECTURE.md versions).
 
-### COBS
+### KISS Framing (Serial Mode)
 
-COBS ensures `0x00` is only ever a frame delimiter. After a dropped byte or corrupted frame, the receiver resynchronises at the very next `0x00` byte — typically within one packet period.
+Serial mode wraps CCSDS frames in KISS delimiters with byte-escaping:
+
+- `FEND` frame boundary (`0xC0`)
+- `FESC TFEND` escape for embedded `FEND`
+- `FESC TFESC` escape for embedded `FESC`
+
+This gives deterministic frame boundaries on UART links while keeping the same
+CCSDS payload rules and anti-replay uplink checks.
 
 ---
 
@@ -145,7 +161,9 @@ COBS ensures `0x00` is only ever a frame delimiter. After a dropped byte or corr
 
 ## 8. Hardware Abstraction Layer
 
-`hal::I2cBus` is a pure-virtual interface. `hal::Esp32I2c` provides the physical ESP32-S3 driver; `hal::MockI2c` provides a deterministic SITL simulation with sinusoidal IMU output. Swapping targets requires changing one `#if` block in `I2cDriver.hpp`.
+`hal::I2cBus`, `hal::SpiBus`, `hal::UartPort`, and `hal::PwmOutput` are
+pure-virtual interfaces. Host SITL includes deterministic mock drivers for SPI,
+UART, and PWM to reduce board-specific bring-up work before HIL.
 
 ---
 
@@ -155,6 +173,6 @@ COBS ensures `0x00` is only ever a frame delimiter. After a dropped byte or corr
 |---|---|
 | CRC-32 on downlink (CRC-16 currently) | Planned |
 | Rate group executive (10/1/0.1 Hz tiers) | Implemented in runtime path |
-| TAI/UTC epoch synchronisation | Planned — Phase 5 |
+| TAI/UTC epoch synchronisation | Partial — UTC offset sync implemented; TAI conversion planned |
 | MISRA C++:2023 full compliance | Partially met (enforced by Wconversion, Wshadow, Wformat=2) |
 | Polyspace / Coverity integration | Planned |

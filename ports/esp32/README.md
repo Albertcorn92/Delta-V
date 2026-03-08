@@ -83,7 +83,19 @@ python3 tools/esp32_reboot_campaign.py \
 This captures startup stability statistics and fails if boot markers are missing
 or panic/assert/overflow signatures appear in any cycle.
 
+## Golden-Image Bootchain Check (CRC Only)
+
+```bash
+python3 tools/golden_bootchain_check.py \
+  --partitions ports/esp32/partitions_golden.csv \
+  --candidate-image ota_candidate.bin \
+  --manifest ota_candidate.meta
+```
+
+This validates the civilian checksum-only OTA fallback workflow (no encryption).
+
 Reference docs:
 
 - `docs/ESP32_BRINGUP.md`
 - `docs/ESP32_SENSORLESS_BASELINE.md`
+- `docs/ESP32_GOLDEN_IMAGE_BOOTCHAIN.md`

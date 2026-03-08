@@ -16,6 +16,7 @@
 //   DV-DATA  : Data Integrity / Parameter Database
 //   DV-LOG   : Logging / Flight Data Recorder
 //   DV-TMR   : Triple Modular Redundancy
+//   DV-OPS   : Mission Operations Services
 //
 // Compliance Level:
 //   [A] = DO-178C DAL-A (catastrophic failure)
@@ -128,6 +129,18 @@ namespace req {
 //   it by majority vote within one scrub cycle.
 // DV-TMR-02 [B]: TmrStore shall log a warning on double-upset (all three
 //   copies differ) and return copies[0] as a best-effort value.
+
+// ---------------------------------------------------------------------------
+// Mission Operations Services
+// ---------------------------------------------------------------------------
+// DV-OPS-01 [B]: OTA session manager shall verify staged update images using
+//   CRC32 before emitting a reboot request event.
+// DV-OPS-02 [B]: Time synchronization service shall allow ground commands to
+//   stage UTC words and apply a deterministic offset in TimeService.
+// DV-OPS-03 [C]: Playback service shall support store-and-forward replay of
+//   historical telemetry samples logged by LoggerComponent.
+// DV-OPS-04 [B]: Memory dwell/patch service shall enforce bounded address
+//   windows and reject out-of-range or unaligned patch requests.
 
 } // namespace req
 } // namespace deltav

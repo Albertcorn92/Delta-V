@@ -1,31 +1,31 @@
 {
-  "generated_utc": "2026-03-08T00:19:48.345451+00:00",
+  "generated_utc": "2026-03-08T04:57:31.503995+00:00",
   "workspace": "DELTA-V Framework",
   "git": {
     "branch": "main",
-    "commit": "688145aa49732155fc701dcec800b0207b708b6b",
-    "dirty_worktree": false
+    "commit": "885d1762e9c66abbd160a7a7a3fefe20f8a7f5e8",
+    "dirty_worktree": true
   },
   "host": {
     "platform": "macOS-26.2-arm64-arm-64bit",
     "python": "3.12.12",
     "cmake": "cmake version 4.2.3"
   },
-  "unit_test_count": 131,
+  "unit_test_count": 158,
   "trace": {
     "summary": {
-      "total_requirements": 33,
-      "pass_with_tests": 33,
+      "total_requirements": 37,
+      "pass_with_tests": 37,
       "partial_non_test_only": 0,
       "missing": 0,
       "errors": 0
     },
     "dal_counts": {
-      "B": 16,
-      "C": 5,
+      "B": 19,
+      "C": 6,
       "A": 12
     },
-    "rows_count": 33
+    "rows_count": 37
   },
   "gates": [
     {
@@ -52,23 +52,23 @@
   "hashes": [
     {
       "path": "build/requirements_trace_matrix.json",
-      "crc32": "c23274da"
+      "crc32": "ee56fb4c"
     },
     {
       "path": "build/requirements_trace_matrix.md",
-      "crc32": "8fa4ddd0"
+      "crc32": "1600f887"
     },
     {
       "path": "tests/unit_tests.cpp",
-      "crc32": "88c7ca73"
+      "crc32": "b056dcd6"
     },
     {
       "path": "build/flight_software",
-      "crc32": "1bd256e0"
+      "crc32": "f099dca2"
     },
     {
       "path": "build/run_tests",
-      "crc32": "cc5affe6"
+      "crc32": "b4b17558"
     }
   ],
   "manual_remaining": [

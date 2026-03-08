@@ -1,6 +1,6 @@
 # DELTA-V Qualification Report
 
-- Generated (UTC): `2026-03-08T00:19:48.345451+00:00`
+- Generated (UTC): `2026-03-08T04:57:31.503995+00:00`
 - Workspace: `DELTA-V Framework`
 
 ## Build Provenance
@@ -8,8 +8,8 @@
 | Field | Value |
 |---|---|
 | Git branch | `main` |
-| Git commit | `688145aa49732155fc701dcec800b0207b708b6b` |
-| Dirty worktree | `False` |
+| Git commit | `885d1762e9c66abbd160a7a7a3fefe20f8a7f5e8` |
+| Dirty worktree | `True` |
 | Host OS | `macOS-26.2-arm64-arm-64bit` |
 | Python | `3.12.12` |
 | CMake | `cmake version 4.2.3` |
@@ -25,21 +25,21 @@
 
 ## Requirements Coverage
 
-- Total requirements: `33`
-- With direct test evidence: `33`
+- Total requirements: `37`
+- With direct test evidence: `37`
 - Mapping errors: `0`
-- Unit test count: `131`
-- DAL distribution: `{'B': 16, 'C': 5, 'A': 12}`
+- Unit test count: `158`
+- DAL distribution: `{'B': 19, 'C': 6, 'A': 12}`
 
 ## Artifact Checksums (CRC-32)
 
 | Artifact | CRC-32 |
 |---|---|
-| `build/requirements_trace_matrix.json` | `c23274da` |
-| `build/requirements_trace_matrix.md` | `8fa4ddd0` |
-| `tests/unit_tests.cpp` | `88c7ca73` |
-| `build/flight_software` | `1bd256e0` |
-| `build/run_tests` | `cc5affe6` |
+| `build/requirements_trace_matrix.json` | `ee56fb4c` |
+| `build/requirements_trace_matrix.md` | `1600f887` |
+| `tests/unit_tests.cpp` | `b056dcd6` |
+| `build/flight_software` | `f099dca2` |
+| `build/run_tests` | `b4b17558` |
 
 ## Manual Evidence Remaining
 

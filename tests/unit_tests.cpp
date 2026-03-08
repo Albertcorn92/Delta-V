@@ -55,6 +55,16 @@
 #include "Cobs.hpp"
 #include "MissionFsm.hpp"
 #include "RateGroupExecutive.hpp"
+#include "CommandSequencerComponent.hpp"
+#include "FileTransferComponent.hpp"
+#include "MemoryDwellComponent.hpp"
+#include "TimeSyncComponent.hpp"
+#include "PlaybackComponent.hpp"
+#include "OtaComponent.hpp"
+#include "AtsRtsSequencerComponent.hpp"
+#include "LimitCheckerComponent.hpp"
+#include "CfdpComponent.hpp"
+#include "ModeManagerComponent.hpp"
 
 using namespace deltav;
 
@@ -612,6 +622,49 @@ TEST_F(CommandHubFixture, AllowsHousekeepingInSafeMode) {
     sender.send(CommandPacket{200, 1, 0.0f});
     hub.step();
     EXPECT_TRUE(target.hasNew()); // must pass through
+}
+
+TEST_F(CommandHubFixture, AllowsCivilianOpsTargetsInSafeMode) {
+    InputPort<CommandPacket> target;
+    OutputPort<CommandPacket> route;
+    route.connect(&target);
+    hub.registerRoute(46, &route);
+    hub.registerHousekeepingTarget(46);
+    hub.init();
+
+    OutputPort<float> batt_src;
+    batt_src.connect(&wd.battery_level_in);
+    batt_src.send(4.0f);
+    wd.step();
+    ASSERT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
+
+    // Opcode 2 is OPERATIONAL for many app targets, but ops target IDs (40-99)
+    // are treated as housekeeping controls by design.
+    OutputPort<CommandPacket> sender;
+    sender.connect(&hub.cmd_input);
+    sender.send(CommandPacket{46, 2, 0.0f});
+    hub.step();
+    EXPECT_TRUE(target.hasNew());
+}
+
+TEST_F(CommandHubFixture, DoesNotBypassNonRegisteredTargetsInSafeMode) {
+    InputPort<CommandPacket> target;
+    OutputPort<CommandPacket> route;
+    route.connect(&target);
+    hub.registerRoute(50, &route);
+    hub.init();
+
+    OutputPort<float> batt_src;
+    batt_src.connect(&wd.battery_level_in);
+    batt_src.send(4.0f);
+    wd.step();
+    ASSERT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
+
+    OutputPort<CommandPacket> sender;
+    sender.connect(&hub.cmd_input);
+    sender.send(CommandPacket{50, 2, 0.0f});
+    hub.step();
+    EXPECT_FALSE(target.hasNew());
 }
 
 TEST_F(CommandHubFixture, NackOnUnknownTarget) {
@@ -1967,6 +2020,598 @@ TEST(TelemetryBridge, ReplayMonotonicityProperty) {
     }
     EXPECT_EQ(consumed, accepted);
     EXPECT_EQ(bridge.getRejectedCount(), rejected);
+}
+
+TEST(TelemetryBridge, SerialKissModeSelectedFromEnv) {
+    ScopedReplaySeqFile replay_path_env{};
+    ScopedEnvVar mode_env(TelemetryBridge::LINK_MODE_ENV, "serial_kiss");
+    TelemetryBridge bridge{"RadioLink", 20, 19131, 19132};
+    EXPECT_EQ(bridge.getLinkMode(), TelemetryBridge::LinkMode::SERIAL_KISS);
+}
+
+TEST(TelemetryBridge, KISSFrameDispatchesCommand) {
+    ScopedReplaySeqFile replay_path_env{};
+    TelemetryBridge bridge{"RadioLink", 20, 19133, 19134};
+    InputPort<CommandPacket, 16> sink{};
+    bridge.command_out.connect(&sink);
+
+    const auto ccsds = buildUplinkFrame(901u, CommandPacket{200u, 1u, 0.0f});
+    std::array<uint8_t, 1 + sizeof(ccsds)> kiss{};
+    kiss[0] = TelemetryBridge::KISS_CMD_DATA;
+    std::memcpy(kiss.data() + 1, ccsds.data(), ccsds.size());
+
+    EXPECT_TRUE(bridge.ingestKissFrameForTest(kiss.data(), kiss.size()));
+    CommandPacket cmd{};
+    ASSERT_TRUE(sink.tryConsume(cmd));
+    EXPECT_EQ(cmd.target_id, 200u);
+    EXPECT_EQ(cmd.opcode, 1u);
+}
+
+TEST(TelemetryBridge, RejectsNonDataKissFrames) {
+    ScopedReplaySeqFile replay_path_env{};
+    TelemetryBridge bridge{"RadioLink", 20, 19135, 19136};
+    const auto ccsds = buildUplinkFrame(902u, CommandPacket{200u, 1u, 0.0f});
+    std::array<uint8_t, 1 + sizeof(ccsds)> kiss{};
+    kiss[0] = 0x01u;
+    std::memcpy(kiss.data() + 1, ccsds.data(), ccsds.size());
+    EXPECT_FALSE(bridge.ingestKissFrameForTest(kiss.data(), kiss.size()));
+    EXPECT_EQ(bridge.getRejectedCount(), 1u);
+}
+
+TEST(HalMocks, SpiTransferEchoesTxBytes) {
+    hal::MockSpi spi{};
+    std::array<uint8_t, 4> tx{{1u, 2u, 3u, 4u}};
+    std::array<uint8_t, 4> rx{};
+    EXPECT_TRUE(spi.transfer(tx.data(), rx.data(), tx.size()));
+    EXPECT_EQ(rx, tx);
+}
+
+TEST(HalMocks, UartInjectAndRead) {
+    hal::MockUart uart{};
+    EXPECT_TRUE(uart.configure(115200u));
+    std::array<uint8_t, 5> input{{10u, 20u, 30u, 40u, 50u}};
+    EXPECT_EQ(uart.injectRx(input.data(), input.size()), input.size());
+    std::array<uint8_t, 8> out{};
+    const size_t n = uart.read(out.data(), out.size());
+    EXPECT_EQ(n, input.size());
+    for (size_t i = 0; i < input.size(); ++i) {
+        EXPECT_EQ(out[i], input[i]);
+    }
+}
+
+TEST(HalMocks, PwmDutyCycleClamped) {
+    hal::MockPwm pwm{};
+    EXPECT_TRUE(pwm.setFrequency(0u, 100u));
+    EXPECT_TRUE(pwm.setDutyCycle(0u, 1.5f));
+    EXPECT_FLOAT_EQ(pwm.getDutyCycle(0u), 1.0f);
+    EXPECT_TRUE(pwm.setDutyCycle(0u, -0.5f));
+    EXPECT_FLOAT_EQ(pwm.getDutyCycle(0u), 0.0f);
+}
+
+TEST(CommandSequencerComponent, StagedCommandDispatchesImmediately) {
+    TimeService::initEpoch();
+    CommandSequencerComponent sequencer{"CmdSequencer", 40};
+    InputPort<CommandPacket, 8> sink{};
+    sequencer.command_out.connect(&sink);
+    sequencer.init();
+
+    ASSERT_TRUE(sequencer.cmd_in.receive(
+        CommandPacket{40u, CommandSequencerComponent::OP_SET_TARGET, 200.0f}));
+    ASSERT_TRUE(sequencer.cmd_in.receive(
+        CommandPacket{40u, CommandSequencerComponent::OP_SET_OPCODE, 1.0f}));
+    ASSERT_TRUE(sequencer.cmd_in.receive(
+        CommandPacket{40u, CommandSequencerComponent::OP_SET_ARGUMENT, 0.0f}));
+    ASSERT_TRUE(sequencer.cmd_in.receive(
+        CommandPacket{40u, CommandSequencerComponent::OP_COMMIT_DELAY_SECONDS, 0.0f}));
+
+    sequencer.step();
+
+    CommandPacket out{};
+    ASSERT_TRUE(sink.tryConsume(out));
+    EXPECT_EQ(out.target_id, 200u);
+    EXPECT_EQ(out.opcode, 1u);
+}
+
+TEST(FileTransferComponent, SessionStoresAndReadsChunkData) {
+    FileTransferComponent file_mgr{"FileTransfer", 41};
+    file_mgr.init();
+    const std::array<uint8_t, 4> payload{{1u, 2u, 3u, 4u}};
+    ASSERT_TRUE(file_mgr.beginSession(payload.size()));
+    ASSERT_TRUE(file_mgr.ingestChunk(payload.data(), payload.size()));
+    ASSERT_TRUE(file_mgr.finalizeSession());
+    EXPECT_EQ(file_mgr.receivedBytes(), payload.size());
+
+    std::array<uint8_t, 8> out{};
+    const size_t n = file_mgr.readNextChunk(out.data(), out.size());
+    EXPECT_EQ(n, payload.size());
+    for (size_t i = 0; i < payload.size(); ++i) {
+        EXPECT_EQ(out[i], payload[i]);
+    }
+}
+
+TEST(MemoryDwellComponent, SampleNowEmitsTelemetry) {
+    TimeService::initEpoch();
+    MemoryDwellComponent dwell{"MemoryDwell", 42};
+    InputPort<Serializer::ByteArray, 8> sink{};
+    dwell.telemetry_out.connect(&sink);
+    dwell.init();
+
+    ASSERT_TRUE(dwell.cmd_in.receive(
+        CommandPacket{42u, MemoryDwellComponent::OP_SELECT_CHANNEL, 1.0f}));
+    ASSERT_TRUE(dwell.cmd_in.receive(
+        CommandPacket{42u, MemoryDwellComponent::OP_SAMPLE_NOW, 0.0f}));
+    dwell.step();
+
+    Serializer::ByteArray sample{};
+    ASSERT_TRUE(sink.tryConsume(sample));
+    const TelemetryPacket telem = Serializer::unpackTelem(sample);
+    EXPECT_EQ(telem.component_id, 42u);
+}
+
+TEST(MemoryDwellComponent, PatchAndDwellAddressWord) {
+    TimeService::initEpoch();
+    MemoryDwellComponent dwell{"MemoryDwell", 42};
+    dwell.init();
+
+    const uint32_t addr = MemoryDwellComponent::DEBUG_MEM_BASE_ADDR;
+    const uint16_t addr_hi = static_cast<uint16_t>(addr >> 16U);
+    const uint16_t addr_lo = static_cast<uint16_t>(addr & 0xFFFFU);
+
+    ASSERT_TRUE(dwell.cmd_in.receive(
+        CommandPacket{42u, MemoryDwellComponent::OP_SET_ADDR_HI16, static_cast<float>(addr_hi)}));
+    ASSERT_TRUE(dwell.cmd_in.receive(
+        CommandPacket{42u, MemoryDwellComponent::OP_SET_ADDR_LO16, static_cast<float>(addr_lo)}));
+    ASSERT_TRUE(dwell.cmd_in.receive(
+        CommandPacket{42u, MemoryDwellComponent::OP_SET_VALUE_HI16, 0.0f}));
+    ASSERT_TRUE(dwell.cmd_in.receive(
+        CommandPacket{42u, MemoryDwellComponent::OP_SET_VALUE_LO16, 42.0f}));
+    ASSERT_TRUE(dwell.cmd_in.receive(
+        CommandPacket{42u, MemoryDwellComponent::OP_PATCH_ADDRESS, 0.0f}));
+    dwell.step();
+
+    EXPECT_EQ(dwell.readDebugWordForTest(addr), 42u);
+}
+
+TEST(TimeService, UtcSyncHelpers) {
+    TimeService::initEpoch();
+    const uint64_t target_utc_ms = 5000000ULL;
+    TimeService::setUtcFromUnixMs(target_utc_ms);
+    EXPECT_TRUE(TimeService::hasUtcSync());
+    const uint64_t got = TimeService::getUtcUnixMs();
+    const int64_t diff = static_cast<int64_t>(got) - static_cast<int64_t>(target_utc_ms);
+    EXPECT_LT(std::llabs(diff), 2000LL);
+}
+
+TEST(TimeSyncComponent, ApplySyncFromWordCommands) {
+    TimeService::initEpoch();
+    TimeSyncComponent sync{"TimeSync", 43};
+    sync.init();
+
+    constexpr uint64_t utc_ms = 0x0000000000123456ULL;
+    const uint16_t w0 = static_cast<uint16_t>((utc_ms >> 48U) & 0xFFFFU);
+    const uint16_t w1 = static_cast<uint16_t>((utc_ms >> 32U) & 0xFFFFU);
+    const uint16_t w2 = static_cast<uint16_t>((utc_ms >> 16U) & 0xFFFFU);
+    const uint16_t w3 = static_cast<uint16_t>(utc_ms & 0xFFFFU);
+
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{43u, TimeSyncComponent::OP_SET_UTC_HI16, static_cast<float>(w0)}));
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{43u, TimeSyncComponent::OP_SET_UTC_MIDHI16, static_cast<float>(w1)}));
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{43u, TimeSyncComponent::OP_SET_UTC_MIDLO16, static_cast<float>(w2)}));
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{43u, TimeSyncComponent::OP_SET_UTC_LO16, static_cast<float>(w3)}));
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{43u, TimeSyncComponent::OP_APPLY_SYNC, 0.0f}));
+    sync.step();
+
+    EXPECT_TRUE(TimeService::hasUtcSync());
+    const int64_t diff = static_cast<int64_t>(TimeService::getUtcUnixMs()) - static_cast<int64_t>(utc_ms);
+    EXPECT_LT(std::llabs(diff), 2000LL);
+}
+
+TEST(PlaybackComponent, LoadsAndReplaysHistoricalSamples) {
+    const char* log_path = "flight_log.csv";
+    std::string backup{};
+    bool had_backup = false;
+    {
+        std::ifstream in(log_path, std::ios::binary);
+        if (in.is_open()) {
+            backup.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+            had_backup = true;
+        }
+    }
+
+    {
+        std::ofstream out(log_path, std::ios::trunc);
+        ASSERT_TRUE(out.is_open());
+        out << "timestamp_ms,component_id,data_payload\n";
+        out << "101,200,99.5\n";
+        out << "102,100,12.25\n";
+    }
+
+    TimeService::initEpoch();
+    PlaybackComponent playback{"Playback", 44};
+    InputPort<Serializer::ByteArray, 16> sink{};
+    playback.telemetry_out.connect(&sink);
+    playback.init();
+    ASSERT_TRUE(playback.cmd_in.receive(CommandPacket{44u, PlaybackComponent::OP_LOAD_LOG, 0.0f}));
+    ASSERT_TRUE(playback.cmd_in.receive(CommandPacket{44u, PlaybackComponent::OP_STEP_ONCE, 0.0f}));
+    playback.step();
+
+    Serializer::ByteArray sample{};
+    ASSERT_TRUE(sink.tryConsume(sample));
+    const TelemetryPacket telem = Serializer::unpackTelem(sample);
+    EXPECT_EQ(telem.timestamp_ms, 101u);
+    EXPECT_EQ(telem.component_id, 200u);
+
+    if (had_backup) {
+        std::ofstream restore(log_path, std::ios::binary | std::ios::trunc);
+        restore << backup;
+    } else {
+        (void)std::remove(log_path);
+    }
+}
+
+TEST(OtaComponent, VerifiesImageAndRequestsReboot) {
+    OtaComponent ota{"OtaManager", 45};
+    ota.init();
+
+    constexpr std::array<uint8_t, 4> image{{1u, 2u, 3u, 4u}};
+    auto crc32 = [](const uint8_t* data, size_t len) -> uint32_t {
+        uint32_t crc = 0xFFFFFFFFu;
+        for (size_t i = 0; i < len; ++i) {
+            crc ^= data[i];
+            for (int b = 0; b < 8; ++b) {
+                const uint32_t mask = static_cast<uint32_t>(-(static_cast<int32_t>(crc & 1U)));
+                crc = (crc >> 1U) ^ (0xEDB88320U & mask);
+            }
+        }
+        return ~crc;
+    };
+
+    const uint32_t expected_crc = crc32(image.data(), image.size());
+    const uint16_t crc_hi = static_cast<uint16_t>(expected_crc >> 16U);
+    const uint16_t crc_lo = static_cast<uint16_t>(expected_crc & 0xFFFFU);
+
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_BEGIN_SESSION, 4.0f}));
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_SET_EXPECTED_CRC_HI16, static_cast<float>(crc_hi)}));
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_SET_EXPECTED_CRC_LO16, static_cast<float>(crc_lo)}));
+    for (uint8_t b : image) {
+        ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_PUSH_TEST_BYTE, static_cast<float>(b)}));
+    }
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_VERIFY_IMAGE, 0.0f}));
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_STAGE_ACTIVATE, 0.0f}));
+    ota.step();
+
+    EXPECT_TRUE(ota.isRebootRequested());
+}
+
+TEST(AtsRtsSequencerComponent, RtsEntryTriggersAfterMatchingEvent) {
+    TimeService::initEpoch();
+    AtsRtsSequencerComponent seq{"AtsRtsSequencer", 46};
+    InputPort<CommandPacket, 16> cmd_sink{};
+    seq.command_out.connect(&cmd_sink);
+    seq.init();
+
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TARGET, 200.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_OPCODE, 1.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_ARGUMENT, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TRIGGER_TYPE, 2.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_EVENT_SOURCE, 12.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TIME_HI16, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TIME_LO16, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_COMMIT_ENTRY, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_ARM, 0.0f}));
+
+    seq.step();
+    CommandPacket out{};
+    EXPECT_FALSE(cmd_sink.tryConsume(out));
+
+    ASSERT_TRUE(seq.event_in.receive(EventPacket::create(Severity::INFO, 12u, "TRIGGER")));
+    seq.step();
+    ASSERT_TRUE(cmd_sink.tryConsume(out));
+    EXPECT_EQ(out.target_id, 200u);
+    EXPECT_EQ(out.opcode, 1u);
+}
+
+TEST(LimitCheckerComponent, DynamicThresholdsEmitCriticalAlarm) {
+    TimeService::initEpoch();
+    LimitCheckerComponent limits{"LimitChecker", 47};
+    InputPort<EventPacket, 16> events{};
+    limits.event_out.connect(&events);
+    limits.init();
+
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_TARGET_ID, 200.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_WARN_LOW, 20.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_WARN_HIGH, 80.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_CRIT_LOW, 10.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_CRIT_HIGH, 90.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_APPLY_LIMITS, 0.0f}));
+
+    const TelemetryPacket hot_sample{TimeService::getMET(), 200u, 95.0f};
+    ASSERT_TRUE(limits.telem_in.receive(Serializer::pack(hot_sample)));
+    limits.step();
+
+    bool saw_critical = false;
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {
+        if (std::string_view(evt.message.data()) == "LIM_CRIT") {
+            saw_critical = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(saw_critical);
+}
+
+TEST(CfdpComponent, TracksMissingChunksAcrossSession) {
+    CfdpComponent cfdp{"CfdpManager", 48};
+    cfdp.init();
+
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_BEGIN_SESSION, 3.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_SET_CHUNK_INDEX, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_PUSH_TEST_BYTE, 10.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_COMMIT_CHUNK, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_SET_CHUNK_INDEX, 2.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_PUSH_TEST_BYTE, 22.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_COMMIT_CHUNK, 0.0f}));
+    cfdp.step();
+
+    EXPECT_EQ(cfdp.missingCount(), 1u);
+}
+
+TEST(ModeManagerComponent, AppliesModeRuleDispatch) {
+    TimeService::initEpoch();
+    ModeManagerComponent mode_mgr{"ModeManager", 49};
+    InputPort<CommandPacket, 16> cmd_sink{};
+    mode_mgr.command_out.connect(&cmd_sink);
+    mode_mgr.init();
+
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_TARGET_ID, 200.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_ENABLE_OPCODE, 2.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_ENABLE_ARG, 0.25f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_DISABLE_OPCODE, 2.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_DISABLE_ARG, 0.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{
+        49u, ModeManagerComponent::OP_STAGE_MODE_MASK,
+        static_cast<float>(ModeManagerComponent::MODE_MASK_SCIENCE)}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_COMMIT_RULE, 0.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_SET_MODE, 3.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_APPLY_MODE, 0.0f}));
+
+    mode_mgr.step();
+
+    CommandPacket out{};
+    ASSERT_TRUE(cmd_sink.tryConsume(out));
+    EXPECT_EQ(out.target_id, 200u);
+    EXPECT_EQ(out.opcode, 2u);
+    EXPECT_FLOAT_EQ(out.argument, 0.25f);
+}
+
+TEST(OtaComponent, StageWritesArtifactAndManifest) {
+    const std::string artifact = makeUniqueTestLogPath("test_ota_stage", ".bin");
+    const std::string manifest = makeUniqueTestLogPath("test_ota_stage", ".meta");
+    (void)std::remove(artifact.c_str());
+    (void)std::remove(manifest.c_str());
+    ScopedEnvVar artifact_env(OtaComponent::OTA_ARTIFACT_PATH_ENV, artifact.c_str());
+    ScopedEnvVar manifest_env(OtaComponent::OTA_MANIFEST_PATH_ENV, manifest.c_str());
+
+    OtaComponent ota{"OtaManager", 45};
+    ota.init();
+
+    constexpr std::array<uint8_t, 4> image{{9u, 8u, 7u, 6u}};
+    auto crc32 = [](const uint8_t* data, size_t len) -> uint32_t {
+        uint32_t crc = 0xFFFFFFFFu;
+        for (size_t i = 0; i < len; ++i) {
+            crc ^= data[i];
+            for (int b = 0; b < 8; ++b) {
+                const uint32_t mask = static_cast<uint32_t>(-(static_cast<int32_t>(crc & 1U)));
+                crc = (crc >> 1U) ^ (0xEDB88320U & mask);
+            }
+        }
+        return ~crc;
+    };
+    const uint32_t expected_crc = crc32(image.data(), image.size());
+
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_BEGIN_SESSION, 4.0f}));
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{
+        45u, OtaComponent::OP_SET_EXPECTED_CRC_HI16, static_cast<float>(expected_crc >> 16U)}));
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{
+        45u, OtaComponent::OP_SET_EXPECTED_CRC_LO16, static_cast<float>(expected_crc & 0xFFFFU)}));
+    for (uint8_t b : image) {
+        ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{
+            45u, OtaComponent::OP_PUSH_TEST_BYTE, static_cast<float>(b)}));
+    }
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_VERIFY_IMAGE, 0.0f}));
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_STAGE_ACTIVATE, 0.0f}));
+    ota.step();
+
+    EXPECT_TRUE(ota.isRebootRequested());
+
+    std::ifstream image_file(artifact, std::ios::binary);
+    ASSERT_TRUE(image_file.is_open());
+    std::array<uint8_t, 4> staged{};
+    image_file.read(reinterpret_cast<char*>(staged.data()),
+        static_cast<std::streamsize>(staged.size()));
+    EXPECT_EQ(image_file.gcount(), static_cast<std::streamsize>(image.size()));
+    EXPECT_EQ(staged, image);
+
+    std::ifstream manifest_file(manifest);
+    ASSERT_TRUE(manifest_file.is_open());
+    std::string manifest_text{
+        std::istreambuf_iterator<char>(manifest_file),
+        std::istreambuf_iterator<char>()};
+    EXPECT_NE(manifest_text.find("bytes=4"), std::string::npos);
+    EXPECT_NE(manifest_text.find("crc32=0x"), std::string::npos);
+
+    (void)std::remove(artifact.c_str());
+    (void)std::remove(manifest.c_str());
+}
+
+TEST(OtaComponent, SizeMismatchPreventsActivation) {
+    OtaComponent ota{"OtaManager", 45};
+    ota.init();
+
+    constexpr std::array<uint8_t, 4> image{{1u, 2u, 3u, 4u}};
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_BEGIN_SESSION, 5.0f}));
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_SET_EXPECTED_CRC_HI16, 0.0f}));
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_SET_EXPECTED_CRC_LO16, 0.0f}));
+    for (uint8_t b : image) {
+        ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{
+            45u, OtaComponent::OP_PUSH_TEST_BYTE, static_cast<float>(b)}));
+    }
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_VERIFY_IMAGE, 0.0f}));
+    ASSERT_TRUE(ota.cmd_in.receive(CommandPacket{45u, OtaComponent::OP_STAGE_ACTIVATE, 0.0f}));
+    ota.step();
+
+    EXPECT_FALSE(ota.isRebootRequested());
+}
+
+TEST(AtsRtsSequencerComponent, DisarmPreventsImmediateDispatch) {
+    TimeService::initEpoch();
+    AtsRtsSequencerComponent seq{"AtsRtsSequencer", 46};
+    InputPort<CommandPacket, 16> cmd_sink{};
+    seq.command_out.connect(&cmd_sink);
+    seq.init();
+
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TARGET, 200.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_OPCODE, 1.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TRIGGER_TYPE, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TIME_HI16, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TIME_LO16, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_COMMIT_ENTRY, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_DISARM, 0.0f}));
+    seq.step();
+
+    CommandPacket out{};
+    EXPECT_FALSE(cmd_sink.tryConsume(out));
+}
+
+TEST(LimitCheckerComponent, DisableSuppressesAlarmEmission) {
+    TimeService::initEpoch();
+    LimitCheckerComponent limits{"LimitChecker", 47};
+    InputPort<EventPacket, 32> events{};
+    limits.event_out.connect(&events);
+    limits.init();
+
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_TARGET_ID, 200.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_WARN_LOW, 20.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_WARN_HIGH, 80.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_CRIT_LOW, 10.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_CRIT_HIGH, 90.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_APPLY_LIMITS, 0.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_DISABLE, 0.0f}));
+    limits.step();
+
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {}
+
+    const TelemetryPacket hot_sample{TimeService::getMET(), 200u, 95.0f};
+    ASSERT_TRUE(limits.telem_in.receive(Serializer::pack(hot_sample)));
+    limits.step();
+
+    bool saw_alarm = false;
+    while (events.tryConsume(evt)) {
+        const std::string_view msg(evt.message.data());
+        if (msg == "LIM_WARN" || msg == "LIM_CRIT") {
+            saw_alarm = true;
+        }
+    }
+    EXPECT_FALSE(saw_alarm);
+}
+
+TEST(LimitCheckerComponent, ClearTargetStopsFutureAlarms) {
+    TimeService::initEpoch();
+    LimitCheckerComponent limits{"LimitChecker", 47};
+    InputPort<EventPacket, 32> events{};
+    limits.event_out.connect(&events);
+    limits.init();
+
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_TARGET_ID, 200.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_WARN_LOW, 20.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_WARN_HIGH, 80.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_CRIT_LOW, 10.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_CRIT_HIGH, 90.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_APPLY_LIMITS, 0.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_CLEAR_TARGET, 0.0f}));
+    limits.step();
+
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {}
+
+    const TelemetryPacket hot_sample{TimeService::getMET(), 200u, 95.0f};
+    ASSERT_TRUE(limits.telem_in.receive(Serializer::pack(hot_sample)));
+    limits.step();
+
+    bool saw_alarm = false;
+    while (events.tryConsume(evt)) {
+        const std::string_view msg(evt.message.data());
+        if (msg == "LIM_WARN" || msg == "LIM_CRIT") {
+            saw_alarm = true;
+        }
+    }
+    EXPECT_FALSE(saw_alarm);
+}
+
+TEST(CfdpComponent, CompleteSessionEmitsMissingAndDoneStates) {
+    CfdpComponent cfdp{"CfdpManager", 48};
+    InputPort<EventPacket, 32> events{};
+    cfdp.event_out.connect(&events);
+    cfdp.init();
+
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_BEGIN_SESSION, 2.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_SET_CHUNK_INDEX, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_PUSH_TEST_BYTE, 7.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_COMMIT_CHUNK, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_COMPLETE_SESSION, 0.0f}));
+    cfdp.step();
+
+    bool saw_missing = false;
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {
+        if (std::string_view(evt.message.data()) == "CFDP_MISSING") {
+            saw_missing = true;
+        }
+    }
+    EXPECT_TRUE(saw_missing);
+
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_RESET_SESSION, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_BEGIN_SESSION, 1.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_SET_CHUNK_INDEX, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_PUSH_TEST_BYTE, 9.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_COMMIT_CHUNK, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_COMPLETE_SESSION, 0.0f}));
+    cfdp.step();
+
+    bool saw_done = false;
+    while (events.tryConsume(evt)) {
+        if (std::string_view(evt.message.data()) == "CFDP_DONE") {
+            saw_done = true;
+        }
+    }
+    EXPECT_TRUE(saw_done);
+}
+
+TEST(ModeManagerComponent, AppliesDisablePathOutsideModeMask) {
+    TimeService::initEpoch();
+    ModeManagerComponent mode_mgr{"ModeManager", 49};
+    InputPort<CommandPacket, 16> cmd_sink{};
+    mode_mgr.command_out.connect(&cmd_sink);
+    mode_mgr.init();
+
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_TARGET_ID, 200.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_ENABLE_OPCODE, 2.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_ENABLE_ARG, 4.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_DISABLE_OPCODE, 2.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_DISABLE_ARG, 0.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{
+        49u, ModeManagerComponent::OP_STAGE_MODE_MASK,
+        static_cast<float>(ModeManagerComponent::MODE_MASK_SCIENCE)}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_COMMIT_RULE, 0.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_SET_MODE, 2.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_APPLY_MODE, 0.0f}));
+    mode_mgr.step();
+
+    CommandPacket out{};
+    ASSERT_TRUE(cmd_sink.tryConsume(out));
+    EXPECT_EQ(out.target_id, 200u);
+    EXPECT_EQ(out.opcode, 2u);
+    EXPECT_FLOAT_EQ(out.argument, 0.0f);
 }
 
 // =============================================================================

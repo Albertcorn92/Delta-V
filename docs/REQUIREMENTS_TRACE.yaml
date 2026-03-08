@@ -285,3 +285,39 @@ requirements:
     evidence:
       - type: test
         ref: "TmrStore.AllThreeDifferIsNotSane"
+
+  DV-OPS-01:
+    dal: B
+    statement: "OTA session manager verifies staged update images before reboot request."
+    evidence:
+      - type: test
+        ref: "OtaComponent.VerifiesImageAndRequestsReboot"
+      - type: test
+        ref: "OtaComponent.StageWritesArtifactAndManifest"
+      - type: test
+        ref: "OtaComponent.SizeMismatchPreventsActivation"
+
+  DV-OPS-02:
+    dal: B
+    statement: "Time sync service stages UTC words and applies deterministic UTC offset."
+    evidence:
+      - type: test
+        ref: "TimeSyncComponent.ApplySyncFromWordCommands"
+      - type: test
+        ref: "TimeService.UtcSyncHelpers"
+
+  DV-OPS-03:
+    dal: C
+    statement: "Playback service replays historical telemetry samples."
+    evidence:
+      - type: test
+        ref: "PlaybackComponent.LoadsAndReplaysHistoricalSamples"
+
+  DV-OPS-04:
+    dal: B
+    statement: "Memory dwell/patch service enforces bounded diagnostic access."
+    evidence:
+      - type: test
+        ref: "MemoryDwellComponent.PatchAndDwellAddressWord"
+      - type: test
+        ref: "MemoryDwellComponent.SampleNowEmitsTelemetry"

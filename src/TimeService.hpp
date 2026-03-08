@@ -31,6 +31,8 @@ public:
         epoch       = std::chrono::steady_clock::now();
         initialized.store(true, std::memory_order_release);
         overflow_warned.store(false, std::memory_order_release);
+        utc_offset_ms.store(0, std::memory_order_release);
+        utc_synced.store(false, std::memory_order_release);
     }
 
     // Returns milliseconds since initEpoch() with 64-bit range.
@@ -58,6 +60,33 @@ public:
         return static_cast<uint32_t>(ms & MET_WRAP_MASK);
     }
 
+    // UTC time sync support for ground "time at the tone" operations.
+    static void setUtcOffsetMs(int64_t offset_ms) {
+        utc_offset_ms.store(offset_ms, std::memory_order_release);
+        utc_synced.store(true, std::memory_order_release);
+    }
+
+    static void setUtcFromUnixMs(uint64_t unix_ms) {
+        const int64_t met_ms = static_cast<int64_t>(getMET64());
+        const int64_t target = static_cast<int64_t>(unix_ms);
+        setUtcOffsetMs(target - met_ms);
+    }
+
+    static uint64_t getUtcUnixMs() {
+        const int64_t met_ms = static_cast<int64_t>(getMET64());
+        const int64_t offset = utc_offset_ms.load(std::memory_order_acquire);
+        const int64_t utc_ms = met_ms + offset;
+        return utc_ms < 0 ? 0u : static_cast<uint64_t>(utc_ms);
+    }
+
+    static int64_t getUtcOffsetMs() {
+        return utc_offset_ms.load(std::memory_order_acquire);
+    }
+
+    static bool hasUtcSync() {
+        return utc_synced.load(std::memory_order_acquire);
+    }
+
     static bool isReady() { return initialized.load(std::memory_order_acquire); }
     static bool isNearOverflow(uint64_t met_ms) { return met_ms > MET_WARN_THRESHOLD_MS; }
 
@@ -66,6 +95,8 @@ private:
         std::chrono::steady_clock::now();
     static inline std::atomic<bool> initialized{false};
     static inline std::atomic<bool> overflow_warned{false};
+    static inline std::atomic<int64_t> utc_offset_ms{0};
+    static inline std::atomic<bool> utc_synced{false};
 };
 
 } // namespace deltav

@@ -21,6 +21,9 @@ pip install -r requirements.txt
 # Optional quick walkthrough
 python3 tools/dv-util.py guide
 
+# Optional: install standard civilian ops app bundle
+python3 tools/dv-util.py install-standard-apps
+
 # Interactive wizard (recommended)
 python3 tools/dv-util.py boot-menu
 # then choose: "Quickstart: component + command + regenerate"
@@ -40,6 +43,20 @@ python3 tools/dv-util.py add-component ThermalControl --register
 
 The boot menu quickstart path can scaffold a component, add its first command,
 run `tools/autocoder.py`, and optionally build `flight_software` in one guided flow.
+
+The `install-standard-apps` path adds a baseline bundle used by many flight
+teams:
+
+- `CommandSequencerComponent`
+- `FileTransferComponent`
+- `MemoryDwellComponent` (dwell + patch controls)
+- `TimeSyncComponent`
+- `PlaybackComponent`
+- `OtaComponent`
+- `AtsRtsSequencerComponent` (absolute + relative time scripting)
+- `LimitCheckerComponent` (dynamic warning/critical thresholds)
+- `CfdpComponent` (missing-chunk tracking for lossy links)
+- `ModeManagerComponent` (operational mode orchestration)
 
 ### 2.2 Component Checklist
 
@@ -185,8 +202,17 @@ Safety-case starter templates for mission teams are in `docs/safety_case/`.
 2. Start GDS: `streamlit run gds/gds_dash.py`
 3. Use the sidebar command console to filter, inspect, and send commands from `dictionary.json`
 4. Track startup readiness in the interactive boot checklist tab
-5. Events appear in `events.log` and the event stream panel
-6. Telemetry is logged to `live_telem.csv` and plotted in real time
+5. Events appear in `gds/runtime/events.log` and the event stream panel
+6. Telemetry is logged to `gds/runtime/live_telem.csv` and plotted in real time
+
+For radio-integration work without UDP:
+
+```bash
+export DELTAV_LINK_MODE=serial_kiss
+export DELTAV_SERIAL_PORT=/dev/tty.usbserial-0001
+export DELTAV_SERIAL_BAUD=115200
+./build/flight_software
+```
 
 ---
 

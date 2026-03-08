@@ -1,7 +1,7 @@
 {
   "summary": {
-    "total_requirements": 33,
-    "pass_with_tests": 33,
+    "total_requirements": 37,
+    "pass_with_tests": 37,
     "partial_non_test_only": 0,
     "missing": 0,
     "errors": 0
@@ -293,6 +293,50 @@
       "tests": [
         "RingBuffer.DrainOverflowCount",
         "RingBuffer.OverflowCounted"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-OPS-01",
+      "dal": "B",
+      "statement": "OTA session manager verifies staged update images before reboot request.",
+      "tests": [
+        "OtaComponent.SizeMismatchPreventsActivation",
+        "OtaComponent.StageWritesArtifactAndManifest",
+        "OtaComponent.VerifiesImageAndRequestsReboot"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-OPS-02",
+      "dal": "B",
+      "statement": "Time sync service stages UTC words and applies deterministic UTC offset.",
+      "tests": [
+        "TimeService.UtcSyncHelpers",
+        "TimeSyncComponent.ApplySyncFromWordCommands"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-OPS-03",
+      "dal": "C",
+      "statement": "Playback service replays historical telemetry samples.",
+      "tests": [
+        "PlaybackComponent.LoadsAndReplaysHistoricalSamples"
+      ],
+      "other_evidence": [],
+      "status": "PASS"
+    },
+    {
+      "id": "DV-OPS-04",
+      "dal": "B",
+      "statement": "Memory dwell/patch service enforces bounded diagnostic access.",
+      "tests": [
+        "MemoryDwellComponent.PatchAndDwellAddressWord",
+        "MemoryDwellComponent.SampleNowEmitsTelemetry"
       ],
       "other_evidence": [],
       "status": "PASS"

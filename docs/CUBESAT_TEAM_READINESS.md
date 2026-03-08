@@ -33,6 +33,17 @@ Minimum recommended evidence set:
 2. ESP32 reboot campaign PASS (`tools/esp32_reboot_campaign.py`)
 3. ESP32 soak PASS >= 3600s (`tools/esp32_soak.py`)
 4. Sensor-attached run evidence (not simulation fallback)
+5. Link validation in selected transport mode:
+   - UDP SITL mode, or
+   - serial-KISS mode (`DELTAV_LINK_MODE=serial_kiss`) with mission radio stack
+6. Operational app evidence:
+   - ATS/RTS sequence execution verification
+   - Dynamic limit-table alarm verification
+   - CFDP missing-chunk/report workflow verification
+   - Mode-manager transition/apply verification
+   - OTA session dry-run (CRC verify + stage request)
+   - UTC sync command verification
+   - Store-and-forward playback command verification
 
 Use:
 
@@ -80,3 +91,14 @@ python3 tools/cubesat_readiness_report.py \
   --output-md docs/CUBESAT_READINESS_STATUS_SCOPE.md \
   --output-json docs/CUBESAT_READINESS_STATUS_SCOPE.json
 ```
+
+## 6) Explicit Scope Waivers
+
+An explicit waiver means a check is intentionally excluded by ID (via
+`--exclude-check`) and still shown in the scope report as `WAIVED` with a
+reason. This keeps scope-limited closeout traceable and reviewable.
+
+Current scope profile waivers:
+
+- `esp32-soak-1h`
+- `sensor-attached-evidence`

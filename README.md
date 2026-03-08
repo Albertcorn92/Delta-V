@@ -9,6 +9,7 @@ Safety gates and traceability workflow: `docs/SAFETY_ASSURANCE.md`.
 Documentation map for first-time users and mission teams: `docs/README.md`.
 ESP32 hardware bring-up plan: `docs/ESP32_BRINGUP.md`.
 ESP32 no-sensor baseline evidence: `docs/ESP32_SENSORLESS_BASELINE.md`.
+ESP32 golden-image bootchain workflow: `docs/ESP32_GOLDEN_IMAGE_BOOTCHAIN.md`.
 Coverage threshold ramp policy: `docs/COVERAGE_RAMP_PLAN.md`.
 Mission safety-case starter templates: `docs/safety_case/README.md`.
 
@@ -31,7 +32,7 @@ runtime compatibility with ESP-IDF/FreeRTOS internals.
 |---|---|
 | **HeapGuard** | Optional strict host runtime heap lock via `DELTAV_ENABLE_HOST_HEAP_GUARD=1` |
 | **TmrStore** | Triple Modular Redundancy for critical params — SEU self-healing via majority vote |
-| **COBS Framing** | Consistent Overhead Byte Stuffing — guarantees frame sync after bit errors |
+| **KISS Serial Framing** | UART-friendly framing/escaping for serial radio links |
 | **MissionFsm** | Formal FSM gates uplink commands by state: SAFE_MODE blocks OPERATIONAL opcodes |
 | **Requirements.hpp** | RTM header — every DV-XXX-NN requirement linked to tests |
 | **FaultInjection** | `WatchdogComponent::injectBatteryLevel()` hook for HIL destructive testing |
@@ -39,6 +40,17 @@ runtime compatibility with ESP-IDF/FreeRTOS internals.
 | **System Tests** | End-to-end command/event/telemetry integration tests via `run_system_tests` |
 | **Bench Baseline** | Reproducible software performance metrics (uplink, CRC-16, COBS) |
 | **SITL Smoke + Quickstart** | Local runtime smoke validation and one-command onboarding flow |
+| **Serial-KISS Link Mode** | Optional UART transport for CCSDS frames over KISS instead of UDP |
+| **Ops App Bundle** | Built-in Sequencer, File Transfer, Dwell/Patch, Time Sync, Playback, and OTA managers |
+| **Expanded HAL** | Added UART and PWM HAL interfaces with deterministic SITL mock drivers |
+| **Store & Forward** | Playback component replays historical telemetry from recorder logs |
+| **Time Sync** | Ground-driven UTC sync via staged "time at tone" words |
+| **OTA Manager** | CRC32-verified update staging with reboot request signaling |
+| **ATS/RTS Sequencer** | Absolute and relative time script execution with event triggers |
+| **Limit Checker** | Ground-updatable warn/critical thresholds for dynamic alarms |
+| **CFDP-Style Transfer** | Chunk tracking + missing-chunk reporting for lossy links |
+| **Mode Manager** | Mode-driven command orchestration for detumble/sun/science/downlink |
+| **Golden Bootchain Kit** | ESP32 partition + CRC-only workflow for golden-image fallback design |
 
 ---
 
@@ -50,12 +62,12 @@ runtime compatibility with ESP-IDF/FreeRTOS internals.
 ┌─────────────────────────────────────────────────┐
 │  Ground Data System (Python / Streamlit)         │
 │  gds/gds_dash.py ←UDP 9001→ TelemetryBridge      │
-│               ←UDP 9002→  (CCSDS + COBS)          │
+│               ←UDP 9002→  (CCSDS command path)     │
 └───────────────────┬─────────────────────────────┘
                     │
 ┌───────────────────▼─────────────────────────────┐
 │  TelemetryBridge (ActiveComponent, 20 Hz)        │
-│  Downlink: CCSDS + CRC-16 + COBS                 │
+│  Downlink: CCSDS + CRC-16 (UDP or serial-KISS)   │
 │  Uplink:   CCSDS command frame validation         │
 └────┬──────────────┬──────────────────────────────┘
      │              │
@@ -105,6 +117,37 @@ cmake --build build
 # Terminal 2 — GDS Dashboard
 streamlit run gds/gds_dash.py
 ```
+
+### Run with Serial-KISS Link (No UDP)
+
+```bash
+export DELTAV_LINK_MODE=serial_kiss
+export DELTAV_SERIAL_PORT=/dev/tty.usbserial-0001
+export DELTAV_SERIAL_BAUD=115200
+./build/flight_software
+```
+
+This mode keeps CCSDS framing and anti-replay checks while switching transport
+from UDP sockets to UART KISS framing for radio-oriented integration work.
+
+### Install Standard Civilian Ops Apps
+
+```bash
+python3 tools/dv-util.py install-standard-apps
+```
+
+This installs/wires baseline mission ops components:
+
+- `CommandSequencerComponent`
+- `FileTransferComponent`
+- `MemoryDwellComponent` (dwell + patch command set)
+- `TimeSyncComponent`
+- `PlaybackComponent`
+- `OtaComponent`
+- `AtsRtsSequencerComponent`
+- `LimitCheckerComponent`
+- `CfdpComponent`
+- `ModeManagerComponent`
 
 ### ESP32-S3 (Local-Only Baseline)
 
@@ -264,6 +307,7 @@ cmake --build build --target cubesat_readiness
 cmake --build build --target cubesat_readiness_scope
 # emits docs/CUBESAT_READINESS_STATUS_SCOPE.{md,json}
 # applies scope waivers for: esp32-soak-1h, sensor-attached-evidence
+# marks those checks as WAIVED with the explicit --exclude-check reason
 ```
 
 Process templates for mission certification work are in `docs/process/`.
@@ -271,7 +315,7 @@ Guided documentation index is in `docs/README.md`.
 Open-source release checklist is in `docs/OPEN_SOURCE_RELEASE_CHECKLIST.md`.
 Mission assurance checklist is in `docs/MISSION_ASSURANCE_CHECKLIST.md`.
 CubeSat mission-team readiness guide is in `docs/CUBESAT_TEAM_READINESS.md`.
-Latest release notes snapshot is in `docs/RELEASE_NOTES_20260307.md`.
+Latest release notes snapshot is in `docs/RELEASE_NOTES_20260308.md`.
 Performance methodology is in `docs/BENCHMARK_PROTOCOL.md`.
 Coverage policy is in `docs/COVERAGE_POLICY.md`.
 
@@ -284,6 +328,8 @@ Coverage policy is in `docs/COVERAGE_POLICY.md`.
 ```bash
 # Interactive wizard (recommended)
 python3 tools/dv-util.py boot-menu
+# optional first-time setup of standard mission ops components
+python3 tools/dv-util.py install-standard-apps
 # then choose: "Quickstart: component + command + regenerate"
 # use "Help: how the boot flow works" any time in the menu
 
@@ -308,6 +354,9 @@ python3 tools/dv-util.py add-command SET_HEATER --target-id 400 --opcode 1 \
 ## 🔐 Security
 
 Uplink commands use strict CCSDS command-frame validation plus anti-replay sequence checks. The `MissionFsm` additionally gates commands by mission state. Restricted commands (e.g. actuator enable/deploy operations) are blocked in `SAFE_MODE` and `EMERGENCY`.
+
+The baseline framework intentionally does not include command-path encryption
+features.
 
 Set replay-state persistence path before launch:
 

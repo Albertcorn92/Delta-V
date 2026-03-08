@@ -145,6 +145,72 @@ TEST(SystemIntegration, TelemAndEventHubFanOutToRadioAndRecorder) {
     EXPECT_GT(topo.recorder.event_in.size(), 0u);
 }
 
+TEST(SystemIntegration, RoutesCivilianOpsTargetsFromRadioThroughCommandHub) {
+    TimeService::initEpoch();
+    ScopedReplayPath replay_path{};
+    hal::MockI2c i2c{};
+    TopologyManager topo(i2c);
+
+    topo.wire();
+    topo.registerFdir();
+    topo.watchdog.init();
+
+    ASSERT_TRUE(topo.radio.ingestUplinkFrameForTest(
+        buildUplinkFrame(10u, CommandPacket{46u, 1u, 200.0f}).data(),
+        sizeof(CcsdsHeader) + sizeof(CommandPacket)));
+    ASSERT_TRUE(topo.radio.ingestUplinkFrameForTest(
+        buildUplinkFrame(11u, CommandPacket{47u, 1u, 200.0f}).data(),
+        sizeof(CcsdsHeader) + sizeof(CommandPacket)));
+    ASSERT_TRUE(topo.radio.ingestUplinkFrameForTest(
+        buildUplinkFrame(12u, CommandPacket{48u, 1u, 2.0f}).data(),
+        sizeof(CcsdsHeader) + sizeof(CommandPacket)));
+    ASSERT_TRUE(topo.radio.ingestUplinkFrameForTest(
+        buildUplinkFrame(13u, CommandPacket{49u, 1u, 200.0f}).data(),
+        sizeof(CcsdsHeader) + sizeof(CommandPacket)));
+
+    topo.cmd_hub.step();
+
+    EXPECT_GT(topo.ats_rts.cmd_in.size(), 0u);
+    EXPECT_GT(topo.limit_checker.cmd_in.size(), 0u);
+    EXPECT_GT(topo.cfdp_manager.cmd_in.size(), 0u);
+    EXPECT_GT(topo.mode_manager.cmd_in.size(), 0u);
+}
+
+TEST(SystemIntegration, ModeManagerCommandOutFeedsBatteryThroughCommandHub) {
+    TimeService::initEpoch();
+    ScopedReplayPath replay_path{};
+    hal::MockI2c i2c{};
+    TopologyManager topo(i2c);
+
+    topo.wire();
+    topo.registerFdir();
+    topo.watchdog.init();
+    topo.battery.init();
+    topo.mode_manager.init();
+
+    const auto send = [&](uint16_t seq, uint32_t opcode, float arg) {
+        const auto frame = buildUplinkFrame(seq, CommandPacket{49u, opcode, arg});
+        ASSERT_TRUE(topo.radio.ingestUplinkFrameForTest(frame.data(), frame.size()));
+    };
+
+    send(20u, 1u, 200.0f); // MODE_STAGE_TARGET
+    send(21u, 2u, 2.0f);   // MODE_STAGE_ENABLE_OPCODE -> SET_DRAIN_RATE
+    send(22u, 3u, 5.0f);   // MODE_STAGE_ENABLE_ARG
+    send(23u, 4u, 2.0f);   // MODE_STAGE_DISABLE_OPCODE
+    send(24u, 5u, 0.0f);   // MODE_STAGE_DISABLE_ARG
+    send(25u, 6u, 2.0f);   // MODE_STAGE_MASK -> SUN
+    send(26u, 7u, 0.0f);   // MODE_COMMIT_RULE
+    send(27u, 9u, 2.0f);   // MODE_SET_MODE -> SUN
+    send(28u, 10u, 0.0f);  // MODE_APPLY
+
+    topo.cmd_hub.step();      // route incoming mode commands to mode_manager
+    topo.mode_manager.step(); // emits command_out -> cmd_hub.cmd_input
+    topo.cmd_hub.step();      // route mode-generated command to battery
+    topo.battery.step();
+
+    EXPECT_LT(topo.battery.getSOC(), 96.0f);
+}
+
 auto main(int argc, char** argv) -> int {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

@@ -9,7 +9,6 @@ Run:
 
 import json
 import math
-import os
 import re
 import socket
 import struct
@@ -45,9 +44,10 @@ EVENT_FMT = "<II28s"  # severity(I4) srcId(I4) msg(28s)
 CMD_FMT = "<IIf"  # targetId(I4) opcode(I4) arg(f4)
 CRC_FMT = ">H"  # uint16_t big-endian
 
-DATA_FILE = "live_telem.csv"
-EVENT_FILE = "events.log"
 REPO_ROOT = Path(__file__).resolve().parent.parent
+RUNTIME_DIR = REPO_ROOT / "gds" / "runtime"
+DATA_FILE = RUNTIME_DIR / "live_telem.csv"
+EVENT_FILE = RUNTIME_DIR / "events.log"
 DICT_FILE = REPO_ROOT / "dictionary.json"
 
 STATE_STYLES = {
@@ -131,7 +131,7 @@ def parse_state_from_event(msg: str) -> str | None:
 
 
 def load_telem() -> pd.DataFrame | None:
-    if not os.path.exists(DATA_FILE):
+    if not DATA_FILE.exists():
         return None
     try:
         df = pd.read_csv(DATA_FILE)
@@ -147,12 +147,12 @@ def load_telem() -> pd.DataFrame | None:
 
 
 def load_recent_events(max_lines: int = 80) -> list[dict]:
-    if not os.path.exists(EVENT_FILE):
+    if not EVENT_FILE.exists():
         return []
 
     pattern = re.compile(r"^\[(?P<time>[^\]]+)\]\[(?P<sev>[^\]]+)\]\[(?P<src>[^\]]+)\]\s*(?P<msg>.*)$")
     events: list[dict] = []
-    with open(EVENT_FILE) as f:
+    with open(EVENT_FILE, encoding="utf-8") as f:
         lines = f.readlines()[-max_lines:]
 
     for line in lines:
@@ -187,11 +187,12 @@ def send_command(target_id: int, opcode: int, argument: float = 0.0) -> None:
         sock.sendto(header + payload, ("127.0.0.1", PORT_UPLINK))
 
 
-def file_age_seconds(path: str) -> int | None:
-    if not os.path.exists(path):
+def file_age_seconds(path: str | Path) -> int | None:
+    candidate = Path(path)
+    if not candidate.exists():
         return None
     try:
-        age = int(time.time() - os.path.getmtime(path))
+        age = int(time.time() - candidate.stat().st_mtime)
     except OSError:
         return None
     return max(age, 0)
@@ -317,7 +318,7 @@ def udp_listener() -> None:
         if apid == 10 and len(payload) >= 12:
             _met, comp_id, value = struct.unpack(TELEM_FMT, payload[:12])
             name = comp_name(comp_id, gds_ref)
-            with open(DATA_FILE, "a") as f:
+            with open(DATA_FILE, "a", encoding="utf-8") as f:
                 f.write(f"{ts},{name},{value:.4f}\n")
 
         elif apid == 20 and len(payload) >= 36:
@@ -330,16 +331,21 @@ def udp_listener() -> None:
             if state:
                 set_mission_state(state)
 
-            with open(EVENT_FILE, "a") as f:
+            with open(EVENT_FILE, "a", encoding="utf-8") as f:
                 f.write(f"[{ts}][{sev}][{src}] {msg}\n")
 
 
 # ---------------------------------------------------------------------------
 # Initialise files and listener
 # ---------------------------------------------------------------------------
-if not os.path.exists(DATA_FILE) or os.stat(DATA_FILE).st_size == 0:
-    with open(DATA_FILE, "w") as f:
+RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+
+if (not DATA_FILE.exists()) or DATA_FILE.stat().st_size == 0:
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
         f.write("Time,Component,Value\n")
+
+if not EVENT_FILE.exists():
+    EVENT_FILE.write_text("", encoding="utf-8")
 
 if not any(thread.name == "GDS_LISTENER" for thread in threading.enumerate()):
     threading.Thread(target=udp_listener, daemon=True, name="GDS_LISTENER").start()
@@ -807,6 +813,7 @@ with main_col:
     <p>Telemetry log updated: {escape(format_age(telem_file_age))}</p>
     <p>Event log updated: {escape(format_age(event_file_age))}</p>
     <p>Current packet count: {packet_count}</p>
+    <p>Runtime directory: {escape(str(RUNTIME_DIR.relative_to(REPO_ROOT)))}</p>
   </div>
 </div>
 """,
@@ -954,6 +961,23 @@ sb.title("Command Console")
 sb.caption(f"Uplink UDP :{PORT_UPLINK}")
 sb.caption(f"Frame: CCSDS header + payload, seq={st.session_state.uplink_seq}")
 sb.markdown(f"<span class='state-chip {mission_class}'>{escape(mission_state)}</span>", unsafe_allow_html=True)
+with sb.expander("First-time setup", expanded=False):
+    sb.markdown(
+        "1. Build and launch flight software.\n"
+        "2. Launch this GDS dashboard.\n"
+        "3. Use boot-menu to scaffold components/commands.\n"
+        "4. Regenerate dictionary and verify telemetry/event flow."
+    )
+    sb.code(
+        "./build/flight_software\n"
+        "streamlit run gds/gds_dash.py\n"
+        "python3 tools/dv-util.py boot-menu",
+        language="bash",
+    )
+    if sb.button("Reset local GDS runtime logs", use_container_width=True):
+        DATA_FILE.write_text("Time,Component,Value\n", encoding="utf-8")
+        EVENT_FILE.write_text("", encoding="utf-8")
+        sb.success("Reset gds/runtime telemetry and event logs.")
 
 commands = gds.get("commands", {})
 if commands:

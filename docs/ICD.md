@@ -6,14 +6,32 @@ This document defines the data interfaces, network protocols, and binary packet 
 
 ---
 
-## 2. Network Interface
+## 2. Transport Interface
 
-All space-to-ground communication uses non-blocking UDP sockets.
+DELTA-V supports two transport profiles for the same CCSDS payloads:
+
+### 2.1 UDP (default SITL)
 
 | Direction | Port | Description |
 |---|---|---|
 | Downlink (flight → ground) | 9001 | Telemetry and events |
 | Uplink (ground → flight) | 9002 | Commands |
+
+### 2.2 Serial-KISS (radio-oriented integration)
+
+Enable with:
+
+```bash
+export DELTAV_LINK_MODE=serial_kiss
+export DELTAV_SERIAL_PORT=/dev/tty.usbserial-0001
+export DELTAV_SERIAL_BAUD=115200
+```
+
+Frames are wrapped in KISS delimiters/escapes over UART:
+
+- `FEND` (`0xC0`) frame boundary
+- `FESC TFEND` escape for `FEND`
+- `FESC TFESC` escape for `FESC`
 
 ---
 
@@ -24,13 +42,13 @@ All space-to-ground communication uses non-blocking UDP sockets.
 [ Payload (variable)          ]
 [ CRC-16/CCITT (2B, downlink) ]
          │
-         ▼  COBS encoded (serial targets) or raw UDP (SITL)
+         ▼  raw UDP payload or KISS-wrapped UART payload
 ```
 
 ### Framing Notes
 
-- COBS (`Cobs.hpp`) is applied on serial/RF links to guarantee frame boundary detection after bit errors. On UDP SITL, COBS is optional.
 - The CRC protects the payload only (not the CCSDS header).
+- Uplink command payload remains canonical: header + command packet.
 
 ---
 
@@ -122,6 +140,7 @@ Commands rejected by the FSM return a NACK event with message `FSM_BLOCKED: OPx 
 - IMU component entry (`ID 300`, `IMU_01`)
 - Star-tracker amplitude command (`SET_STAR_AMPLITUDE`, target `ID 100`, opcode `1`)
 - IMU recalibration command (`IMU_RECALIBRATE`, target `ID 300`, opcode `1`)
+- Civilian ops app commands (`SEQ_*`, `FILE_*`, `DWELL_*`, `TIME_*`, `PLAYBACK_*`, `OTA_*`, `ATS_*`, `LIM_*`, `CFDP_*`, `MODE_*`)
 
 To refresh dictionary and interface artifacts after topology updates:
 
