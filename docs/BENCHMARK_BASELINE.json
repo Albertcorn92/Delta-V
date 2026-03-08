@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-03-08T17:18:07.584532+00:00",
+  "generated_utc": "2026-03-08T18:12:15.039960+00:00",
   "workspace": "DELTA-V Framework",
   "host": {
     "platform": "macOS-26.2-arm64-arm-64bit",
@@ -8,7 +8,7 @@
   },
   "git": {
     "branch": "main",
-    "commit": "c91c47e52f5ae2ce272b510a941225217acafcda",
+    "commit": "001f6c861ce8ae647bf880a7c74fed82a0ca8d29",
     "dirty_worktree": true
   },
   "metrics": {
@@ -16,23 +16,23 @@
       "frames": 20000,
       "accepted": 20000,
       "consumed": 20000,
-      "duration_s": 1.124259,
-      "throughput_cmd_per_s": 17789.493,
-      "latency_p50_us": 40.541,
-      "latency_p95_us": 126.0
+      "duration_s": 1.008792,
+      "throughput_cmd_per_s": 19825.696,
+      "latency_p50_us": 39.167,
+      "latency_p95_us": 82.875
     },
     "crc16": {
       "iterations": 300000,
       "bytes_per_iteration": 256,
-      "duration_s": 0.698299,
-      "throughput_mb_per_s": 109.982,
+      "duration_s": 0.667621,
+      "throughput_mb_per_s": 115.035,
       "accumulator": 0
     },
     "cobs_roundtrip": {
       "iterations": 300000,
       "bytes_per_iteration": 22,
-      "duration_s": 0.008165,
-      "throughput_mb_per_s": 808.328,
+      "duration_s": 0.00821,
+      "throughput_mb_per_s": 803.898,
       "accumulator": 38246416
     }
   }
