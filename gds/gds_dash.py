@@ -17,6 +17,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from html import escape
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -46,7 +47,8 @@ CRC_FMT = ">H"  # uint16_t big-endian
 
 DATA_FILE = "live_telem.csv"
 EVENT_FILE = "events.log"
-DICT_FILE = "dictionary.json"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DICT_FILE = REPO_ROOT / "dictionary.json"
 
 STATE_STYLES = {
     "NOMINAL": "state-nominal",
@@ -85,8 +87,8 @@ def crc16(data: bytes) -> int:
 
 
 def read_dict_file() -> dict:
-    if os.path.exists(DICT_FILE):
-        with open(DICT_FILE) as f:
+    if DICT_FILE.exists():
+        with open(DICT_FILE, encoding="utf-8") as f:
             return json.load(f)
     return {"_meta": {}, "components": {}, "commands": {}, "params": {}}
 
