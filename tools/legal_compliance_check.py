@@ -177,6 +177,32 @@ REQUIRED_PHRASES = [
     ),
 ]
 
+ESP32_COMPLIANCE_CONFIGS = [
+    ROOT / "ports" / "esp32" / "sdkconfig",
+    ROOT / "ports" / "esp32" / "sdkconfig.defaults",
+]
+
+ESP32_FORBIDDEN_KCONFIG_FLAGS = [
+    "CONFIG_ESP_WIFI_ENABLED",
+    "CONFIG_ESP32_WIFI_ENABLED",
+    "CONFIG_ESP_WIFI_ENABLE_WPA3_SAE",
+    "CONFIG_ESP_WIFI_ENABLE_SAE_PK",
+    "CONFIG_ESP_WIFI_ENABLE_WPA3_OWE_STA",
+    "CONFIG_ESP_WIFI_STA_DISCONNECTED_PM_ENABLE",
+    "CONFIG_ESP_WIFI_GMAC_SUPPORT",
+    "CONFIG_ESP_WIFI_SOFTAP_SUPPORT",
+    "CONFIG_ESP_WIFI_MBEDTLS_CRYPTO",
+    "CONFIG_ESP_WIFI_MBEDTLS_TLS_CLIENT",
+    "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT",
+    "CONFIG_ESP_PHY_ENABLED",
+    "CONFIG_ESP_COEX_ENABLED",
+    "CONFIG_ETH_ENABLED",
+    "CONFIG_LWIP_ENABLE",
+    "CONFIG_ESP_TLS_USING_MBEDTLS",
+    "CONFIG_MBEDTLS_TLS_ENABLED",
+    "CONFIG_ESP_HTTP_CLIENT_ENABLE_HTTPS",
+]
+
 
 def should_skip(path: Path) -> bool:
     return any(part in EXCLUDED_DIRS for part in path.parts)
@@ -217,6 +243,54 @@ def scan_for_patterns(paths: list[Path], patterns: list[re.Pattern[str]]) -> lis
                     violations.append(
                         f"{rel}:{lineno}: banned pattern '{pattern.pattern}' matched: {line.strip()}"
                     )
+    return violations
+
+
+def parse_kconfig(content: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("# CONFIG_") and line.endswith(" is not set"):
+            key = line[len("# "): -len(" is not set")]
+            parsed[key] = "n"
+            continue
+        if not line.startswith("CONFIG_"):
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        parsed[key.strip()] = value.strip()
+    return parsed
+
+
+def scan_kconfig_forbidden_flags(paths: list[Path], forbidden_flags: list[str]) -> list[str]:
+    violations: list[str] = []
+    for path in paths:
+        if not path.exists():
+            continue
+        rel = path.relative_to(ROOT)
+        try:
+            content = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError as exc:
+            violations.append(f"{rel}: unable to read file: {exc}")
+            continue
+
+        parsed = parse_kconfig(content)
+        for flag in forbidden_flags:
+            value = parsed.get(flag)
+            if value is None:
+                if path.name == "sdkconfig.defaults":
+                    violations.append(
+                        f"{rel}: required compliance flag '{flag}' must be explicitly set to n"
+                    )
+                continue
+            if value.lower() in {"y", "1", "yes", "true"}:
+                violations.append(
+                    f"{rel}: forbidden runtime-capability flag enabled: {flag}={value}"
+                )
+
     return violations
 
 
@@ -270,11 +344,17 @@ def main() -> int:
 
     claim_violations = scan_for_patterns(text_paths, PROHIBITED_CLAIM_PATTERNS)
 
+    kconfig_violations = scan_kconfig_forbidden_flags(
+        ESP32_COMPLIANCE_CONFIGS,
+        ESP32_FORBIDDEN_KCONFIG_FLAGS,
+    )
+
     violations = (
         military_violations
         + crypto_violations
         + endorsement_violations
         + claim_violations
+        + kconfig_violations
     )
     if violations:
         print("[legal] Compliance check failed.")

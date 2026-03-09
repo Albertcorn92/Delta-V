@@ -68,7 +68,7 @@ Every data flow uses typed `InputPort<T>` / `OutputPort<T>` pairs backed by a th
 
 ### 3.3 Thread Safety
 
-`RingBuffer` uses `std::mutex` (not a spinlock — see fix F-01/F-09). Active components push to ports from their own thread; the scheduler drains them in the master thread. The mutex provides the required memory barrier on ARM/Power multi-core targets.
+`RingBuffer` is lock-free for the framework's single-producer/single-consumer port model, implemented with atomic head/tail indices (no mutex/spinlock in the data path). Active components push from producer contexts while scheduler-owned consumers drain in deterministic loops.
 
 ---
 
@@ -79,10 +79,11 @@ Every data flow uses typed `InputPort<T>` / `OutputPort<T>` pairs backed by a th
 1. **Battery FDIR** (DV-FDIR-01/02/03): SOC thresholds → DEGRADED / SAFE_MODE / EMERGENCY transitions.
 2. **Software FDIR** (DV-FDIR-03/04): `reportHealth()` polls error counts → WARNING / CRITICAL escalation.
 3. **Restart** (DV-FDIR-04): Up to `MAX_RESTARTS_PER_COMPONENT` (3) automatic thread restarts for `ActiveComponent` failures.
-4. **Recovery** (DV-FDIR-05/F-15): DEGRADED auto-recovers to NOMINAL when all components are healthy and battery > 15%.
+4. **Recovery** (DV-FDIR-05/F-15): DEGRADED auto-recovers to NOMINAL only when all components are healthy and battery exceeds `degraded threshold + hysteresis` (default `+2%`).
 5. **ParamDb CRC** (DV-DATA-01): Verified every 30 cycles.
 6. **TMR Scrub** (DV-TMR-01): `TmrRegistry::scrubAll()` called every 30 cycles to repair SEU-corrupted parameter copies.
 7. **Heartbeat** (DV-FDIR-06): Emitted every 10 cycles for GDS communication-loss detection.
+8. **Hardware watchdog integration**: On ESP runtime paths, the cooperative rate-group loop registers and services the task watchdog each FAST cycle so scheduler hangs fail closed via watchdog reset.
 
 ### 4.1 Mission FSM
 
@@ -173,6 +174,6 @@ UART, and PWM to reduce board-specific bring-up work before HIL.
 |---|---|
 | CRC-32 on downlink (CRC-16 currently) | Planned |
 | Rate group executive (10/1/0.1 Hz tiers) | Implemented in runtime path |
-| TAI/UTC epoch synchronisation | Partial — UTC offset sync implemented; TAI conversion planned |
+| TAI/UTC epoch synchronisation | Partial — UTC offset sync + monotonic UTC clamp implemented; full TAI epoch pipeline planned |
 | MISRA C++:2023 full compliance | Partially met (enforced by Wconversion, Wshadow, Wformat=2) |
 | Polyspace / Coverity integration | Planned |

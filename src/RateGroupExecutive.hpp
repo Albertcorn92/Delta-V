@@ -18,6 +18,7 @@
 
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
 #include <esp_timer.h>
+#include <esp_task_wdt.h>
 #endif
 
 #if defined(DELTAV_OS_FREERTOS)
@@ -145,6 +146,7 @@ public:
         uint64_t loop_overruns = 0;
 
         std::printf("[RGE] Embedded cooperative scheduler running.\n\n");
+        armTaskWatchdog();
 
 #if defined(DELTAV_OS_FREERTOS)
         TickType_t next_wake = xTaskGetTickCount();
@@ -209,12 +211,15 @@ public:
                 loop_wcet_us = 0;
             }
 
+            serviceTaskWatchdog();
+
 #if defined(DELTAV_OS_FREERTOS)
             vTaskDelayUntil(&next_wake, fast_period_ticks);
 #else
             std::this_thread::sleep_for(std::chrono::milliseconds(FAST_PERIOD_MS));
 #endif
         }
+        disarmTaskWatchdog();
         return;
 #else
         for (size_t i = 0; i < active_count_; ++i) active_.at(i)->startThread();
@@ -297,6 +302,10 @@ private:
     std::atomic<bool> running_{false};
     std::thread       fast_thread_{};
     std::thread       norm_thread_{};
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+    bool task_wdt_registered_{false};
+    bool task_wdt_warned_{false};
+#endif
 
     [[nodiscard]] auto isRegistered(const Component* c) const -> bool {
         if (c == nullptr) {
@@ -357,6 +366,43 @@ private:
         return 0U;
 #endif
     }
+
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+    auto armTaskWatchdog() -> void {
+        const esp_err_t rc = esp_task_wdt_add(nullptr);
+        if (rc == ESP_OK || rc == ESP_ERR_INVALID_STATE) {
+            task_wdt_registered_ = true;
+            return;
+        }
+        if (!task_wdt_warned_) {
+            (void)std::fprintf(stderr,
+                "[RGE] WARN: failed to register task watchdog (%d)\n",
+                static_cast<int>(rc));
+            task_wdt_warned_ = true;
+        }
+    }
+
+    auto serviceTaskWatchdog() -> void {
+        if (!task_wdt_registered_) {
+            return;
+        }
+        const esp_err_t rc = esp_task_wdt_reset();
+        if (rc != ESP_OK && !task_wdt_warned_) {
+            (void)std::fprintf(stderr,
+                "[RGE] WARN: failed to feed task watchdog (%d)\n",
+                static_cast<int>(rc));
+            task_wdt_warned_ = true;
+        }
+    }
+
+    auto disarmTaskWatchdog() -> void {
+        if (!task_wdt_registered_) {
+            return;
+        }
+        (void)esp_task_wdt_delete(nullptr);
+        task_wdt_registered_ = false;
+    }
+#endif
 
     auto runTier(RateTier& t) -> void {
         const uint64_t period_ns = 1'000'000'000ULL / t.hz;

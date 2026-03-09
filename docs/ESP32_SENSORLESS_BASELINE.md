@@ -12,6 +12,7 @@ sensors and no network dependency.
 ## Baseline Configuration
 
 - `DELTAV_LOCAL_ONLY=ON`
+- `DELTAV_DISABLE_NETWORK_STACK=ON`
 - `DELTAV_ESP_SAFE_MODE=OFF`
 - `DELTAV_ALLOW_IMU_SIMULATION=ON`
 

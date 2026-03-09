@@ -12,7 +12,13 @@
 #include "Serializer.hpp"
 #include "TimeService.hpp"
 #include "Types.hpp"
+#if defined(DELTAV_DISABLE_NETWORK_STACK) && \
+    (defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32))
+#define DELTAV_EMBEDDED_NETWORK_DISABLED
+#endif
+#if !defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
 #include <arpa/inet.h>
+#endif
 #include <array>
 #include <cstdlib>
 #include <cstring>
@@ -26,8 +32,10 @@
 #include "nvs_flash.h"
 #endif
 #include <cstdio>
+#if !defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
 #include <netinet/in.h>
 #include <sys/socket.h>
+#endif
 #include <string>
 #include <unistd.h>
 #ifdef DELTAV_FAULT_INJECT
@@ -172,6 +180,13 @@ public:
                 static_cast<int>(name.size()), name.data(),
                 serial_port_.c_str(), static_cast<unsigned>(serial_baud_));
         } else {
+#if defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
+            (void)std::fprintf(stderr,
+                "[%.*s] FATAL: UDP bridge unavailable (network stack disabled).\n",
+                static_cast<int>(name.size()), name.data());
+            recordError();
+            return;
+#else
             if (!initUdpLink()) {
                 recordError();
                 return;
@@ -186,6 +201,7 @@ public:
                     "Set DELTAV_ENABLE_UNAUTH_UPLINK=1 for local SITL command tests.\n",
                     static_cast<int>(name.size()), name.data());
             }
+#endif
         }
 #endif
     }
@@ -204,9 +220,16 @@ public:
 #if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
             if (serial_fd_ < 0) { recordError(); return; }
 #endif
-        } else if (sock_fd < 0) {
+        } else {
+#if defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
             recordError();
             return;
+#else
+            if (sock_fd < 0) {
+                recordError();
+                return;
+            }
+#endif
         }
         sendTelemetry();
         sendEvents();
@@ -221,7 +244,9 @@ private:
     };
 
     int          sock_fd{-1};
+#if !defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
     sockaddr_in  dest_addr{};
+#endif
     uint16_t     telem_seq{0};
     uint16_t     event_seq{0};
     uint16_t     downlink_port_{DEFAULT_DOWNLINK_PORT};
@@ -233,7 +258,11 @@ private:
     uint32_t     rejected_count{0};
     std::string  replay_seq_path{DEFAULT_REPLAY_SEQ_FILE};
     bool         uplink_enabled_{true};
+#if !defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
     uint32_t     allowed_uplink_addr_{INADDR_LOOPBACK};
+#else
+    uint32_t     allowed_uplink_addr_{0U};
+#endif
 #if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
     int          serial_fd_{-1};
     std::string  serial_port_{DEFAULT_SERIAL_PORT};
@@ -285,6 +314,9 @@ private:
     }
 
     auto initUdpLink() -> bool {
+#if defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
+        return false;
+#else
         sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
         if (sock_fd < 0) {
             const auto name = getName();
@@ -309,6 +341,7 @@ private:
         dest_addr.sin_port        = htons(downlink_port_);
         dest_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
         return true;
+#endif
     }
 
 #if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
@@ -414,6 +447,7 @@ private:
 #endif
     }
 
+#if !defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
     [[nodiscard]] auto isTrustedUplinkSource(const sockaddr_in& client) const -> bool {
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
         (void)client;
@@ -422,6 +456,7 @@ private:
         return client.sin_addr.s_addr == allowed_uplink_addr_;
 #endif
     }
+#endif
 
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
     auto ensureReplayStoreReadyEsp() -> bool {
@@ -619,9 +654,13 @@ private:
 #endif
         }
 
+#if defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
+        return false;
+#else
         const ssize_t bytes_sent = sendto(sock_fd, frame, frame_len, 0,
             reinterpret_cast<const sockaddr*>(&dest_addr), sizeof(dest_addr));
         return bytes_sent == static_cast<ssize_t>(frame_len);
+#endif
     }
 
 #if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
@@ -753,9 +792,14 @@ private:
             return;
         }
 
+#if defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
+        return;
+#else
         receiveCommandsUdp();
+#endif
     }
 
+#if !defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
     auto receiveCommandsUdp() -> void {
         constexpr size_t BUF_SIZE = sizeof(CcsdsHeader) + MAX_UPLINK_PAYLOAD;
         std::array<uint8_t, BUF_SIZE> buf{};
@@ -780,6 +824,7 @@ private:
             (void)processIncomingFrame(buf.data(), static_cast<size_t>(len));
         }
     }
+#endif
 
 #if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
     auto receiveCommandsSerial() -> void {
@@ -865,3 +910,7 @@ private:
 };
 
 } // namespace deltav
+
+#if defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
+#undef DELTAV_EMBEDDED_NETWORK_DISABLED
+#endif

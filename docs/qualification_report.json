@@ -1,17 +1,17 @@
 {
-  "generated_utc": "2026-03-08T18:09:29.853872+00:00",
+  "generated_utc": "2026-03-09T04:58:18.538028+00:00",
   "workspace": "DELTA-V Framework",
   "git": {
     "branch": "main",
-    "commit": "001f6c861ce8ae647bf880a7c74fed82a0ca8d29",
+    "commit": "35822864d164c100fd343fc2f81f2261a810170b",
     "dirty_worktree": true
   },
   "host": {
-    "platform": "macOS-26.2-arm64-arm-64bit",
-    "python": "3.12.12",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.3",
     "cmake": "cmake version 4.2.3"
   },
-  "unit_test_count": 161,
+  "unit_test_count": 163,
   "trace": {
     "summary": {
       "total_requirements": 37,
@@ -46,32 +46,30 @@
     {
       "name": "Requirements Traceability Gate",
       "status": "PASS",
-      "evidence": "build/requirements_trace_matrix.json"
+      "evidence": "build_tidy/requirements_trace_matrix.json"
     }
   ],
   "hashes": [
     {
-      "path": "build/requirements_trace_matrix.json",
+      "path": "build_tidy/requirements_trace_matrix.json",
       "crc32": "ee56fb4c"
     },
     {
-      "path": "build/requirements_trace_matrix.md",
+      "path": "build_tidy/requirements_trace_matrix.md",
       "crc32": "1600f887"
     },
     {
       "path": "tests/unit_tests.cpp",
-      "crc32": "c3882f9d"
+      "crc32": "14866e9c"
     },
     {
-      "path": "build/flight_software",
-      "crc32": "49bf6750"
+      "path": "build_tidy/flight_software",
+      "crc32": "381813ca"
     },
     {
-      "path": "build/run_tests",
-      "crc32": "b99be680"
+      "path": "build_tidy/run_tests",
+      "crc32": "2000c91b"
     }
   ],
-  "manual_remaining": [
-    "Multi-hour sensorless soak evidence on target (`tools/esp32_soak.py`, >=1h)."
-  ]
+  "manual_remaining": []
 }

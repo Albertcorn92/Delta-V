@@ -29,6 +29,7 @@ constexpr uint32_t PARAM_CHECK_INTERVAL_CYCLES  = 30;
 constexpr float BATT_EMERGENCY_PCT = 2.0f;
 constexpr float BATT_SAFE_MODE_PCT = 5.0f;
 constexpr float BATT_DEGRADED_PCT  = 15.0f;
+constexpr float BATT_RECOVERY_HYSTERESIS_PCT = 2.0f;
 constexpr float BATT_MAX_PCT       = 100.0f;
 
 enum class MissionState : std::uint8_t {
@@ -163,6 +164,7 @@ private:
         float emergency_pct{BATT_EMERGENCY_PCT};
         float safe_mode_pct{BATT_SAFE_MODE_PCT};
         float degraded_pct{BATT_DEGRADED_PCT};
+        float recover_nominal_pct{BATT_DEGRADED_PCT + BATT_RECOVERY_HYSTERESIS_PCT};
     };
 
     std::array<Component*, MAX_MONITORED_SUBSYSTEMS> monitored_systems{};
@@ -258,7 +260,7 @@ private:
         }
 
         const BatteryThresholds thresholds = currentBatteryThresholds();
-        if (all_nominal && last_batt_soc > thresholds.degraded_pct) {
+        if (all_nominal && last_batt_soc > thresholds.recover_nominal_pct) {
             emit(Severity::INFO, "FDIR: Recovery -> NOMINAL");
             mission_state = MissionState::NOMINAL;
             const auto name = getName();
@@ -276,6 +278,10 @@ private:
         thresholds.emergency_pct = batt_emergency_pct_src->read();
         thresholds.safe_mode_pct = batt_safe_mode_pct_src->read();
         thresholds.degraded_pct  = batt_degraded_pct_src->read();
+        thresholds.recover_nominal_pct = thresholds.degraded_pct + BATT_RECOVERY_HYSTERESIS_PCT;
+        if (thresholds.recover_nominal_pct > BATT_MAX_PCT) {
+            thresholds.recover_nominal_pct = BATT_MAX_PCT;
+        }
 
         if (!areThresholdsSane(thresholds)) {
             if (!threshold_fault_latched) {

@@ -33,6 +33,7 @@ public:
         overflow_warned.store(false, std::memory_order_release);
         utc_offset_ms.store(0, std::memory_order_release);
         utc_synced.store(false, std::memory_order_release);
+        last_utc_unix_ms.store(0, std::memory_order_release);
     }
 
     // Returns milliseconds since initEpoch() with 64-bit range.
@@ -61,6 +62,7 @@ public:
     }
 
     // UTC time sync support for ground "time at the tone" operations.
+    // Internally clamped to a monotonic non-decreasing value.
     static void setUtcOffsetMs(int64_t offset_ms) {
         utc_offset_ms.store(offset_ms, std::memory_order_release);
         utc_synced.store(true, std::memory_order_release);
@@ -76,7 +78,20 @@ public:
         const int64_t met_ms = static_cast<int64_t>(getMET64());
         const int64_t offset = utc_offset_ms.load(std::memory_order_acquire);
         const int64_t utc_ms = met_ms + offset;
-        return utc_ms < 0 ? 0u : static_cast<uint64_t>(utc_ms);
+        uint64_t candidate = (utc_ms < 0) ? 0u : static_cast<uint64_t>(utc_ms);
+
+        // Keep UTC monotonic in-process so leap-second/offset corrections cannot
+        // drive time-triggered logic backwards.
+        uint64_t last = last_utc_unix_ms.load(std::memory_order_acquire);
+        while (true) {
+            if (candidate < last) {
+                candidate = last;
+            }
+            if (last_utc_unix_ms.compare_exchange_weak(
+                    last, candidate, std::memory_order_acq_rel, std::memory_order_acquire)) {
+                return candidate;
+            }
+        }
     }
 
     static int64_t getUtcOffsetMs() {
@@ -97,6 +112,7 @@ private:
     static inline std::atomic<bool> overflow_warned{false};
     static inline std::atomic<int64_t> utc_offset_ms{0};
     static inline std::atomic<bool> utc_synced{false};
+    static inline std::atomic<uint64_t> last_utc_unix_ms{0};
 };
 
 } // namespace deltav

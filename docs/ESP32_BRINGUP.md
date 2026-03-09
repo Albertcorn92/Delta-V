@@ -12,6 +12,7 @@ require external sensors.
 The current ESP32 baseline is configured as:
 
 - `DELTAV_LOCAL_ONLY=ON` (UDP bridge disabled),
+- `DELTAV_DISABLE_NETWORK_STACK=ON` (Wi-Fi/LWIP/TLS disabled),
 - `DELTAV_ESP_SAFE_MODE=OFF` (full framework runtime),
 - `DELTAV_ALLOW_IMU_SIMULATION=ON` (no physical IMU required).
 

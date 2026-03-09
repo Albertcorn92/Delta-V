@@ -1078,6 +1078,33 @@ TEST(WatchdogThresholds, InvalidThresholdConfigFallsBackToDefaults) {
     EXPECT_TRUE(saw_invalid_threshold_event);
 }
 
+TEST(WatchdogThresholds, RecoveryUsesHysteresisBand) {
+    WatchdogComponent wd{"Supervisor", 1};
+    InputPort<EventPacket> events;
+    wd.event_out.connect(&events);
+    wd.init();
+
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {}
+
+    TmrStore<float> emergency_pct{10.0F};
+    TmrStore<float> safe_mode_pct{20.0F};
+    TmrStore<float> degraded_pct{30.0F};
+    wd.setBatteryThresholdSources(&emergency_pct, &safe_mode_pct, &degraded_pct);
+
+    wd.injectBatteryLevel(29.0F);
+    EXPECT_EQ(wd.getMissionState(), MissionState::DEGRADED);
+
+    // 30.5% is above degraded threshold, but below 30% + 2% recovery hysteresis.
+    wd.injectBatteryLevel(30.5F);
+    wd.step();
+    EXPECT_EQ(wd.getMissionState(), MissionState::DEGRADED);
+
+    wd.injectBatteryLevel(32.5F);
+    wd.step();
+    EXPECT_EQ(wd.getMissionState(), MissionState::NOMINAL);
+}
+
 // =============================================================================
 // TopologyManager
 // =============================================================================
@@ -2234,6 +2261,18 @@ TEST(TimeService, UtcSyncHelpers) {
     const uint64_t got = TimeService::getUtcUnixMs();
     const int64_t diff = static_cast<int64_t>(got) - static_cast<int64_t>(target_utc_ms);
     EXPECT_LT(std::llabs(diff), 2000LL);
+}
+
+TEST(TimeService, UtcNeverMovesBackwardAfterResync) {
+    TimeService::initEpoch();
+    TimeService::setUtcFromUnixMs(5'000'000ULL);
+    const uint64_t first = TimeService::getUtcUnixMs();
+
+    // Simulate a bad/stale sync packet that would move UTC backwards.
+    TimeService::setUtcFromUnixMs(4'000'000ULL);
+    const uint64_t second = TimeService::getUtcUnixMs();
+
+    EXPECT_GE(second, first);
 }
 
 TEST(TimeSyncComponent, ApplySyncFromWordCommands) {

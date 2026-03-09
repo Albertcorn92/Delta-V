@@ -6,8 +6,11 @@ external sensors.
 ## Default Profile
 
 - `DELTAV_LOCAL_ONLY=ON`
+- `DELTAV_DISABLE_NETWORK_STACK=ON`
 - `DELTAV_ESP_SAFE_MODE=OFF`
 - `DELTAV_ALLOW_IMU_SIMULATION=ON`
+
+This baseline is intentionally configured for a non-RF/non-network runtime.
 
 ## Build and Flash
 
