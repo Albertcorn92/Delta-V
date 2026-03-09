@@ -29,9 +29,15 @@ Run screening before:
 
 ## 4. Required Record
 
-Log each decision in a dated record:
+Log each decision in a dated record file.
 
-- `docs/process/DEPLOYMENT_SCREENING_LOG_YYYYMMDD.md`
+Use this naming pattern:
+
+- `DEPLOYMENT_SCREENING_LOG_YYYYMMDD.md` in `docs/process/`
+
+Example:
+
+- `docs/process/DEPLOYMENT_SCREENING_LOG_20260307.md`
 
 Minimum fields:
 

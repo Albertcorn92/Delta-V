@@ -1,8 +1,21 @@
 # DELTA-V Autonomy Framework v4.0
 
+[![DELTA-V CI](https://github.com/Albertcorn92/Delta-V/actions/workflows/ci.yml/badge.svg)](https://github.com/Albertcorn92/Delta-V/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Latest Tag](https://img.shields.io/github/v/tag/Albertcorn92/Delta-V)](https://github.com/Albertcorn92/Delta-V/tags)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue)](https://en.cppreference.com/w/cpp/20)
+
 DELTA-V is a zero-copy C++20 flight software framework for civilian aerospace, robotics, and research missions. It is built for deterministic runtime behavior, compile-time safety, and fast SITL-to-embedded bring-up without heavyweight tooling.
 
 `software_final: PASS` `requirements: 37/37` `civilian-scope: enforced` `flight-ready: pending physical evidence`
+
+## Quick Links
+
+- [10-minute quickstart](docs/QUICKSTART_10_MIN.md)
+- [Software final status](docs/SOFTWARE_FINAL_STATUS.md)
+- [CubeSat readiness status](docs/CUBESAT_READINESS_STATUS.md)
+- [Safety assurance docs](docs/SAFETY_ASSURANCE.md)
+- [Legal scope checklist](docs/LEGAL_SCOPE_CHECKLIST.md)
 
 ## Get Started in 60 Seconds
 
@@ -62,7 +75,7 @@ Included app set:
 
 ## Mission Assurance and Certification Status
 
-Current snapshot (2026-03-08 UTC):
+Current snapshot (2026-03-09 UTC):
 - `software_final`: PASS
 - `requirements_traced_with_direct_tests`: `37/37`
 - `framework_release_readiness`: `True`
