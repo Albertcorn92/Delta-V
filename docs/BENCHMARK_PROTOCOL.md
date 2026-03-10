@@ -21,10 +21,13 @@ cmake --build build --target benchmark_guard
 
 `run_benchmarks` is compiled with release-style optimization flags for stable
 cross-host regression behavior (even when the parent build directory is Debug).
+`benchmark_baseline` runs benchmarks 3 times by default and writes median
+aggregated metrics for regression gating.
 
 Artifacts:
 
 - `build/benchmark/benchmark_metrics.json`
+- `build/benchmark/benchmark_runs.json`
 - `build/benchmark/benchmark_baseline.md`
 - `docs/BENCHMARK_BASELINE.md` (synced by default)
 - `docs/BENCHMARK_BASELINE.json` (synced by default)

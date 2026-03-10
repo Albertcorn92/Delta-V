@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-03-10T06:36:58.238406+00:00",
+  "generated_utc": "2026-03-10T06:43:54.577651+00:00",
   "workspace": "DELTA-V Framework",
   "host": {
     "platform": "macOS-26.2-arm64-arm-64bit",
@@ -8,31 +8,33 @@
   },
   "git": {
     "branch": "main",
-    "commit": "e8e7b8e2825a0073ff1dc75bf668fe2a6a598d08",
+    "commit": "4519794f90514e579bc3d62df3e983177cf77465",
     "dirty_worktree": true
   },
+  "benchmark_runs": 3,
+  "run_metrics_artifact": "build/benchmark/benchmark_runs.json",
   "metrics": {
     "uplink": {
       "frames": 20000,
       "accepted": 20000,
       "consumed": 20000,
-      "duration_s": 0.851157,
-      "throughput_cmd_per_s": 23497.438,
-      "latency_p50_us": 37.334,
-      "latency_p95_us": 55.167
+      "duration_s": 0.739502,
+      "throughput_cmd_per_s": 27045.217,
+      "latency_p50_us": 34.875,
+      "latency_p95_us": 45.167
     },
     "crc16": {
       "iterations": 300000,
       "bytes_per_iteration": 256,
-      "duration_s": 0.681737,
-      "throughput_mb_per_s": 112.653,
+      "duration_s": 0.66189,
+      "throughput_mb_per_s": 116.031,
       "accumulator": 0
     },
     "cobs_roundtrip": {
       "iterations": 300000,
       "bytes_per_iteration": 22,
-      "duration_s": 0.008251,
-      "throughput_mb_per_s": 799.871,
+      "duration_s": 0.00813,
+      "throughput_mb_per_s": 811.8,
       "accumulator": 38246416
     },
     "command_router": {
@@ -40,8 +42,8 @@
       "injected": 20000,
       "routed": 20000,
       "ack_events": 20000,
-      "duration_s": 0.002506,
-      "throughput_cmd_per_s": 7980447.903,
+      "duration_s": 0.002515,
+      "throughput_cmd_per_s": 7952551.894,
       "latency_p50_us": 0.084,
       "latency_p95_us": 0.125
     },
@@ -51,9 +53,75 @@
       "delivered_listener_a": 20000,
       "delivered_listener_b": 20000,
       "duration_s": 0.001066,
-      "throughput_pkt_per_s": 18754389.699,
+      "throughput_pkt_per_s": 18769790.398,
       "latency_p50_us": 0.041,
       "latency_p95_us": 0.042
     }
-  }
+  },
+  "run_summary": [
+    {
+      "label": "Uplink throughput (cmd/s)",
+      "key": "uplink.throughput_cmd_per_s",
+      "median": 27045.217,
+      "p95": 27045.217,
+      "min": 25372.902,
+      "max": 27215.55
+    },
+    {
+      "label": "Uplink latency p95 (us)",
+      "key": "uplink.latency_p95_us",
+      "median": 45.167,
+      "p95": 45.167,
+      "min": 43.792,
+      "max": 46.459
+    },
+    {
+      "label": "CRC-16 throughput (MB/s)",
+      "key": "crc16.throughput_mb_per_s",
+      "median": 116.031,
+      "p95": 116.031,
+      "min": 115.601,
+      "max": 116.346
+    },
+    {
+      "label": "COBS roundtrip throughput (MB/s)",
+      "key": "cobs_roundtrip.throughput_mb_per_s",
+      "median": 811.8,
+      "p95": 811.8,
+      "min": 809.791,
+      "max": 827.803
+    },
+    {
+      "label": "Command router throughput (cmd/s)",
+      "key": "command_router.throughput_cmd_per_s",
+      "median": 7952551.894,
+      "p95": 7952551.894,
+      "min": 7900454.276,
+      "max": 7982438.635
+    },
+    {
+      "label": "Command router latency p95 (us)",
+      "key": "command_router.latency_p95_us",
+      "median": 0.125,
+      "p95": 0.125,
+      "min": 0.125,
+      "max": 0.125
+    },
+    {
+      "label": "Telem fanout throughput (pkt/s)",
+      "key": "telem_fanout.throughput_pkt_per_s",
+      "median": 18769790.398,
+      "p95": 18769790.398,
+      "min": 18725855.35,
+      "max": 18770530.267
+    },
+    {
+      "label": "Telem fanout latency p95 (us)",
+      "key": "telem_fanout.latency_p95_us",
+      "median": 0.042,
+      "p95": 0.042,
+      "min": 0.042,
+      "max": 0.042
+    }
+  ]
 }
