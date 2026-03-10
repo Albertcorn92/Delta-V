@@ -33,10 +33,10 @@ cmake --build build --target quickstart_10min
 
 What this proves quickly:
 - Project scaffolding works end-to-end.
-- Build/test wiring is functional on your machine.
-- You can see real framework behavior before reading deep docs.
+- Build/test wiring is functional on the local machine.
+- Real framework behavior is visible before reading deep docs.
 
-If you already cloned this repo directly:
+For repositories cloned directly:
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
@@ -49,10 +49,10 @@ Quickstart details: `docs/QUICKSTART_10_MIN.md`
 
 | Goal | Command | What it does |
 |---|---|---|
-| Validate your local setup | `cmake --build build --target quickstart_10min` | Runs legal checks, tests, benchmark guard, and short SITL smoke. |
+| Validate local setup | `cmake --build build --target quickstart_10min` | Runs legal checks, tests, benchmark guard, and short SITL smoke. |
 | Guided component workflow | `python3 tools/dv-util.py boot-menu` | Interactive wizard to scaffold/register components and commands. |
 | One-command scaffold path | `python3 tools/dv-util.py quickstart-component ThermalControl --build` | Creates component + topology + initial command, regenerates artifacts, then builds. |
-| Manual fine-grained control | `add-component` + `add-command` + `autocoder` | Advanced path when you want explicit control over each step. |
+| Manual fine-grained control | `add-component` + `add-command` + `autocoder` | Advanced path when explicit control over each step is required. |
 
 Typical first-day flow: run `quickstart_10min`, then use `boot-menu` (guided) or `quickstart-component` (direct).
 

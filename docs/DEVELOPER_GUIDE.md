@@ -4,7 +4,7 @@
 
 ## 1. Introduction
 
-This guide covers creating custom flight software components, integrating them into the DELTA-V topology, and verifying them against the framework's DO-178C-influenced requirements. If you are new to the project, read `ARCHITECTURE.md` first.
+This guide covers creating custom flight software components, integrating them into the DELTA-V topology, and verifying them against the framework's DO-178C-influenced requirements. New contributors should read `ARCHITECTURE.md` first.
 
 ---
 
@@ -109,7 +109,7 @@ This regenerates `src/Types.hpp` (packet definitions) and `dictionary.json` (GDS
 
 ## 4. Requirements and Test Traceability
 
-Every significant behaviour must have a requirement ID from `src/Requirements.hpp`. Reference it in your unit test:
+Every significant behaviour must have a requirement ID from `src/Requirements.hpp`. Reference it in associated unit tests:
 
 ```cpp
 // Verifies DV-FDIR-01: system enters SAFE_MODE when battery < 5%
