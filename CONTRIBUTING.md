@@ -25,7 +25,7 @@ cmake --build build --target qualification_bundle
 
 ## Pull Request Requirements
 
-- Keep changes focused and atomic.
+- Keep changes focused.
 - Include tests for behavior changes.
 - Update requirements mapping if adding/changing safety-critical behavior:
   - `src/Requirements.hpp`
