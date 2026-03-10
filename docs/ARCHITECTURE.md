@@ -10,42 +10,49 @@ DELTA-V is a Component-Based Software Architecture (CBSA) targeting **DO-178C DA
 2. **Deterministic runtime profile.** Core component graph and data paths are static; host builds can optionally enforce strict no-heap-after-init with `DELTAV_ENABLE_HOST_HEAP_GUARD=1`.
 3. **All faults are observable.** Every error path calls `recordError()`, feeds `EventHub`, and is surfaced to the GDS via the telemetry downlink.
 
-### 1.1 High-Level Architecture Diagram
+### 1.1 Runtime Flow (SITL/Host/ESP)
 
 ```mermaid
-flowchart LR
+flowchart TB
     GDS["GDS (Streamlit UI)"]
-    LINK["UDP or Serial KISS link"]
-    CCSDS["CCSDS framing + CRC + anti-replay"]
-    BR["TelemetryBridge"]
+    LINK["UDP or Serial KISS"]
+    BR["TelemetryBridge (CCSDS + CRC + anti-replay)"]
     CMD["CommandHub + MissionFsm"]
-    TELEM["TelemHub"]
-    EVENT["EventHub"]
-    TOPO["topology.yaml + autocoder"]
-    TM["Generated TopologyManager"]
-    RGE["RateGroupExecutive"]
-    APPS["Mission components/apps"]
+    APPS["Mission Components / Apps"]
+    TH["TelemHub"]
+    EH["EventHub"]
     WD["Watchdog + FDIR"]
-    PDB["ParamDb + TMR stores"]
+    PDB["ParamDb + TMR"]
 
-    GDS --> LINK --> CCSDS --> BR
-    BR --> CMD
-    BR --> TELEM
-    BR --> EVENT
-    CMD --> APPS
-    APPS --> TELEM
-    APPS --> EVENT
-    TOPO --> TM --> RGE --> APPS
+    GDS --> LINK --> BR
+    BR --> CMD --> APPS
+    APPS --> TH --> BR
+    APPS --> EH --> BR
     WD --> APPS
     WD --> PDB
-    TELEM --> BR
-    EVENT --> BR
     BR --> LINK --> GDS
 ```
 
-`topology.yaml` is the source of truth. `tools/autocoder.py` generates wiring
-artifacts (`src/TopologyManager.hpp`, `src/Types.hpp`, `dictionary.json`) that
-keep runtime wiring and GDS dictionary in sync.
+### 1.2 Generation Flow (Build-Time Source of Truth)
+
+```mermaid
+flowchart LR
+    DV["tools/dv-util.py"]
+    TOPO["topology.yaml (source of truth)"]
+    AC["tools/autocoder.py"]
+    TM["src/TopologyManager.hpp"]
+    TY["src/Types.hpp"]
+    DICT["dictionary.json"]
+
+    DV --> TOPO --> AC
+    AC --> TM
+    AC --> TY
+    AC --> DICT
+```
+
+`topology.yaml` drives generated runtime wiring and the ground dictionary:
+`tools/autocoder.py` regenerates `src/TopologyManager.hpp`, `src/Types.hpp`,
+and `dictionary.json` so runtime and GDS stay synchronized.
 
 ---
 
