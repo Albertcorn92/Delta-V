@@ -1,9 +1,14 @@
 {
-  "generated_utc": "2026-03-08T18:08:20.154366+00:00",
+  "generated_utc": "2026-03-09T21:00:44.808946+00:00",
   "workspace": "DELTA-V Framework",
-  "build_dir": "/Users/albertcornelius/DELTA-V Framework/build",
+  "build_dir": "build",
   "framework_release_ready": true,
   "cubesat_flight_ready": true,
+  "scope_limited": true,
+  "waived_checks": [
+    "esp32-soak-1h",
+    "sensor-attached-evidence"
+  ],
   "checks": [
     {
       "id": "legal-compliance",
@@ -69,7 +74,7 @@
       "required_for": [
         "framework"
       ],
-      "evidence": "docs/evidence/ESP32_SENSORLESS_EVIDENCE_20260307.md (documented soak pass)"
+      "evidence": "artifacts/esp32_soak_1h_latest.json (3600s)"
     },
     {
       "id": "esp32-soak-1h",
@@ -78,7 +83,7 @@
       "required_for": [
         "flight"
       ],
-      "evidence": "no passing esp32_soak_*.json with duration >= 3600s | scope waiver requested via --exclude-check"
+      "evidence": "artifacts/esp32_soak_1h_latest.json (3600s) | scope waiver requested via --exclude-check"
     },
     {
       "id": "sensor-attached-evidence",

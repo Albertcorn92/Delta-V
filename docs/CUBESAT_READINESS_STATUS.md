@@ -1,6 +1,7 @@
 # DELTA-V CubeSat Readiness Status
 
-- Generated (UTC): `2026-03-08T22:19:30.340237+00:00`
+- Generated (UTC): `2026-03-09T21:00:44.402843+00:00`
+- Readiness profile: `Full evidence (no waivers)`
 - Framework release readiness: `True`
 - CubeSat flight readiness: `False`
 

@@ -87,7 +87,10 @@ Every data flow uses typed `InputPort<T>` / `OutputPort<T>` pairs backed by a th
 
 ### 4.1 Mission FSM
 
-The `MissionFsm` class provides a static `isAllowed(state, opcode)` function called by `CommandHub` before every dispatch. Restricted opcodes (e.g. high-risk actuator commands) are blocked in `SAFE_MODE` and `EMERGENCY` states.
+`CommandHub` classifies each command using an auto-generated policy map keyed by
+`(target_id, opcode)` from `topology.yaml` `commands[].op_class`, then calls
+`MissionFsm::isAllowed(state, op_class)` before dispatch. This keeps FSM
+permissions source-of-truth in topology metadata instead of hard-coded opcode tables.
 
 ```
 BOOT → NOMINAL ⇆ DEGRADED → SAFE_MODE → EMERGENCY

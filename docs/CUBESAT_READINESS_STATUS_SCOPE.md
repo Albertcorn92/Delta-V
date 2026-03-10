@@ -1,6 +1,8 @@
 # DELTA-V CubeSat Readiness Status
 
-- Generated (UTC): `2026-03-08T18:08:20.154366+00:00`
+- Generated (UTC): `2026-03-09T21:00:44.808946+00:00`
+- Readiness profile: `Scope-limited (waivers applied)`
+- Waived checks: `esp32-soak-1h, sensor-attached-evidence`
 - Framework release readiness: `True`
 - CubeSat flight readiness: `True`
 
@@ -14,8 +16,8 @@
 | requirements-traceability | Software | PASS | framework | docs/REQUIREMENTS_TRACE_MATRIX.json (37/37) |
 | esp32-runtime-guard | Hardware | PASS | framework, flight | artifacts/esp32_runtime_guard_20260308T060432Z.json |
 | esp32-reboot-campaign | Hardware | PASS | framework, flight | artifacts/esp32_reboot_campaign_20260308T060703Z.json |
-| esp32-soak-30m | Hardware | PASS | framework | docs/evidence/ESP32_SENSORLESS_EVIDENCE_20260307.md (documented soak pass) |
-| esp32-soak-1h | Hardware | WAIVED | flight | no passing esp32_soak_*.json with duration >= 3600s | scope waiver requested via --exclude-check |
+| esp32-soak-30m | Hardware | PASS | framework | artifacts/esp32_soak_1h_latest.json (3600s) |
+| esp32-soak-1h | Hardware | WAIVED | flight | artifacts/esp32_soak_1h_latest.json (3600s) | scope waiver requested via --exclude-check |
 | sensor-attached-evidence | Hardware | WAIVED | flight | docs/evidence/ESP32_SENSOR_ATTACHED_EVIDENCE_20260307.md (status: NOT RUN (explicitly excluded from this closeout scope)) | scope waiver requested via --exclude-check |
 | flight-env-test-matrix | Program | PASS | flight | docs/process/FLIGHT_ENV_TEST_MATRIX_20260307.md (status: COMPLETE (framework simulation baseline with explicit mission hardware handoff)) |
 | comms-link-validation | Program | PASS | flight | docs/process/COMMS_LINK_VALIDATION_20260307.md (status: COMPLETE (local UDP/SITL validation baseline)) |

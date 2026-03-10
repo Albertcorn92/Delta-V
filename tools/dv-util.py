@@ -580,19 +580,9 @@ def install_standard_apps(topo: dict) -> tuple[bool, list[str]]:
     }
 
     wiring_specs = [
-        ("CommandSequencerComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
-        ("FileTransferComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
-        ("MemoryDwellComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
-        ("TimeSyncComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
-        ("PlaybackComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
-        ("OtaComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
         ("CommandSequencerComponent", "{instance}.command_out.connect(&cmd_hub.cmd_input);", "cmd_hub command ingress"),
         ("AtsRtsSequencerComponent", "{instance}.command_out.connect(&cmd_hub.cmd_input);", "cmd_hub command ingress"),
-        ("AtsRtsSequencerComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
-        ("LimitCheckerComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
-        ("CfdpComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
         ("ModeManagerComponent", "{instance}.command_out.connect(&cmd_hub.cmd_input);", "cmd_hub command ingress"),
-        ("ModeManagerComponent", "cmd_hub.registerHousekeepingTarget({instance}.getId());", "housekeeping target"),
         ("AtsRtsSequencerComponent", "event_hub.registerListener(&{instance}.event_in);", "ats/rts event listener"),
         ("LimitCheckerComponent", "telem_hub.registerListener(&{instance}.telem_in);", "limit checker telemetry tap"),
     ]

@@ -2,26 +2,28 @@
 // =============================================================================
 // MissionFsm.hpp — DELTA-V Formal Mission Finite State Machine
 // =============================================================================
-// Governs WHICH commands and operations are legal in WHICH mission state.
-// This prevents dangerous sequences like ACTUATOR_ENABLE during SAFE_MODE.
+// Governs WHICH command classes are legal in WHICH mission state.
+// This prevents dangerous sequences like operational/restricted commands
+// being dispatched during SAFE_MODE or EMERGENCY.
 //
 // Architecture:
 //   - MissionState enum is the authoritative state (owned by WatchdogComponent)
-//   - MissionFsm::isAllowed(state, opcode) is called by CommandHub BEFORE
+//   - CommandHub classifies each command with a topology-derived OpClass policy
+//     keyed by (target_id, opcode)
+//   - MissionFsm::isAllowed(state, op_class) is called by CommandHub BEFORE
 //     dispatching any uplinked command
 //   - Forbidden commands return NACK with reason "FSM_BLOCKED"
 //
 // Transition table (read-only, computed at compile time):
-//   BOOT        → only PING (opcode 0) allowed
-//   NOMINAL     → all commands allowed
-//   DEGRADED    → all commands allowed (degraded but flying)
-//   SAFE_MODE   → only housekeeping commands allowed (RESET_BATTERY, PING)
+//   BOOT        → housekeeping only
+//   NOMINAL     → all command classes allowed
+//   DEGRADED    → housekeeping + operational
+//   SAFE_MODE   → housekeeping only
 //   EMERGENCY   → NO commands allowed (await reboot or ground intervention)
 //
-// DO-178C: Zero dynamic allocation. Lookup is a constexpr table search in O(1).
+// DO-178C: Zero dynamic allocation. Pure switch-based policy checks.
 // =============================================================================
 #include <cstdint>
-#include <array>
 
 namespace deltav {
 
@@ -32,43 +34,19 @@ enum class MissionState : uint8_t;
 // OpClass — categorises each opcode for FSM gating
 // ---------------------------------------------------------------------------
 enum class OpClass : uint8_t {
-    HOUSEKEEPING   = 0, // Safe in all states (e.g. PING, RESET_BATTERY)
+    HOUSEKEEPING   = 0, // Safe in BOOT/NOMINAL/DEGRADED/SAFE_MODE
     OPERATIONAL    = 1, // Allowed in NOMINAL and DEGRADED only
     RESTRICTED     = 2, // Allowed in NOMINAL only (e.g. high-risk actuator commands)
 };
-
-// ---------------------------------------------------------------------------
-// OpcodePolicy — maps opcode values to their class
-// Add new opcodes here. Default (unlisted) = OPERATIONAL.
-// ---------------------------------------------------------------------------
-struct OpcodePolicy {
-    uint32_t opcode;
-    OpClass  cls;
-};
-
-constexpr std::array<OpcodePolicy, 8> OPCODE_TABLE = {{
-    { 0,  OpClass::HOUSEKEEPING },  // PING
-    { 1,  OpClass::HOUSEKEEPING },  // RESET_BATTERY
-    { 2,  OpClass::OPERATIONAL  },  // SET_DRAIN_RATE
-    { 3,  OpClass::OPERATIONAL  },  // SET_AMPLITUDE
-    { 10, OpClass::RESTRICTED   },  // ACTUATOR_ENABLE (future)
-    { 11, OpClass::RESTRICTED   },  // DEPLOY_APPENDAGE (future)
-    { 20, OpClass::HOUSEKEEPING },  // REQUEST_TELEMETRY_DUMP
-    { 99, OpClass::OPERATIONAL  },  // DEBUG_MODE
-}};
 
 // ---------------------------------------------------------------------------
 // MissionFsm — stateless helper (all logic is pure function calls)
 // ---------------------------------------------------------------------------
 class MissionFsm {
 public:
-    // Returns true if the opcode is permitted in the current mission state.
-    static bool isAllowed(uint8_t state_raw, uint32_t opcode) {
-        return isAllowedClass(state_raw, classify(opcode));
-    }
-
-    static bool isAllowed(MissionState state, uint32_t opcode) {
-        return isAllowed(static_cast<uint8_t>(state), opcode);
+    // Returns true if the command class is permitted in the current mission state.
+    static bool isAllowed(uint8_t state_raw, OpClass cls) {
+        return isAllowedClass(state_raw, cls);
     }
 
     static bool isAllowed(MissionState state, OpClass cls) {
@@ -103,13 +81,6 @@ private:
             default:
                 return false;
         }
-    }
-
-    static OpClass classify(uint32_t opcode) {
-        for (const auto& entry : OPCODE_TABLE) {
-            if (entry.opcode == opcode) return entry.cls;
-        }
-        return OpClass::OPERATIONAL; // default
     }
 };
 

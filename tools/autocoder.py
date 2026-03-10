@@ -17,7 +17,7 @@ Flags:
 
 New in v4.0:
   - rate_group annotations → RateGroupExecutive tier registration
-  - op_class per command   → MissionFsm gating policy comments
+  - op_class per command   → CommandHub policy registration (target+opcode)
   - params section         → TmrStore<float> member generation
   - HAL-injected classes   → ImuComponent(name, id, i2c) constructor
   - Strict validation: duplicate IDs, opcode conflicts, unknown op_class
@@ -269,6 +269,7 @@ def build_topo(topo: dict, quiet: bool) -> None:
     reg_slow:      list[str] = []
     reg_active:    list[str] = []
     reg_fdir:      list[str] = []
+    cmd_policy_wiring: list[str] = []
     cmd_routes:    list[str] = []
     cmd_wiring:    list[str] = []
     telem_wiring:  list[str] = []
@@ -352,6 +353,12 @@ def build_topo(topo: dict, quiet: bool) -> None:
             verify_checks.append(
                 f'        check({inst}.telemetry_out.isConnected(), '
                 f'"{inst}.telemetry_out → telem_hub");')
+
+    for cmd in commands:
+        op_class = str(cmd.get("op_class", "OPERATIONAL")).upper()
+        cmd_policy_wiring.append(
+            f'        cmd_hub.registerCommandPolicy({cmd["target_id"]}, {cmd["opcode"]}, OpClass::{op_class});'
+        )
 
     verify_checks.insert(0,
         '        check(radio.command_out.isConnected(),'
@@ -465,7 +472,7 @@ private:
     }}
 
     auto wireCommands() -> void {{
-{chr(10).join(cmd_wiring)}
+{chr(10).join(cmd_policy_wiring + cmd_wiring)}
     }}
 
     auto wireEvents() -> void {{

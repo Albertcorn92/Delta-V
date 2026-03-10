@@ -609,6 +609,7 @@ TEST_F(CommandHubFixture, AllowsHousekeepingInSafeMode) {
     OutputPort<CommandPacket> route;
     route.connect(&target);
     hub.registerRoute(200, &route);
+    hub.registerCommandPolicy(200, 1, OpClass::HOUSEKEEPING);
     hub.init();
 
     OutputPort<float> batt_src;
@@ -625,12 +626,12 @@ TEST_F(CommandHubFixture, AllowsHousekeepingInSafeMode) {
     EXPECT_TRUE(target.hasNew()); // must pass through
 }
 
-TEST_F(CommandHubFixture, AllowsCivilianOpsTargetsInSafeMode) {
+TEST_F(CommandHubFixture, AllowsConfiguredHousekeepingPolicyInSafeMode) {
     InputPort<CommandPacket> target;
     OutputPort<CommandPacket> route;
     route.connect(&target);
     hub.registerRoute(46, &route);
-    hub.registerHousekeepingTarget(46);
+    hub.registerCommandPolicy(46, 2, OpClass::HOUSEKEEPING);
     hub.init();
 
     OutputPort<float> batt_src;
@@ -639,8 +640,7 @@ TEST_F(CommandHubFixture, AllowsCivilianOpsTargetsInSafeMode) {
     wd.step();
     ASSERT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
 
-    // Opcode 2 is OPERATIONAL for many app targets, but ops target IDs (40-99)
-    // are treated as housekeeping controls by design.
+    // This target/opcode is explicitly configured as HOUSEKEEPING.
     OutputPort<CommandPacket> sender;
     sender.connect(&hub.cmd_input);
     sender.send(CommandPacket{46, 2, 0.0f});

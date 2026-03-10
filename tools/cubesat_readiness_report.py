@@ -293,10 +293,16 @@ def record_or_template_state(
 
 def write_markdown(path: Path, payload: dict[str, Any]) -> None:
     checks = payload["checks"]
+    waived_checks = payload.get("waived_checks", [])
     lines: list[str] = []
     lines.append("# DELTA-V CubeSat Readiness Status")
     lines.append("")
     lines.append(f"- Generated (UTC): `{payload['generated_utc']}`")
+    if waived_checks:
+        lines.append("- Readiness profile: `Scope-limited (waivers applied)`")
+        lines.append(f"- Waived checks: `{', '.join(waived_checks)}`")
+    else:
+        lines.append("- Readiness profile: `Full evidence (no waivers)`")
     lines.append(f"- Framework release readiness: `{payload['framework_release_ready']}`")
     lines.append(f"- CubeSat flight readiness: `{payload['cubesat_flight_ready']}`")
     lines.append("")
@@ -595,6 +601,7 @@ def main() -> int:
 
     framework_release_ready = scope_ready("framework")
     cubesat_flight_ready = scope_ready("flight")
+    waived_checks = [c["id"] for c in checks if c["status"] == WAIVED]
 
     remaining_gaps = [
         f"{c['id']}: {c['evidence']}"
@@ -608,6 +615,8 @@ def main() -> int:
         "build_dir": str(args.build_dir),
         "framework_release_ready": framework_release_ready,
         "cubesat_flight_ready": cubesat_flight_ready,
+        "scope_limited": bool(waived_checks),
+        "waived_checks": waived_checks,
         "checks": checks,
         "remaining_gaps": remaining_gaps,
     }

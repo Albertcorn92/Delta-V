@@ -4,6 +4,7 @@
 // =============================================================================
 // Changes from v2.x:
 //   - MissionFsm gating: commands blocked by current MissionState (DV-SEC-02)
+//   - Topology-driven command policy: (target_id, opcode) -> OpClass
 //   - setMissionStateSource(): CommandHub holds a pointer to the Watchdog so
 //     it can check getMissionStateRaw() before dispatching each command.
 //   - If the FSM blocks a command, a NACK with "FSM_BLOCKED" is returned and
@@ -24,11 +25,17 @@
 namespace deltav {
 
 constexpr size_t MAX_COMMAND_ROUTES = 32;
-constexpr size_t MAX_HOUSEKEEPING_TARGETS = 32;
+constexpr size_t MAX_COMMAND_POLICIES = 256;
 
 struct RouteEntry {
     uint32_t                  comp_id{0};
     OutputPort<CommandPacket>* port{nullptr};
+};
+
+struct CommandPolicyEntry {
+    uint32_t target_id{0};
+    uint32_t opcode{0};
+    OpClass  op_class{OpClass::OPERATIONAL};
 };
 
 class CommandHub : public Component {
@@ -68,21 +75,25 @@ public:
         }
     }
 
-    void registerHousekeepingTarget(uint32_t comp_id) {
-        if (comp_id == 0U) {
+    void registerCommandPolicy(uint32_t target_id, uint32_t opcode, OpClass op_class) {
+        if (target_id == 0U) {
             recordError();
             return;
         }
-        for (size_t i = 0; i < housekeeping_target_count; ++i) {
-            if (housekeeping_targets.at(i) == comp_id) {
+        for (size_t i = 0; i < command_policy_count; ++i) {
+            auto& existing = command_policies.at(i);
+            if (existing.target_id == target_id && existing.opcode == opcode) {
+                if (existing.op_class != op_class) {
+                    recordError();
+                }
                 return;
             }
         }
-        if (housekeeping_target_count >= MAX_HOUSEKEEPING_TARGETS) {
+        if (command_policy_count >= MAX_COMMAND_POLICIES) {
             recordError();
             return;
         }
-        housekeeping_targets.at(housekeeping_target_count++) = comp_id;
+        command_policies.at(command_policy_count++) = {target_id, opcode, op_class};
     }
 
     // Wire in the Watchdog so FSM state can be checked per-command (DV-SEC-02).
@@ -95,24 +106,26 @@ public:
 private:
     std::array<RouteEntry, MAX_COMMAND_ROUTES> routes{};
     size_t              route_count{0};
-    std::array<uint32_t, MAX_HOUSEKEEPING_TARGETS> housekeeping_targets{};
-    size_t              housekeeping_target_count{0};
+    std::array<CommandPolicyEntry, MAX_COMMAND_POLICIES> command_policies{};
+    size_t              command_policy_count{0};
     WatchdogComponent*  watchdog{nullptr};
 
-    [[nodiscard]] auto isHousekeepingTarget(uint32_t target_id) const -> bool {
-        for (size_t i = 0; i < housekeeping_target_count; ++i) {
-            if (housekeeping_targets.at(i) == target_id) {
-                return true;
+    [[nodiscard]] auto classifyCommand(const CommandPacket& cmd) const -> OpClass {
+        for (size_t i = 0; i < command_policy_count; ++i) {
+            const auto& entry = command_policies.at(i);
+            if (entry.target_id == cmd.target_id && entry.opcode == cmd.opcode) {
+                return entry.op_class;
             }
         }
-        return false;
+        // Fail-safe default: unknown commands are treated as OPERATIONAL.
+        return OpClass::OPERATIONAL;
     }
 
     void dispatchCommand(const CommandPacket& cmd) {
         // --- DV-SEC-02: FSM gating ---
-        if (watchdog != nullptr && !isHousekeepingTarget(cmd.target_id)) {
+        if (watchdog != nullptr) {
             uint8_t state_raw = watchdog->getMissionStateRaw();
-            if (!MissionFsm::isAllowed(state_raw, cmd.opcode)) {
+            if (!MissionFsm::isAllowed(state_raw, classifyCommand(cmd))) {
                 char msg[28];
                 (void)std::snprintf(msg, sizeof(msg), "FSM_BLOCKED: OP%" PRIu32 " in %s",
                     static_cast<std::uint32_t>(cmd.opcode), MissionFsm::stateName(state_raw));

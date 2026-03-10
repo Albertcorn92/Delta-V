@@ -269,6 +269,7 @@ def write_status_report(
         "",
         f"- Generated (UTC): `{generated_utc}`",
         f"- Status: `PASS`",
+        "- Scope: `Software baseline only` (not a standalone CubeSat flight-readiness claim)",
         f"- Requirements covered by direct tests: `{covered_requirements}/{total_requirements}`",
         f"- Qualification gates passing: `{gate_count}`",
         f"- Artifacts synced to docs/: `{synced}`",

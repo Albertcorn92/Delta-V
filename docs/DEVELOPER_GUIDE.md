@@ -218,15 +218,22 @@ export DELTAV_SERIAL_BAUD=115200
 
 ## 9. Adding a Command to the FSM Policy
 
-If your new command is safety-critical (should be blocked in `SAFE_MODE`), add it to `src/MissionFsm.hpp`:
+FSM policy is topology-driven. Add/update the command in `topology.yaml` and set
+`op_class`, then regenerate:
 
-```cpp
-constexpr std::array<OpcodePolicy, N> OPCODE_TABLE = {{
-    ...
-    { 50, OpClass::RESTRICTED },  // MY_NEW_COMMAND — blocked in SAFE_MODE/EMERGENCY
-}};
+```yaml
+commands:
+  - name: "MY_NEW_COMMAND"
+    target_id: 200
+    opcode: 50
+    op_class: "RESTRICTED"
+    description: "Example restricted command"
 ```
 
-`OpClass::HOUSEKEEPING` = allowed in all states.
-`OpClass::OPERATIONAL` = blocked in SAFE_MODE and EMERGENCY.
-`OpClass::RESTRICTED` = allowed in NOMINAL only.
+```bash
+python3 tools/autocoder.py
+```
+
+`OpClass::HOUSEKEEPING` = allowed in all states except `EMERGENCY`.
+`OpClass::OPERATIONAL` = blocked in `SAFE_MODE` and `EMERGENCY`.
+`OpClass::RESTRICTED` = allowed in `NOMINAL` only.
