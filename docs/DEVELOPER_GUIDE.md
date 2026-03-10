@@ -186,6 +186,7 @@ class FaultI2c : public deltav::hal::MockI2c {
 | Benchmark guard | `cmake --build build --target benchmark_guard` | Enforce perf regression thresholds |
 | SITL smoke | `cmake --build build --target sitl_smoke` | Short runtime marker/fatal scan |
 | SITL soak | `cmake --build build --target sitl_soak` | Extended runtime stability gate |
+| Portability matrix | `cmake --build build --target portability_matrix` | Validate host/SITL software profile portability |
 | Quickstart gate | `cmake --build build --target quickstart_10min` | One-command local validation path |
 | Flight readiness gate | `cmake --build build --target flight_readiness` | Legal + tests + safety + traceability |
 | Qualification bundle | `cmake --build build --target qualification_bundle` | Evidence report and artifact hashes |

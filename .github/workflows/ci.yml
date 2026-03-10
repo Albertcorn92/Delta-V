@@ -236,6 +236,13 @@ jobs:
       - name: Run software-final gate
         run: cmake --build build_tidy --target software_final
 
+      - name: Run portability matrix config sweep
+        run: |
+          python tools/portability_matrix.py \
+            --workspace "${{ github.workspace }}" \
+            --output-dir "${{ github.workspace }}/build_tidy/portability" \
+            --configure-only
+
       - name: Run SITL smoke artifact gate
         run: cmake --build build_tidy --target sitl_smoke
 
@@ -258,6 +265,9 @@ jobs:
             docs/CUBESAT_READINESS_STATUS.json
             docs/CUBESAT_READINESS_STATUS_SCOPE.md
             docs/CUBESAT_READINESS_STATUS_SCOPE.json
+            build_tidy/portability/portability_matrix.json
+            build_tidy/portability/portability_matrix.md
+            build_tidy/portability/logs/
             build_tidy/sitl/sitl_smoke_result.json
             build_tidy/sitl/sitl_smoke.log
             build_tidy/sitl/sitl_soak_result.json
@@ -299,7 +309,8 @@ jobs:
             tools/benchmark_report.py \
             tools/benchmark_guard.py \
             tools/coverage_guard.py \
-            tools/coverage_trend.py
+            tools/coverage_trend.py \
+            tools/portability_matrix.py
 
       - name: dv-util list
         run: python tools/dv-util.py list

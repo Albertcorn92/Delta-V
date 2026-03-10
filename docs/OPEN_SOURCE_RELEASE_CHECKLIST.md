@@ -14,6 +14,7 @@ Use this checklist before publishing a DELTA-V framework release to GitHub.
 - [x] `cmake --build build --target benchmark_guard` passes against thresholds.
 - [x] `cmake --build build --target sitl_smoke` passes.
 - [x] `cmake --build build --target sitl_soak` passes.
+- [x] `cmake --build build --target portability_matrix` passes (host/SITL profile sweep).
 - [x] `cmake --build build_cov --target coverage_guard` passes.
 - [x] `cmake --build build --target flight_readiness` passes.
 - [x] `cmake --build build --target qualification_bundle` passes.

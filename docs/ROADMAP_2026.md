@@ -26,7 +26,7 @@ Date: 2026-03-08
 
 ## Q4 2026
 
-- Add multi-board software portability matrix (software config validation).
+- Add multi-board software portability matrix (software config validation). (Completed in v4.0.x)
 - Increase benchmark coverage (startup, RSS, CPU trend windows).
 - Tighten CI quality bars for regression thresholds.
 - Prepare mission-team handoff docs for civilian users. (Completed)

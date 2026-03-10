@@ -14,6 +14,7 @@ DELTA-V is a zero-copy C++20 flight software framework for civilian aerospace, r
 - [10-minute quickstart](docs/QUICKSTART_10_MIN.md)
 - [Migration guide template](docs/MIGRATION_GUIDE.md)
 - [Software final status](docs/SOFTWARE_FINAL_STATUS.md)
+- [Software portability matrix](docs/SOFTWARE_PORTABILITY_MATRIX.md)
 - [CubeSat readiness status](docs/CUBESAT_READINESS_STATUS.md)
 - [Safety assurance docs](docs/SAFETY_ASSURANCE.md)
 - [Legal scope checklist](docs/LEGAL_SCOPE_CHECKLIST.md)
@@ -122,6 +123,9 @@ Use these after quickstart, not before it:
 ```bash
 # Full software-only finalization evidence
 cmake --build build --target software_final
+
+# Host/SITL software profile portability sweep
+cmake --build build --target portability_matrix
 
 # Readiness snapshots
 cmake --build build --target cubesat_readiness

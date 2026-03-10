@@ -556,6 +556,18 @@ if(PYTHON3 AND TARGET flight_software)
 endif()
 
 if(PYTHON3)
+    add_custom_target(portability_matrix
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/portability_matrix.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --output-dir ${CMAKE_BINARY_DIR}/portability
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Running software portability matrix validation"
+        USES_TERMINAL
+    )
+    message(STATUS "PortMtrx : ENABLED  (cmake --build build --target portability_matrix)")
+endif()
+
+if(PYTHON3)
     set(DELTAV_ESP32_PORT "/dev/cu.usbmodem101" CACHE STRING
         "Serial port for optional ESP32 hardware validation commands")
     set(DELTAV_ESP32_RUNTIME_SECONDS "300" CACHE STRING
@@ -651,6 +663,7 @@ message(STATUS "║    benchmark_baseline — perf report sync   ║")
 message(STATUS "║    benchmark_guard  — perf regression gate ║")
 message(STATUS "║    sitl_smoke       — short runtime check  ║")
 message(STATUS "║    sitl_soak        — extended runtime test║")
+message(STATUS "║    portability_matrix — build profile gate ║")
 message(STATUS "║    esp32_runtime_guard — WCET/stack check  ║")
 message(STATUS "║    esp32_reboot_campaign — reboot campaign ║")
 message(STATUS "║    quickstart_10min — one-command local UX ║")
