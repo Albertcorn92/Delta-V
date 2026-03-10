@@ -75,15 +75,15 @@ Included app set:
 
 ## Mission Assurance and Certification Status
 
-Current snapshot (2026-03-09 UTC):
+Current snapshot (latest generated status docs):
 - `software_final`: PASS
 - `requirements_traced_with_direct_tests`: `37/37`
 - `framework_release_readiness`: `True`
-- `cubesat_flight_readiness`: `False` (open physical evidence gates)
+- `cubesat_flight_readiness`: `False` (sensor-attached evidence still pending)
+- `esp32-soak-1h`: PASS
 
 Open unwaived flight-ready items:
-1. `esp32-soak-1h` passing evidence
-2. Sensor-attached HIL evidence execution
+1. Sensor-attached HIL evidence execution
 
 Primary assurance artifacts:
 - Software final status: `docs/SOFTWARE_FINAL_STATUS.md`
