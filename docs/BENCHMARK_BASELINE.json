@@ -1,14 +1,14 @@
 {
-  "generated_utc": "2026-03-09T04:58:02.949851+00:00",
+  "generated_utc": "2026-03-10T06:36:58.238406+00:00",
   "workspace": "DELTA-V Framework",
   "host": {
-    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
-    "python": "3.14.3",
+    "platform": "macOS-26.2-arm64-arm-64bit",
+    "python": "3.12.12",
     "cmake": "cmake version 4.2.3"
   },
   "git": {
     "branch": "main",
-    "commit": "35822864d164c100fd343fc2f81f2261a810170b",
+    "commit": "e8e7b8e2825a0073ff1dc75bf668fe2a6a598d08",
     "dirty_worktree": true
   },
   "metrics": {
@@ -16,24 +16,44 @@
       "frames": 20000,
       "accepted": 20000,
       "consumed": 20000,
-      "duration_s": 1.593945,
-      "throughput_cmd_per_s": 12547.484,
-      "latency_p50_us": 48.375,
-      "latency_p95_us": 186.333
+      "duration_s": 0.851157,
+      "throughput_cmd_per_s": 23497.438,
+      "latency_p50_us": 37.334,
+      "latency_p95_us": 55.167
     },
     "crc16": {
       "iterations": 300000,
       "bytes_per_iteration": 256,
-      "duration_s": 0.781329,
-      "throughput_mb_per_s": 98.294,
+      "duration_s": 0.681737,
+      "throughput_mb_per_s": 112.653,
       "accumulator": 0
     },
     "cobs_roundtrip": {
       "iterations": 300000,
       "bytes_per_iteration": 22,
-      "duration_s": 0.00887,
-      "throughput_mb_per_s": 744.113,
+      "duration_s": 0.008251,
+      "throughput_mb_per_s": 799.871,
       "accumulator": 38246416
+    },
+    "command_router": {
+      "commands": 20000,
+      "injected": 20000,
+      "routed": 20000,
+      "ack_events": 20000,
+      "duration_s": 0.002506,
+      "throughput_cmd_per_s": 7980447.903,
+      "latency_p50_us": 0.084,
+      "latency_p95_us": 0.125
+    },
+    "telem_fanout": {
+      "packets": 20000,
+      "injected": 20000,
+      "delivered_listener_a": 20000,
+      "delivered_listener_b": 20000,
+      "duration_s": 0.001066,
+      "throughput_pkt_per_s": 18754389.699,
+      "latency_p50_us": 0.041,
+      "latency_p95_us": 0.042
     }
   }
 }

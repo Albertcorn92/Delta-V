@@ -45,6 +45,8 @@ def render_markdown(report: dict[str, Any]) -> str:
     uplink = report["metrics"]["uplink"]
     crc16 = report["metrics"]["crc16"]
     cobs = report["metrics"]["cobs_roundtrip"]
+    cmd_router = report["metrics"]["command_router"]
+    telem_fanout = report["metrics"]["telem_fanout"]
     return "\n".join(
         [
             "# DELTA-V Benchmark Baseline",
@@ -64,6 +66,10 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"| Uplink latency p95 (us) | `{uplink['latency_p95_us']:.3f}` |",
             f"| CRC-16 throughput (MB/s) | `{crc16['throughput_mb_per_s']:.3f}` |",
             f"| COBS roundtrip throughput (MB/s) | `{cobs['throughput_mb_per_s']:.3f}` |",
+            f"| Command router throughput (cmd/s) | `{cmd_router['throughput_cmd_per_s']:.3f}` |",
+            f"| Command router latency p95 (us) | `{cmd_router['latency_p95_us']:.3f}` |",
+            f"| Telem fanout throughput (pkt/s) | `{telem_fanout['throughput_pkt_per_s']:.3f}` |",
+            f"| Telem fanout latency p95 (us) | `{telem_fanout['latency_p95_us']:.3f}` |",
             "",
             "## Comparison Template (Fill with External Baselines)",
             "",
@@ -73,6 +79,10 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"| Uplink latency p95 (us) | `{uplink['latency_p95_us']:.3f}` | `N/A` |",
             f"| CRC-16 throughput (MB/s) | `{crc16['throughput_mb_per_s']:.3f}` | `N/A` |",
             f"| COBS roundtrip throughput (MB/s) | `{cobs['throughput_mb_per_s']:.3f}` | `N/A` |",
+            f"| Command router throughput (cmd/s) | `{cmd_router['throughput_cmd_per_s']:.3f}` | `N/A` |",
+            f"| Command router latency p95 (us) | `{cmd_router['latency_p95_us']:.3f}` | `N/A` |",
+            f"| Telem fanout throughput (pkt/s) | `{telem_fanout['throughput_pkt_per_s']:.3f}` | `N/A` |",
+            f"| Telem fanout latency p95 (us) | `{telem_fanout['latency_p95_us']:.3f}` | `N/A` |",
             "",
             "## Reproducibility",
             "",

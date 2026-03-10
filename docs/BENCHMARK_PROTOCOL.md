@@ -37,6 +37,8 @@ Artifacts:
 - Uplink command processing latency p50/p95 (us)
 - CRC-16 throughput (MB/s)
 - COBS encode/decode roundtrip throughput (MB/s)
+- CommandHub route+ACK throughput and latency p50/p95 (software path)
+- TelemHub fanout throughput and latency p50/p95 (2-listener path)
 
 ## Comparison Rules
 

@@ -1,29 +1,37 @@
 # DELTA-V Benchmark Baseline
 
-- Generated (UTC): `2026-03-09T04:58:02.949851+00:00`
-- Git commit: `35822864d164c100fd343fc2f81f2261a810170b`
+- Generated (UTC): `2026-03-10T06:36:58.238406+00:00`
+- Git commit: `e8e7b8e2825a0073ff1dc75bf668fe2a6a598d08`
 - Git branch: `main`
 - Dirty worktree: `True`
-- Host: `macOS-26.2-arm64-arm-64bit-Mach-O`
+- Host: `macOS-26.2-arm64-arm-64bit`
 
 ## DELTA-V Software Metrics
 
 | Metric | Value |
 |---|---|
-| Uplink throughput (cmd/s) | `12547.484` |
-| Uplink latency p50 (us) | `48.375` |
-| Uplink latency p95 (us) | `186.333` |
-| CRC-16 throughput (MB/s) | `98.294` |
-| COBS roundtrip throughput (MB/s) | `744.113` |
+| Uplink throughput (cmd/s) | `23497.438` |
+| Uplink latency p50 (us) | `37.334` |
+| Uplink latency p95 (us) | `55.167` |
+| CRC-16 throughput (MB/s) | `112.653` |
+| COBS roundtrip throughput (MB/s) | `799.871` |
+| Command router throughput (cmd/s) | `7980447.903` |
+| Command router latency p95 (us) | `0.125` |
+| Telem fanout throughput (pkt/s) | `18754389.699` |
+| Telem fanout latency p95 (us) | `0.042` |
 
 ## Comparison Template (Fill with External Baselines)
 
 | Metric | DELTA-V | F Prime (external data) |
 |---|---|---|
-| Uplink throughput (cmd/s) | `12547.484` | `N/A` |
-| Uplink latency p95 (us) | `186.333` | `N/A` |
-| CRC-16 throughput (MB/s) | `98.294` | `N/A` |
-| COBS roundtrip throughput (MB/s) | `744.113` | `N/A` |
+| Uplink throughput (cmd/s) | `23497.438` | `N/A` |
+| Uplink latency p95 (us) | `55.167` | `N/A` |
+| CRC-16 throughput (MB/s) | `112.653` | `N/A` |
+| COBS roundtrip throughput (MB/s) | `799.871` | `N/A` |
+| Command router throughput (cmd/s) | `7980447.903` | `N/A` |
+| Command router latency p95 (us) | `0.125` | `N/A` |
+| Telem fanout throughput (pkt/s) | `18754389.699` | `N/A` |
+| Telem fanout latency p95 (us) | `0.042` | `N/A` |
 
 ## Reproducibility
 

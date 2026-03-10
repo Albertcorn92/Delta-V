@@ -53,6 +53,8 @@ def main() -> int:
     uplink = metrics.get("uplink", {})
     crc16 = metrics.get("crc16", {})
     cobs = metrics.get("cobs_roundtrip", {})
+    cmd_router = metrics.get("command_router", {})
+    telem_fanout = metrics.get("telem_fanout", {})
 
     failures: list[str] = []
 
@@ -63,6 +65,42 @@ def main() -> int:
         failures.append(f"uplink accepted mismatch: accepted={accepted}, frames={frames}")
     if consumed != accepted:
         failures.append(f"uplink consumed mismatch: consumed={consumed}, accepted={accepted}")
+
+    router_commands = int(cmd_router.get("commands", 0))
+    router_injected = int(cmd_router.get("injected", 0))
+    router_routed = int(cmd_router.get("routed", 0))
+    router_ack_events = int(cmd_router.get("ack_events", 0))
+    if router_injected != router_commands:
+        failures.append(
+            f"command_router injected mismatch: injected={router_injected}, commands={router_commands}"
+        )
+    if router_routed != router_injected:
+        failures.append(
+            f"command_router routed mismatch: routed={router_routed}, injected={router_injected}"
+        )
+    if router_ack_events != router_routed:
+        failures.append(
+            f"command_router ack mismatch: ack_events={router_ack_events}, routed={router_routed}"
+        )
+
+    fanout_packets = int(telem_fanout.get("packets", 0))
+    fanout_injected = int(telem_fanout.get("injected", 0))
+    fanout_delivered_a = int(telem_fanout.get("delivered_listener_a", 0))
+    fanout_delivered_b = int(telem_fanout.get("delivered_listener_b", 0))
+    if fanout_injected != fanout_packets:
+        failures.append(
+            f"telem_fanout injected mismatch: injected={fanout_injected}, packets={fanout_packets}"
+        )
+    if fanout_delivered_a != fanout_injected:
+        failures.append(
+            "telem_fanout listener_a mismatch: "
+            f"delivered_listener_a={fanout_delivered_a}, injected={fanout_injected}"
+        )
+    if fanout_delivered_b != fanout_injected:
+        failures.append(
+            "telem_fanout listener_b mismatch: "
+            f"delivered_listener_b={fanout_delivered_b}, injected={fanout_injected}"
+        )
 
     def check_min(label: str, value: float, threshold: float) -> None:
         if value < threshold:
@@ -95,6 +133,26 @@ def main() -> int:
         "cobs throughput (MB/s)",
         float(cobs.get("throughput_mb_per_s", 0.0)),
         float(thresholds.get("cobs_roundtrip_throughput_mb_per_s_min", 0.0)),
+    )
+    check_min(
+        "command router throughput (cmd/s)",
+        float(cmd_router.get("throughput_cmd_per_s", 0.0)),
+        float(thresholds.get("command_router_throughput_cmd_per_s_min", 0.0)),
+    )
+    check_max(
+        "command router latency p95 (us)",
+        float(cmd_router.get("latency_p95_us", 0.0)),
+        float(thresholds.get("command_router_latency_p95_us_max", float("inf"))),
+    )
+    check_min(
+        "telem fanout throughput (pkt/s)",
+        float(telem_fanout.get("throughput_pkt_per_s", 0.0)),
+        float(thresholds.get("telem_fanout_throughput_pkt_per_s_min", 0.0)),
+    )
+    check_max(
+        "telem fanout latency p95 (us)",
+        float(telem_fanout.get("latency_p95_us", 0.0)),
+        float(thresholds.get("telem_fanout_latency_p95_us_max", float("inf"))),
     )
 
     if failures:

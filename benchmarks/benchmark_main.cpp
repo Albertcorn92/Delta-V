@@ -1,6 +1,8 @@
 #include "Cobs.hpp"
+#include "CommandHub.hpp"
 #include "Port.hpp"
 #include "Serializer.hpp"
+#include "TelemHub.hpp"
 #include "TelemetryBridge.hpp"
 #include "TimeService.hpp"
 #include "Types.hpp"
@@ -41,6 +43,28 @@ struct ThroughputMetrics {
     double duration_s{0.0};
     double throughput_mb_s{0.0};
     uint64_t accumulator{0};
+};
+
+struct CommandRouterMetrics {
+    size_t commands{0};
+    size_t injected{0};
+    size_t routed{0};
+    size_t ack_events{0};
+    double duration_s{0.0};
+    double throughput_cmd_s{0.0};
+    double latency_p50_us{0.0};
+    double latency_p95_us{0.0};
+};
+
+struct TelemFanoutMetrics {
+    size_t packets{0};
+    size_t injected{0};
+    size_t delivered_listener_a{0};
+    size_t delivered_listener_b{0};
+    double duration_s{0.0};
+    double throughput_pkt_s{0.0};
+    double latency_p50_us{0.0};
+    double latency_p95_us{0.0};
 };
 
 class ScopedStdioSilence {
@@ -282,10 +306,133 @@ auto run_cobs_roundtrip_benchmark() -> ThroughputMetrics {
     return out;
 }
 
+auto run_command_router_benchmark() -> CommandRouterMetrics {
+    constexpr size_t COMMAND_COUNT = 20000u;
+
+    CommandHub cmd_hub{"CmdHubBench", 901u};
+    OutputPort<CommandPacket> route_out{};
+    InputPort<CommandPacket, 32768> route_sink{};
+    route_out.connect(&route_sink);
+    cmd_hub.registerRoute(200u, &route_out);
+
+    InputPort<EventPacket, 32768> ack_sink{};
+    cmd_hub.ack_out.connect(&ack_sink);
+    cmd_hub.init();
+
+    std::vector<double> latencies_us;
+    latencies_us.reserve(COMMAND_COUNT);
+
+    size_t injected = 0u;
+    const auto bench_start = Clock::now();
+    for (size_t i = 0; i < COMMAND_COUNT; ++i) {
+        CommandPacket cmd{
+            200u,
+            1u,
+            static_cast<float>(static_cast<uint32_t>(i & 0xFFu))
+        };
+        const auto t0 = Clock::now();
+        if (cmd_hub.cmd_input.receive(cmd)) {
+            ++injected;
+        }
+        cmd_hub.step();
+        const auto t1 = Clock::now();
+        latencies_us.push_back(std::chrono::duration<double, std::micro>(t1 - t0).count());
+    }
+    const double duration_s = Seconds(Clock::now() - bench_start).count();
+
+    size_t routed = 0u;
+    CommandPacket routed_cmd{};
+    while (route_sink.tryConsume(routed_cmd)) {
+        ++routed;
+    }
+
+    size_t ack_events = 0u;
+    EventPacket ack{};
+    while (ack_sink.tryConsume(ack)) {
+        ++ack_events;
+    }
+
+    CommandRouterMetrics out{};
+    out.commands = COMMAND_COUNT;
+    out.injected = injected;
+    out.routed = routed;
+    out.ack_events = ack_events;
+    out.duration_s = duration_s;
+    out.throughput_cmd_s = duration_s > 0.0 ? static_cast<double>(routed) / duration_s : 0.0;
+    out.latency_p50_us = percentile_us(latencies_us, 0.50);
+    out.latency_p95_us = percentile_us(latencies_us, 0.95);
+    return out;
+}
+
+auto run_telem_fanout_benchmark() -> TelemFanoutMetrics {
+    constexpr size_t PACKET_COUNT = 20000u;
+
+    TelemHub telem_hub{"TelemHubBench", 902u};
+    OutputPort<Serializer::ByteArray> source{};
+    telem_hub.connectInput(source);
+
+    InputPort<Serializer::ByteArray> listener_a{};
+    InputPort<Serializer::ByteArray> listener_b{};
+    telem_hub.registerListener(&listener_a);
+    telem_hub.registerListener(&listener_b);
+    telem_hub.init();
+
+    std::vector<double> latencies_us;
+    latencies_us.reserve(PACKET_COUNT);
+
+    size_t injected = 0u;
+    size_t delivered_a = 0u;
+    size_t delivered_b = 0u;
+    Serializer::ByteArray telem{};
+    const auto bench_start = Clock::now();
+    for (size_t i = 0; i < PACKET_COUNT; ++i) {
+        TelemetryPacket pkt{
+            static_cast<uint32_t>(i),
+            77u,
+            static_cast<float>(static_cast<uint32_t>(i & 0xFFu))
+        };
+        const auto t0 = Clock::now();
+        if (source.send(Serializer::pack(pkt))) {
+            ++injected;
+        }
+        telem_hub.step();
+        if (listener_a.tryConsume(telem)) {
+            ++delivered_a;
+        }
+        if (listener_b.tryConsume(telem)) {
+            ++delivered_b;
+        }
+        const auto t1 = Clock::now();
+        latencies_us.push_back(std::chrono::duration<double, std::micro>(t1 - t0).count());
+    }
+    const double duration_s = Seconds(Clock::now() - bench_start).count();
+
+    // Drain any final packets that remain in listener queues.
+    while (listener_a.tryConsume(telem)) {
+        ++delivered_a;
+    }
+    while (listener_b.tryConsume(telem)) {
+        ++delivered_b;
+    }
+
+    TelemFanoutMetrics out{};
+    out.packets = PACKET_COUNT;
+    out.injected = injected;
+    out.delivered_listener_a = delivered_a;
+    out.delivered_listener_b = delivered_b;
+    out.duration_s = duration_s;
+    out.throughput_pkt_s = duration_s > 0.0 ? static_cast<double>(injected) / duration_s : 0.0;
+    out.latency_p50_us = percentile_us(latencies_us, 0.50);
+    out.latency_p95_us = percentile_us(latencies_us, 0.95);
+    return out;
+}
+
 auto render_json(
     const UplinkMetrics& uplink,
     const ThroughputMetrics& crc16,
-    const ThroughputMetrics& cobs_rt) -> std::string {
+    const ThroughputMetrics& cobs_rt,
+    const CommandRouterMetrics& cmd_router,
+    const TelemFanoutMetrics& telem_fanout) -> std::string {
     std::array<char, 4096> buf{};
     const int written = std::snprintf(
         buf.data(), buf.size(),
@@ -312,6 +459,26 @@ auto render_json(
         "    \"duration_s\": %.6f,\n"
         "    \"throughput_mb_per_s\": %.3f,\n"
         "    \"accumulator\": %llu\n"
+        "  },\n"
+        "  \"command_router\": {\n"
+        "    \"commands\": %zu,\n"
+        "    \"injected\": %zu,\n"
+        "    \"routed\": %zu,\n"
+        "    \"ack_events\": %zu,\n"
+        "    \"duration_s\": %.6f,\n"
+        "    \"throughput_cmd_per_s\": %.3f,\n"
+        "    \"latency_p50_us\": %.3f,\n"
+        "    \"latency_p95_us\": %.3f\n"
+        "  },\n"
+        "  \"telem_fanout\": {\n"
+        "    \"packets\": %zu,\n"
+        "    \"injected\": %zu,\n"
+        "    \"delivered_listener_a\": %zu,\n"
+        "    \"delivered_listener_b\": %zu,\n"
+        "    \"duration_s\": %.6f,\n"
+        "    \"throughput_pkt_per_s\": %.3f,\n"
+        "    \"latency_p50_us\": %.3f,\n"
+        "    \"latency_p95_us\": %.3f\n"
         "  }\n"
         "}\n",
         uplink.frames,
@@ -330,7 +497,23 @@ auto render_json(
         cobs_rt.bytes_per_iteration,
         cobs_rt.duration_s,
         cobs_rt.throughput_mb_s,
-        static_cast<unsigned long long>(cobs_rt.accumulator));
+        static_cast<unsigned long long>(cobs_rt.accumulator),
+        cmd_router.commands,
+        cmd_router.injected,
+        cmd_router.routed,
+        cmd_router.ack_events,
+        cmd_router.duration_s,
+        cmd_router.throughput_cmd_s,
+        cmd_router.latency_p50_us,
+        cmd_router.latency_p95_us,
+        telem_fanout.packets,
+        telem_fanout.injected,
+        telem_fanout.delivered_listener_a,
+        telem_fanout.delivered_listener_b,
+        telem_fanout.duration_s,
+        telem_fanout.throughput_pkt_s,
+        telem_fanout.latency_p50_us,
+        telem_fanout.latency_p95_us);
 
     if (written <= 0) {
         return "{}\n";
@@ -351,8 +534,10 @@ auto main(int argc, char** argv) -> int {
     const UplinkMetrics uplink = run_uplink_benchmark();
     const ThroughputMetrics crc16 = run_crc16_benchmark();
     const ThroughputMetrics cobs_rt = run_cobs_roundtrip_benchmark();
+    const CommandRouterMetrics cmd_router = run_command_router_benchmark();
+    const TelemFanoutMetrics telem_fanout = run_telem_fanout_benchmark();
 
-    const std::string payload = render_json(uplink, crc16, cobs_rt);
+    const std::string payload = render_json(uplink, crc16, cobs_rt, cmd_router, telem_fanout);
     std::printf("%s", payload.c_str());
 
     if (!json_out_path.empty()) {
@@ -367,6 +552,23 @@ auto main(int argc, char** argv) -> int {
     if (uplink.accepted != uplink.frames || uplink.consumed != uplink.accepted) {
         std::fprintf(stderr, "[benchmark] ERROR: uplink acceptance/consumption mismatch.\n");
         return 3;
+    }
+    if (cmd_router.injected != cmd_router.commands || cmd_router.routed != cmd_router.injected) {
+        std::fprintf(stderr, "[benchmark] ERROR: command router mismatch.\n");
+        return 4;
+    }
+    if (cmd_router.ack_events != cmd_router.routed) {
+        std::fprintf(stderr, "[benchmark] ERROR: command router ACK mismatch.\n");
+        return 5;
+    }
+    if (telem_fanout.injected != telem_fanout.packets) {
+        std::fprintf(stderr, "[benchmark] ERROR: telem fanout inject mismatch.\n");
+        return 6;
+    }
+    if (telem_fanout.delivered_listener_a != telem_fanout.injected
+        || telem_fanout.delivered_listener_b != telem_fanout.injected) {
+        std::fprintf(stderr, "[benchmark] ERROR: telem fanout delivery mismatch.\n");
+        return 7;
     }
 
     return 0;
