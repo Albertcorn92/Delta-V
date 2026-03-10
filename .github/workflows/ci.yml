@@ -232,7 +232,8 @@ jobs:
           cmake -B build_tidy -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DDELTAV_SITL_SOAK_SECONDS=60 \
-            -DDELTAV_BENCHMARK_THRESHOLDS_FILE=${{ github.workspace }}/docs/BENCHMARK_THRESHOLDS_CI.json
+            -DDELTAV_BENCHMARK_THRESHOLDS_FILE=${{ github.workspace }}/docs/BENCHMARK_THRESHOLDS_CI.json \
+            -DDELTAV_BENCHMARK_TREND_BASELINE_FILE=${{ github.workspace }}/docs/BENCHMARK_TREND_BASELINE_CI.json
       - name: Run software-final gate
         run: cmake --build build_tidy --target software_final
 
@@ -272,6 +273,9 @@ jobs:
             build_tidy/sitl/sitl_smoke.log
             build_tidy/sitl/sitl_soak_result.json
             build_tidy/sitl/sitl_soak.log
+            build_tidy/benchmark/benchmark_baseline.json
+            build_tidy/benchmark/benchmark_baseline.md
+            build_tidy/benchmark/benchmark_runs.json
           retention-days: 14
 
   # ---------------------------------------------------------------------------

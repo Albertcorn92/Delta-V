@@ -19,6 +19,7 @@ ctest --test-dir build --output-on-failure --timeout 90
 
 echo "[quickstart] Validating benchmark baseline + regression guard..."
 cmake --build build --target benchmark_guard
+cmake --build build --target benchmark_trend_guard
 
 echo "[quickstart] Running short SITL smoke..."
 python3 tools/sitl_smoke.py --build-dir build --duration 8

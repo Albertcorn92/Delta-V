@@ -17,6 +17,7 @@ and compare results against other frameworks on equal footing.
 cmake --build build --target run_benchmarks
 cmake --build build --target benchmark_baseline
 cmake --build build --target benchmark_guard
+cmake --build build --target benchmark_trend_guard
 ```
 
 `run_benchmarks` is compiled with release-style optimization flags for stable
@@ -33,6 +34,8 @@ Artifacts:
 - `docs/BENCHMARK_BASELINE.json` (synced by default)
 - `docs/BENCHMARK_THRESHOLDS.json` (regression gate thresholds)
 - `docs/BENCHMARK_THRESHOLDS_CI.json` (GitHub CI threshold profile)
+- `docs/BENCHMARK_TREND_BASELINE.json` (local sustained-drift baseline profile)
+- `docs/BENCHMARK_TREND_BASELINE_CI.json` (CI sustained-drift baseline profile)
 
 ## Metrics (Current Baseline)
 
@@ -55,8 +58,13 @@ Artifacts:
 
 - `benchmark_guard` validates current metrics against
   `docs/BENCHMARK_THRESHOLDS.json`.
+- `benchmark_trend_guard` validates sustained drift against
+  `docs/BENCHMARK_TREND_BASELINE.json` using both median and p95 samples from
+  repeated benchmark runs.
 - CI safety-assurance jobs use `docs/BENCHMARK_THRESHOLDS_CI.json` to account
   for shared-runner performance variance.
+- CI safety-assurance jobs use `docs/BENCHMARK_TREND_BASELINE_CI.json` for
+  shared-runner sustained-drift checks.
 - Thresholds are intentionally conservative cross-host minimums for CI.
 - If hardware/OS/compiler baseline changes materially, update thresholds with
   evidence in the release notes.

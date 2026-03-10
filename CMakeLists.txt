@@ -504,14 +504,17 @@ if(PYTHON3 AND TARGET coverage)
 endif()
 
 if(PYTHON3 AND TARGET run_benchmarks)
+    set(DELTAV_BENCHMARK_RUNS "3" CACHE STRING
+        "Number of benchmark runs used for median aggregation")
     add_custom_target(benchmark_baseline
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/benchmark_report.py
             --workspace ${CMAKE_SOURCE_DIR}
             --build-dir ${CMAKE_BINARY_DIR}
+            --runs ${DELTAV_BENCHMARK_RUNS}
         DEPENDS run_benchmarks
         COMMENT "Generating benchmark baseline artifacts"
     )
-    message(STATUS "BenchRpt : ENABLED  (cmake --build build --target benchmark_baseline)")
+    message(STATUS "BenchRpt : ENABLED  (cmake --build build --target benchmark_baseline ; runs=${DELTAV_BENCHMARK_RUNS})")
 endif()
 
 if(PYTHON3 AND TARGET benchmark_baseline)
@@ -527,6 +530,19 @@ if(PYTHON3 AND TARGET benchmark_baseline)
         COMMENT "Validating benchmark regression thresholds"
     )
     message(STATUS "BenchGte : ENABLED  (cmake --build build --target benchmark_guard)")
+
+    set(DELTAV_BENCHMARK_TREND_BASELINE_FILE
+        "${CMAKE_SOURCE_DIR}/docs/BENCHMARK_TREND_BASELINE.json"
+        CACHE FILEPATH "Benchmark trend baseline JSON file for benchmark_trend_guard")
+    add_custom_target(benchmark_trend_guard
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/benchmark_trend_guard.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+            --baseline ${DELTAV_BENCHMARK_TREND_BASELINE_FILE}
+        DEPENDS benchmark_baseline
+        COMMENT "Validating sustained benchmark trend drift"
+    )
+    message(STATUS "BenchTrd : ENABLED  (cmake --build build --target benchmark_trend_guard)")
 endif()
 
 if(PYTHON3 AND TARGET flight_software)
@@ -604,13 +620,14 @@ if(PYTHON3)
     message(STATUS "ESP32Reb : ENABLED  (cmake --build build --target esp32_reboot_campaign)")
 endif()
 
-if(TARGET legal_compliance AND TARGET run_tests AND TARGET run_system_tests AND TARGET benchmark_guard AND TARGET sitl_smoke)
+if(TARGET legal_compliance AND TARGET run_tests AND TARGET run_system_tests AND TARGET benchmark_guard AND TARGET benchmark_trend_guard AND TARGET sitl_smoke)
     add_custom_target(quickstart_10min
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target legal_compliance
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_tests
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_system_tests
         COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure --timeout 90
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target benchmark_guard
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target benchmark_trend_guard
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target sitl_smoke
         COMMENT "Running 10-minute local quickstart validation flow"
         USES_TERMINAL
@@ -620,6 +637,10 @@ endif()
 
 if(TARGET software_final AND TARGET benchmark_guard)
     add_dependencies(software_final benchmark_guard)
+endif()
+
+if(TARGET software_final AND TARGET benchmark_trend_guard)
+    add_dependencies(software_final benchmark_trend_guard)
 endif()
 
 if(TARGET software_final AND TARGET sitl_soak)
@@ -661,6 +682,7 @@ message(STATUS "║    cubesat_readiness — mission status rpt  ║")
 message(STATUS "║    cubesat_readiness_scope — waived rpt    ║")
 message(STATUS "║    benchmark_baseline — perf report sync   ║")
 message(STATUS "║    benchmark_guard  — perf regression gate ║")
+message(STATUS "║    benchmark_trend_guard — perf drift gate ║")
 message(STATUS "║    sitl_smoke       — short runtime check  ║")
 message(STATUS "║    sitl_soak        — extended runtime test║")
 message(STATUS "║    portability_matrix — build profile gate ║")

@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "profile": "local-main-baseline",
+  "description": "Local workstation trend baseline for sustained-regression checks.",
+  "checks": [
+    {
+      "key": "uplink.throughput_cmd_per_s",
+      "label": "Uplink throughput (cmd/s)",
+      "direction": "min",
+      "baseline": 27045.217,
+      "max_regression_pct": 0.3
+    },
+    {
+      "key": "uplink.latency_p95_us",
+      "label": "Uplink latency p95 (us)",
+      "direction": "max",
+      "baseline": 45.167,
+      "max_regression_pct": 0.3
+    },
+    {
+      "key": "crc16.throughput_mb_per_s",
+      "label": "CRC-16 throughput (MB/s)",
+      "direction": "min",
+      "baseline": 116.031,
+      "max_regression_pct": 0.3
+    },
+    {
+      "key": "cobs_roundtrip.throughput_mb_per_s",
+      "label": "COBS roundtrip throughput (MB/s)",
+      "direction": "min",
+      "baseline": 811.8,
+      "max_regression_pct": 0.3
+    },
+    {
+      "key": "command_router.throughput_cmd_per_s",
+      "label": "Command router throughput (cmd/s)",
+      "direction": "min",
+      "baseline": 7952551.894,
+      "max_regression_pct": 0.3
+    },
+    {
+      "key": "command_router.latency_p95_us",
+      "label": "Command router latency p95 (us)",
+      "direction": "max",
+      "baseline": 0.125,
+      "max_regression_pct": 0.5
+    },
+    {
+      "key": "telem_fanout.throughput_pkt_per_s",
+      "label": "Telem fanout throughput (pkt/s)",
+      "direction": "min",
+      "baseline": 18769790.398,
+      "max_regression_pct": 0.3
+    },
+    {
+      "key": "telem_fanout.latency_p95_us",
+      "label": "Telem fanout latency p95 (us)",
+      "direction": "max",
+      "baseline": 0.042,
+      "max_regression_pct": 0.5
+    }
+  ]
+}

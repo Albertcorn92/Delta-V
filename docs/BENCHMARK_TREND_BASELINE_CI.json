@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "profile": "ci-github-hosted",
+  "description": "Conservative CI trend profile tuned for shared GitHub-hosted runners.",
+  "checks": [
+    {
+      "key": "uplink.throughput_cmd_per_s",
+      "label": "Uplink throughput (cmd/s)",
+      "direction": "min",
+      "baseline": 8000.0,
+      "max_regression_pct": 0.4
+    },
+    {
+      "key": "uplink.latency_p95_us",
+      "label": "Uplink latency p95 (us)",
+      "direction": "max",
+      "baseline": 150.0,
+      "max_regression_pct": 0.4
+    },
+    {
+      "key": "crc16.throughput_mb_per_s",
+      "label": "CRC-16 throughput (MB/s)",
+      "direction": "min",
+      "baseline": 60.0,
+      "max_regression_pct": 0.35
+    },
+    {
+      "key": "cobs_roundtrip.throughput_mb_per_s",
+      "label": "COBS roundtrip throughput (MB/s)",
+      "direction": "min",
+      "baseline": 450.0,
+      "max_regression_pct": 0.4
+    },
+    {
+      "key": "command_router.throughput_cmd_per_s",
+      "label": "Command router throughput (cmd/s)",
+      "direction": "min",
+      "baseline": 2500000.0,
+      "max_regression_pct": 0.45
+    },
+    {
+      "key": "command_router.latency_p95_us",
+      "label": "Command router latency p95 (us)",
+      "direction": "max",
+      "baseline": 0.3,
+      "max_regression_pct": 0.5
+    },
+    {
+      "key": "telem_fanout.throughput_pkt_per_s",
+      "label": "Telem fanout throughput (pkt/s)",
+      "direction": "min",
+      "baseline": 8000000.0,
+      "max_regression_pct": 0.45
+    },
+    {
+      "key": "telem_fanout.latency_p95_us",
+      "label": "Telem fanout latency p95 (us)",
+      "direction": "max",
+      "baseline": 0.15,
+      "max_regression_pct": 0.5
+    }
+  ]
+}
