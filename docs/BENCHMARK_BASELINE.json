@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-03-10T07:06:40.464774+00:00",
+  "generated_utc": "2026-03-10T07:29:09.517734+00:00",
   "workspace": "DELTA-V Framework",
   "host": {
     "platform": "macOS-26.2-arm64-arm-64bit",
@@ -8,7 +8,7 @@
   },
   "git": {
     "branch": "main",
-    "commit": "8698ddbb760aff3f4b281325ce947646802e11c3",
+    "commit": "70d94a7c191e862fb830c894cd8ab7ac4395b426",
     "dirty_worktree": true
   },
   "benchmark_runs": 3,
@@ -18,23 +18,23 @@
       "frames": 20000,
       "accepted": 20000,
       "consumed": 20000,
-      "duration_s": 0.78909,
-      "throughput_cmd_per_s": 25345.662,
-      "latency_p50_us": 36.666,
-      "latency_p95_us": 48.833
+      "duration_s": 0.786959,
+      "throughput_cmd_per_s": 25414.283,
+      "latency_p50_us": 36.042,
+      "latency_p95_us": 53.292
     },
     "crc16": {
       "iterations": 300000,
       "bytes_per_iteration": 256,
-      "duration_s": 0.675932,
-      "throughput_mb_per_s": 113.621,
+      "duration_s": 0.66199,
+      "throughput_mb_per_s": 116.014,
       "accumulator": 0
     },
     "cobs_roundtrip": {
       "iterations": 300000,
       "bytes_per_iteration": 22,
-      "duration_s": 0.008107,
-      "throughput_mb_per_s": 814.149,
+      "duration_s": 0.008037,
+      "throughput_mb_per_s": 821.172,
       "accumulator": 38246416
     },
     "command_router": {
@@ -42,8 +42,8 @@
       "injected": 20000,
       "routed": 20000,
       "ack_events": 20000,
-      "duration_s": 0.002617,
-      "throughput_cmd_per_s": 7642703.606,
+      "duration_s": 0.002485,
+      "throughput_cmd_per_s": 8049368.386,
       "latency_p50_us": 0.084,
       "latency_p95_us": 0.125
     },
@@ -52,52 +52,70 @@
       "injected": 20000,
       "delivered_listener_a": 20000,
       "delivered_listener_b": 20000,
-      "duration_s": 0.001046,
-      "throughput_pkt_per_s": 19120458.891,
-      "latency_p50_us": 0.041,
+      "duration_s": 0.001093,
+      "throughput_pkt_per_s": 18291283.198,
+      "latency_p50_us": 0.042,
       "latency_p95_us": 0.042
+    },
+    "startup_runtime": {
+      "ready_seen": true,
+      "sampling_supported": false,
+      "ready_markers": [
+        "[Topology] All ports connected.",
+        "[Scheduler] All systems nominal."
+      ],
+      "window_duration_s": 3.0,
+      "sample_interval_s": 0.2,
+      "sample_count": 0,
+      "startup_time_to_ready_s": 3.0,
+      "cpu_p50_pct": 0.0,
+      "cpu_p95_pct": 0.0,
+      "cpu_max_pct": 0.0,
+      "rss_p50_mb": 0.0,
+      "rss_p95_mb": 0.0,
+      "rss_max_mb": 0.0
     }
   },
   "run_summary": [
     {
       "label": "Uplink throughput (cmd/s)",
       "key": "uplink.throughput_cmd_per_s",
-      "median": 25345.662,
-      "p95": 25345.662,
-      "min": 23294.109,
-      "max": 25727.501
+      "median": 25414.283,
+      "p95": 25414.283,
+      "min": 24883.53,
+      "max": 27122.588
     },
     {
       "label": "Uplink latency p95 (us)",
       "key": "uplink.latency_p95_us",
-      "median": 48.833,
-      "p95": 48.833,
-      "min": 47.0,
-      "max": 54.666
+      "median": 53.292,
+      "p95": 53.292,
+      "min": 44.875,
+      "max": 54.25
     },
     {
       "label": "CRC-16 throughput (MB/s)",
       "key": "crc16.throughput_mb_per_s",
-      "median": 113.621,
-      "p95": 113.621,
-      "min": 113.451,
-      "max": 115.905
+      "median": 116.014,
+      "p95": 116.014,
+      "min": 115.373,
+      "max": 117.306
     },
     {
       "label": "COBS roundtrip throughput (MB/s)",
       "key": "cobs_roundtrip.throughput_mb_per_s",
-      "median": 814.149,
-      "p95": 814.149,
-      "min": 806.698,
-      "max": 827.033
+      "median": 821.172,
+      "p95": 821.172,
+      "min": 735.649,
+      "max": 832.93
     },
     {
       "label": "Command router throughput (cmd/s)",
       "key": "command_router.throughput_cmd_per_s",
-      "median": 7642703.606,
-      "p95": 7642703.606,
-      "min": 6412739.291,
-      "max": 8134214.54
+      "median": 8049368.386,
+      "p95": 8049368.386,
+      "min": 7890713.616,
+      "max": 8173273.396
     },
     {
       "label": "Command router latency p95 (us)",
@@ -110,10 +128,10 @@
     {
       "label": "Telem fanout throughput (pkt/s)",
       "key": "telem_fanout.throughput_pkt_per_s",
-      "median": 19120458.891,
-      "p95": 19120458.891,
-      "min": 18570102.136,
-      "max": 19126566.227
+      "median": 18291283.198,
+      "p95": 18291283.198,
+      "min": 17176596.887,
+      "max": 19068049.1
     },
     {
       "label": "Telem fanout latency p95 (us)",
@@ -122,6 +140,30 @@
       "p95": 0.042,
       "min": 0.042,
       "max": 0.042
+    },
+    {
+      "label": "Startup time to ready (s)",
+      "key": "startup_runtime.startup_time_to_ready_s",
+      "median": 3.0,
+      "p95": 3.0,
+      "min": 3.0,
+      "max": 3.0
+    },
+    {
+      "label": "Runtime CPU p95 (%)",
+      "key": "startup_runtime.cpu_p95_pct",
+      "median": 0.0,
+      "p95": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    {
+      "label": "Runtime RSS p95 (MB)",
+      "key": "startup_runtime.rss_p95_mb",
+      "median": 0.0,
+      "p95": 0.0,
+      "min": 0.0,
+      "max": 0.0
     }
   ]
 }

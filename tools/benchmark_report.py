@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import median
@@ -46,6 +49,180 @@ def run_benchmark_binary(binary: Path, metrics_json: Path) -> dict[str, Any]:
             print(result.stderr, file=sys.stderr)
         result.check_returncode()
     return json.loads(metrics_json.read_text(encoding="utf-8"))
+
+
+def sample_process_stats_procfs(
+    pid: int,
+    prev_jiffies: int | None,
+    prev_time_s: float | None,
+    clock_ticks_per_sec: float,
+    page_size_bytes: float,
+) -> tuple[float, float, int, float] | None:
+    stat_path = Path("/proc") / str(pid) / "stat"
+    if not stat_path.exists():
+        return None
+
+    raw = stat_path.read_text(encoding="utf-8", errors="replace").strip()
+    if not raw:
+        return None
+
+    right = raw.rsplit(") ", maxsplit=1)
+    if len(right) != 2:
+        return None
+    fields = right[1].split()
+    if len(fields) < 22:
+        return None
+
+    try:
+        utime_jiffies = int(fields[11])
+        stime_jiffies = int(fields[12])
+        rss_pages = int(fields[21])
+    except ValueError:
+        return None
+
+    current_jiffies = utime_jiffies + stime_jiffies
+    now_s = time.monotonic()
+    rss_mb = (float(rss_pages) * page_size_bytes) / (1024.0 * 1024.0)
+
+    if prev_jiffies is None or prev_time_s is None:
+        cpu_pct = 0.0
+    else:
+        delta_jiffies = current_jiffies - prev_jiffies
+        delta_time_s = max(1e-6, now_s - prev_time_s)
+        cpu_pct = ((float(delta_jiffies) / clock_ticks_per_sec) / delta_time_s) * 100.0
+        cpu_pct = max(0.0, cpu_pct)
+
+    return cpu_pct, rss_mb, current_jiffies, now_s
+
+
+def scan_log_for_markers(
+    log_path: Path,
+    cursor: int,
+    ready_markers: list[str],
+) -> tuple[bool, int]:
+    if not log_path.exists():
+        return False, cursor
+    with log_path.open("r", encoding="utf-8", errors="replace") as f:
+        f.seek(cursor)
+        chunk = f.read()
+        new_cursor = f.tell()
+    for marker in ready_markers:
+        if marker in chunk:
+            return True, new_cursor
+    return False, new_cursor
+
+
+def summarize(values: list[float]) -> tuple[float, float, float]:
+    if not values:
+        return 0.0, 0.0, 0.0
+    return (
+        percentile(values, 0.50),
+        percentile(values, 0.95),
+        max(values),
+    )
+
+
+def run_runtime_profile(
+    flight_binary: Path,
+    duration_s: float,
+    sample_interval_s: float,
+) -> dict[str, Any]:
+    ready_markers = [
+        "[Topology] All ports connected.",
+        "[Scheduler] All systems nominal.",
+    ]
+
+    with tempfile.NamedTemporaryFile(prefix="deltav_runtime_profile_", suffix=".log", delete=False) as tmp:
+        log_path = Path(tmp.name)
+
+    start = time.monotonic()
+    cursor = 0
+    ready_seen = False
+    ready_time = 0.0
+    cpu_samples: list[float] = []
+    rss_samples: list[float] = []
+    sampling_supported = Path("/proc").exists()
+    clock_ticks_per_sec = float(os.sysconf("SC_CLK_TCK")) if sampling_supported else 0.0
+    page_size_bytes = float(os.sysconf("SC_PAGE_SIZE")) if sampling_supported else 0.0
+    prev_jiffies: int | None = None
+    prev_sample_time_s: float | None = None
+
+    log_file = log_path.open("w", encoding="utf-8")
+    proc = subprocess.Popen(
+        [str(flight_binary)],
+        cwd=str(flight_binary.parent),
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+
+    try:
+        while True:
+            elapsed = time.monotonic() - start
+            found_marker, cursor = scan_log_for_markers(log_path, cursor, ready_markers)
+            if found_marker and not ready_seen:
+                ready_seen = True
+                ready_time = elapsed
+
+            if sampling_supported:
+                sample = sample_process_stats_procfs(
+                    proc.pid,
+                    prev_jiffies,
+                    prev_sample_time_s,
+                    clock_ticks_per_sec,
+                    page_size_bytes,
+                )
+                if sample is not None:
+                    cpu_pct, rss_mb, prev_jiffies, prev_sample_time_s = sample
+                    cpu_samples.append(cpu_pct)
+                    rss_samples.append(rss_mb)
+
+            if elapsed >= duration_s:
+                break
+            if proc.poll() is not None:
+                break
+
+            time.sleep(max(0.05, sample_interval_s))
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=2.0)
+        log_file.flush()
+        found_marker, cursor = scan_log_for_markers(log_path, cursor, ready_markers)
+        if found_marker and not ready_seen:
+            ready_seen = True
+            ready_time = min(duration_s, time.monotonic() - start)
+        log_file.close()
+
+    cpu_p50, cpu_p95, cpu_max = summarize(cpu_samples)
+    rss_p50, rss_p95, rss_max = summarize(rss_samples)
+
+    startup_time = ready_time if ready_seen else (duration_s + sample_interval_s)
+
+    try:
+        log_path.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    return {
+        "ready_seen": ready_seen,
+        "sampling_supported": sampling_supported,
+        "ready_markers": ready_markers,
+        "window_duration_s": duration_s,
+        "sample_interval_s": sample_interval_s,
+        "sample_count": len(cpu_samples),
+        "startup_time_to_ready_s": startup_time,
+        "cpu_p50_pct": cpu_p50,
+        "cpu_p95_pct": cpu_p95,
+        "cpu_max_pct": cpu_max,
+        "rss_p50_mb": rss_p50,
+        "rss_p95_mb": rss_p95,
+        "rss_max_mb": rss_max,
+    }
 
 
 def percentile(values: list[float], pct: float) -> float:
@@ -101,6 +278,9 @@ RUN_SUMMARY_METRICS: list[tuple[str, tuple[str, ...]]] = [
     ("Command router latency p95 (us)", ("command_router", "latency_p95_us")),
     ("Telem fanout throughput (pkt/s)", ("telem_fanout", "throughput_pkt_per_s")),
     ("Telem fanout latency p95 (us)", ("telem_fanout", "latency_p95_us")),
+    ("Startup time to ready (s)", ("startup_runtime", "startup_time_to_ready_s")),
+    ("Runtime CPU p95 (%)", ("startup_runtime", "cpu_p95_pct")),
+    ("Runtime RSS p95 (MB)", ("startup_runtime", "rss_p95_mb")),
 ]
 
 
@@ -140,14 +320,23 @@ def build_run_summary(samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def run_benchmark_samples(
     binary: Path,
+    flight_binary: Path,
     out_dir: Path,
     runs: int,
+    runtime_duration_s: float,
+    runtime_sample_interval_s: float,
 ) -> tuple[dict[str, Any], Path, Path, list[dict[str, Any]]]:
     samples: list[dict[str, Any]] = []
     for idx in range(runs):
         sample_json = out_dir / f"benchmark_metrics_run_{idx + 1}.json"
         print(f"[benchmark] run {idx + 1}/{runs}")
-        samples.append(run_benchmark_binary(binary, sample_json))
+        sample = run_benchmark_binary(binary, sample_json)
+        sample["startup_runtime"] = run_runtime_profile(
+            flight_binary,
+            runtime_duration_s,
+            runtime_sample_interval_s,
+        )
+        samples.append(sample)
 
     aggregated = aggregate_metrics(samples)
     metrics_json = out_dir / "benchmark_metrics.json"
@@ -171,6 +360,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     cobs = report["metrics"]["cobs_roundtrip"]
     cmd_router = report["metrics"]["command_router"]
     telem_fanout = report["metrics"]["telem_fanout"]
+    startup_runtime = report["metrics"]["startup_runtime"]
     run_summary = report.get("run_summary", [])
     lines = [
         "# DELTA-V Benchmark Baseline",
@@ -197,6 +387,11 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"| Command router latency p95 (us) | `{cmd_router['latency_p95_us']:.3f}` |",
         f"| Telem fanout throughput (pkt/s) | `{telem_fanout['throughput_pkt_per_s']:.3f}` |",
         f"| Telem fanout latency p95 (us) | `{telem_fanout['latency_p95_us']:.3f}` |",
+        f"| Startup time to ready (s) | `{startup_runtime['startup_time_to_ready_s']:.3f}` |",
+        f"| Runtime sampling supported | `{startup_runtime['sampling_supported']}` |",
+        f"| Runtime sample count | `{startup_runtime['sample_count']}` |",
+        f"| Runtime CPU p95 (%) | `{startup_runtime['cpu_p95_pct']:.3f}` |",
+        f"| Runtime RSS p95 (MB) | `{startup_runtime['rss_p95_mb']:.3f}` |",
         "",
     ]
 
@@ -229,6 +424,9 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"| Command router latency p95 (us) | `{cmd_router['latency_p95_us']:.3f}` | `N/A` |",
             f"| Telem fanout throughput (pkt/s) | `{telem_fanout['throughput_pkt_per_s']:.3f}` | `N/A` |",
             f"| Telem fanout latency p95 (us) | `{telem_fanout['latency_p95_us']:.3f}` | `N/A` |",
+            f"| Startup time to ready (s) | `{startup_runtime['startup_time_to_ready_s']:.3f}` | `N/A` |",
+            f"| Runtime CPU p95 (%) | `{startup_runtime['cpu_p95_pct']:.3f}` | `N/A` |",
+            f"| Runtime RSS p95 (MB) | `{startup_runtime['rss_p95_mb']:.3f}` | `N/A` |",
             "",
             "## Reproducibility",
             "",
@@ -256,24 +454,47 @@ def main() -> int:
         default=3,
         help="Number of benchmark runs to aggregate (default: 3).",
     )
+    parser.add_argument(
+        "--runtime-duration-s",
+        required=False,
+        type=float,
+        default=5.0,
+        help="Duration in seconds for flight runtime CPU/RSS/startup sampling per run.",
+    )
+    parser.add_argument(
+        "--runtime-sample-interval-s",
+        required=False,
+        type=float,
+        default=0.20,
+        help="Sampling interval in seconds for runtime CPU/RSS metrics.",
+    )
     parser.add_argument("--no-sync-docs", action="store_true")
     args = parser.parse_args()
     if args.runs < 1:
         parser.error("--runs must be >= 1")
+    if args.runtime_duration_s <= 0.0:
+        parser.error("--runtime-duration-s must be > 0")
+    if args.runtime_sample_interval_s <= 0.0:
+        parser.error("--runtime-sample-interval-s must be > 0")
 
     workspace = args.workspace.resolve()
     build_dir = args.build_dir.resolve()
     sync_docs = not args.no_sync_docs
 
     benchmark_bin = build_dir / "run_benchmarks"
+    flight_bin = build_dir / "flight_software"
     require_file(benchmark_bin)
+    require_file(flight_bin)
 
     out_dir = build_dir / "benchmark"
     out_dir.mkdir(parents=True, exist_ok=True)
     metrics, _metrics_json, runs_json, samples = run_benchmark_samples(
         benchmark_bin,
+        flight_bin,
         out_dir,
         args.runs,
+        args.runtime_duration_s,
+        args.runtime_sample_interval_s,
     )
     run_summary = build_run_summary(samples)
 

@@ -58,6 +58,13 @@
       "direction": "max",
       "baseline": 0.042,
       "max_regression_pct": 0.5
+    },
+    {
+      "key": "startup_runtime.startup_time_to_ready_s",
+      "label": "Startup time to ready (s)",
+      "direction": "max",
+      "baseline": 3.0,
+      "max_regression_pct": 0.35
     }
   ]
 }

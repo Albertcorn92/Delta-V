@@ -506,12 +506,18 @@ endif()
 if(PYTHON3 AND TARGET run_benchmarks)
     set(DELTAV_BENCHMARK_RUNS "3" CACHE STRING
         "Number of benchmark runs used for median aggregation")
+    set(DELTAV_BENCHMARK_RUNTIME_DURATION_S "5.0" CACHE STRING
+        "Duration in seconds for runtime CPU/RSS/startup benchmark sampling per run")
+    set(DELTAV_BENCHMARK_RUNTIME_SAMPLE_INTERVAL_S "0.20" CACHE STRING
+        "Sampling interval in seconds for runtime CPU/RSS benchmark metrics")
     add_custom_target(benchmark_baseline
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/benchmark_report.py
             --workspace ${CMAKE_SOURCE_DIR}
             --build-dir ${CMAKE_BINARY_DIR}
             --runs ${DELTAV_BENCHMARK_RUNS}
-        DEPENDS run_benchmarks
+            --runtime-duration-s ${DELTAV_BENCHMARK_RUNTIME_DURATION_S}
+            --runtime-sample-interval-s ${DELTAV_BENCHMARK_RUNTIME_SAMPLE_INTERVAL_S}
+        DEPENDS run_benchmarks flight_software
         COMMENT "Generating benchmark baseline artifacts"
     )
     message(STATUS "BenchRpt : ENABLED  (cmake --build build --target benchmark_baseline ; runs=${DELTAV_BENCHMARK_RUNS})")

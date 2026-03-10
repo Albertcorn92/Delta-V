@@ -55,6 +55,7 @@ def main() -> int:
     cobs = metrics.get("cobs_roundtrip", {})
     cmd_router = metrics.get("command_router", {})
     telem_fanout = metrics.get("telem_fanout", {})
+    startup_runtime = metrics.get("startup_runtime", {})
 
     failures: list[str] = []
 
@@ -101,6 +102,21 @@ def main() -> int:
             "telem_fanout listener_b mismatch: "
             f"delivered_listener_b={fanout_delivered_b}, injected={fanout_injected}"
         )
+
+    runtime_ready_seen = bool(startup_runtime.get("ready_seen", False))
+    runtime_sampling_supported = bool(startup_runtime.get("sampling_supported", False))
+    runtime_sample_count = int(startup_runtime.get("sample_count", 0))
+    if not runtime_ready_seen:
+        failures.append("startup_runtime ready marker was not observed")
+    if runtime_sampling_supported:
+        if runtime_sample_count < int(
+            thresholds.get("startup_runtime_sample_count_min", 1)
+        ):
+            failures.append(
+                "startup_runtime sample count below threshold: "
+                f"value={runtime_sample_count}, "
+                f"min={int(thresholds.get('startup_runtime_sample_count_min', 1))}"
+            )
 
     def check_min(label: str, value: float, threshold: float) -> None:
         if value < threshold:
@@ -154,6 +170,22 @@ def main() -> int:
         float(telem_fanout.get("latency_p95_us", 0.0)),
         float(thresholds.get("telem_fanout_latency_p95_us_max", float("inf"))),
     )
+    check_max(
+        "startup time to ready (s)",
+        float(startup_runtime.get("startup_time_to_ready_s", float("inf"))),
+        float(thresholds.get("startup_runtime_startup_time_to_ready_s_max", float("inf"))),
+    )
+    if runtime_sampling_supported:
+        check_max(
+            "runtime CPU p95 (%)",
+            float(startup_runtime.get("cpu_p95_pct", float("inf"))),
+            float(thresholds.get("startup_runtime_cpu_p95_pct_max", float("inf"))),
+        )
+        check_max(
+            "runtime RSS p95 (MB)",
+            float(startup_runtime.get("rss_p95_mb", float("inf"))),
+            float(thresholds.get("startup_runtime_rss_p95_mb_max", float("inf"))),
+        )
 
     if failures:
         print("[bench-guard] FAIL: benchmark regression gate failed.")

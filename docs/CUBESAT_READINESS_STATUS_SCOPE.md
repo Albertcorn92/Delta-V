@@ -1,6 +1,6 @@
 # DELTA-V CubeSat Readiness Status
 
-- Generated (UTC): `2026-03-09T21:00:44.808946+00:00`
+- Generated (UTC): `2026-03-10T07:29:17.805749+00:00`
 - Readiness profile: `Scope-limited (waivers applied)`
 - Waived checks: `esp32-soak-1h, sensor-attached-evidence`
 - Framework release readiness: `True`

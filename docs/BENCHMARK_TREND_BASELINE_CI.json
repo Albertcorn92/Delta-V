@@ -58,6 +58,27 @@
       "direction": "max",
       "baseline": 0.15,
       "max_regression_pct": 0.5
+    },
+    {
+      "key": "startup_runtime.startup_time_to_ready_s",
+      "label": "Startup time to ready (s)",
+      "direction": "max",
+      "baseline": 4.0,
+      "max_regression_pct": 0.5
+    },
+    {
+      "key": "startup_runtime.cpu_p95_pct",
+      "label": "Runtime CPU p95 (%)",
+      "direction": "max",
+      "baseline": 150.0,
+      "max_regression_pct": 0.5
+    },
+    {
+      "key": "startup_runtime.rss_p95_mb",
+      "label": "Runtime RSS p95 (MB)",
+      "direction": "max",
+      "baseline": 200.0,
+      "max_regression_pct": 0.5
     }
   ]
 }

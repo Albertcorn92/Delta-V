@@ -45,6 +45,13 @@ Artifacts:
 - COBS encode/decode roundtrip throughput (MB/s)
 - CommandHub route+ACK throughput and latency p50/p95 (software path)
 - TelemHub fanout throughput and latency p50/p95 (2-listener path)
+- Startup time to ready marker (`[Topology] All ports connected.`)
+- Runtime CPU trend window (p50/p95/max over short host run)
+- Runtime RSS trend window (p50/p95/max over short host run)
+
+Note:
+- CPU/RSS trend samples use procfs (`/proc/<pid>/stat`) when available.
+- On hosts without procfs, startup timing still runs and CPU/RSS sampling is marked unsupported.
 
 ## Comparison Rules
 
