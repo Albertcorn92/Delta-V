@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-03-10T07:00:55.308109+00:00",
+  "generated_utc": "2026-03-10T07:06:40.464774+00:00",
   "workspace": "DELTA-V Framework",
   "host": {
     "platform": "macOS-26.2-arm64-arm-64bit",
@@ -8,7 +8,7 @@
   },
   "git": {
     "branch": "main",
-    "commit": "a1467623d7edfabb61867e2c09f68750537048b7",
+    "commit": "8698ddbb760aff3f4b281325ce947646802e11c3",
     "dirty_worktree": true
   },
   "benchmark_runs": 3,
@@ -18,23 +18,23 @@
       "frames": 20000,
       "accepted": 20000,
       "consumed": 20000,
-      "duration_s": 0.744972,
-      "throughput_cmd_per_s": 26846.663,
-      "latency_p50_us": 35.166,
-      "latency_p95_us": 45.042
+      "duration_s": 0.78909,
+      "throughput_cmd_per_s": 25345.662,
+      "latency_p50_us": 36.666,
+      "latency_p95_us": 48.833
     },
     "crc16": {
       "iterations": 300000,
       "bytes_per_iteration": 256,
-      "duration_s": 0.663272,
-      "throughput_mb_per_s": 115.79,
+      "duration_s": 0.675932,
+      "throughput_mb_per_s": 113.621,
       "accumulator": 0
     },
     "cobs_roundtrip": {
       "iterations": 300000,
       "bytes_per_iteration": 22,
-      "duration_s": 0.007964,
-      "throughput_mb_per_s": 828.682,
+      "duration_s": 0.008107,
+      "throughput_mb_per_s": 814.149,
       "accumulator": 38246416
     },
     "command_router": {
@@ -42,8 +42,8 @@
       "injected": 20000,
       "routed": 20000,
       "ack_events": 20000,
-      "duration_s": 0.002517,
-      "throughput_cmd_per_s": 7945045.708,
+      "duration_s": 0.002617,
+      "throughput_cmd_per_s": 7642703.606,
       "latency_p50_us": 0.084,
       "latency_p95_us": 0.125
     },
@@ -52,9 +52,9 @@
       "injected": 20000,
       "delivered_listener_a": 20000,
       "delivered_listener_b": 20000,
-      "duration_s": 0.001091,
-      "throughput_pkt_per_s": 18338108.883,
-      "latency_p50_us": 0.042,
+      "duration_s": 0.001046,
+      "throughput_pkt_per_s": 19120458.891,
+      "latency_p50_us": 0.041,
       "latency_p95_us": 0.042
     }
   },
@@ -62,42 +62,42 @@
     {
       "label": "Uplink throughput (cmd/s)",
       "key": "uplink.throughput_cmd_per_s",
-      "median": 26846.663,
-      "p95": 26846.663,
-      "min": 25545.583,
-      "max": 27772.196
+      "median": 25345.662,
+      "p95": 25345.662,
+      "min": 23294.109,
+      "max": 25727.501
     },
     {
       "label": "Uplink latency p95 (us)",
       "key": "uplink.latency_p95_us",
-      "median": 45.042,
-      "p95": 45.042,
-      "min": 43.5,
-      "max": 47.875
+      "median": 48.833,
+      "p95": 48.833,
+      "min": 47.0,
+      "max": 54.666
     },
     {
       "label": "CRC-16 throughput (MB/s)",
       "key": "crc16.throughput_mb_per_s",
-      "median": 115.79,
-      "p95": 115.79,
-      "min": 114.169,
-      "max": 116.661
+      "median": 113.621,
+      "p95": 113.621,
+      "min": 113.451,
+      "max": 115.905
     },
     {
       "label": "COBS roundtrip throughput (MB/s)",
       "key": "cobs_roundtrip.throughput_mb_per_s",
-      "median": 828.682,
-      "p95": 828.682,
-      "min": 790.798,
-      "max": 829.424
+      "median": 814.149,
+      "p95": 814.149,
+      "min": 806.698,
+      "max": 827.033
     },
     {
       "label": "Command router throughput (cmd/s)",
       "key": "command_router.throughput_cmd_per_s",
-      "median": 7945045.708,
-      "p95": 7945045.708,
-      "min": 7865499.951,
-      "max": 8021523.351
+      "median": 7642703.606,
+      "p95": 7642703.606,
+      "min": 6412739.291,
+      "max": 8134214.54
     },
     {
       "label": "Command router latency p95 (us)",
@@ -110,10 +110,10 @@
     {
       "label": "Telem fanout throughput (pkt/s)",
       "key": "telem_fanout.throughput_pkt_per_s",
-      "median": 18338108.883,
-      "p95": 18338108.883,
-      "min": 18284310.051,
-      "max": 18480735.681
+      "median": 19120458.891,
+      "p95": 19120458.891,
+      "min": 18570102.136,
+      "max": 19126566.227
     },
     {
       "label": "Telem fanout latency p95 (us)",

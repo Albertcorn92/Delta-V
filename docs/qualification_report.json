@@ -1,9 +1,9 @@
 {
-  "generated_utc": "2026-03-09T21:00:29.904740+00:00",
+  "generated_utc": "2026-03-10T07:06:35.781681+00:00",
   "workspace": "DELTA-V Framework",
   "git": {
     "branch": "main",
-    "commit": "a556f0d51936280948ce7518e379ca2b16c1e975",
+    "commit": "8698ddbb760aff3f4b281325ce947646802e11c3",
     "dirty_worktree": true
   },
   "host": {
@@ -64,7 +64,7 @@
     },
     {
       "path": "build/flight_software",
-      "crc32": "49bf6750"
+      "crc32": "036340cc"
     },
     {
       "path": "build/run_tests",

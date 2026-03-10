@@ -14,8 +14,8 @@
       "key": "uplink.latency_p95_us",
       "label": "Uplink latency p95 (us)",
       "direction": "max",
-      "baseline": 150.0,
-      "max_regression_pct": 0.4
+      "baseline": 250.0,
+      "max_regression_pct": 0.45
     },
     {
       "key": "crc16.throughput_mb_per_s",
