@@ -12,6 +12,7 @@ This map keeps onboarding simple for first-time users and CubeSat teams.
 ## Daily Development
 
 - `docs/DEVELOPER_GUIDE.md`: component workflow, topology updates, test gates
+- `docs/MIGRATION_GUIDE.md`: release-to-release migration notes template
 - `docs/ICD.md`: packet/interface contract
 - `docs/SAFETY_ASSURANCE.md`: requirements traceability + assurance gates
 - `docs/COVERAGE_POLICY.md`: coverage expectations and guard behavior

@@ -117,6 +117,96 @@ TEST(SystemIntegration, SafeModeBlocksOperationalCommand) {
     EXPECT_NE(std::string(nack.message.data()).find("FSM_BLOCKED"), std::string::npos);
 }
 
+TEST(SystemIntegration, ReplayProtectionRejectsDuplicateSequenceAtIngress) {
+    TimeService::initEpoch();
+    ScopedReplayPath replay_path{};
+    hal::MockI2c i2c{};
+    TopologyManager topo(i2c);
+
+    topo.wire();
+    topo.registerFdir();
+    topo.watchdog.init();
+    topo.battery.init();
+
+    InputPort<EventPacket, 64> ack_sink{};
+    topo.cmd_hub.ack_out.connect(&ack_sink);
+
+    const uint32_t rejected_before = topo.radio.getRejectedCount();
+
+    const auto first = buildUplinkFrame(30u, CommandPacket{200u, 2u, 1.0f});
+    ASSERT_TRUE(topo.radio.ingestUplinkFrameForTest(first.data(), first.size()));
+
+    // Same sequence must be rejected by anti-replay before command dispatch.
+    const auto duplicate = buildUplinkFrame(30u, CommandPacket{200u, 2u, 5.0f});
+    EXPECT_FALSE(topo.radio.ingestUplinkFrameForTest(duplicate.data(), duplicate.size()));
+    EXPECT_EQ(topo.radio.getRejectedCount(), rejected_before + 1u);
+
+    topo.cmd_hub.step();
+    topo.battery.step();
+
+    EXPECT_LT(topo.battery.getSOC(), 99.5f);
+
+    size_t ack_count = 0u;
+    EventPacket evt{};
+    while (ack_sink.tryConsume(evt)) {
+        ++ack_count;
+    }
+    EXPECT_EQ(ack_count, 1u);
+}
+
+TEST(SystemIntegration, InvalidHeadersAreRejectedBeforeCommandDispatch) {
+    TimeService::initEpoch();
+    ScopedReplayPath replay_path{};
+    hal::MockI2c i2c{};
+    TopologyManager topo(i2c);
+
+    topo.wire();
+    topo.registerFdir();
+    topo.watchdog.init();
+    topo.battery.init();
+
+    InputPort<EventPacket, 64> ack_sink{};
+    topo.cmd_hub.ack_out.connect(&ack_sink);
+
+    const uint32_t rejected_before = topo.radio.getRejectedCount();
+
+    auto bad_sync = buildUplinkFrame(40u, CommandPacket{200u, 2u, 1.0f});
+    auto bad_apid = buildUplinkFrame(41u, CommandPacket{200u, 2u, 1.0f});
+    auto bad_len = buildUplinkFrame(42u, CommandPacket{200u, 2u, 1.0f});
+
+    CcsdsHeader hdr{};
+
+    std::memcpy(&hdr, bad_sync.data(), sizeof(hdr));
+    hdr.sync_word = 0xDEADBEEFu;
+    std::memcpy(bad_sync.data(), &hdr, sizeof(hdr));
+
+    std::memcpy(&hdr, bad_apid.data(), sizeof(hdr));
+    hdr.apid = 0xFFFFu;
+    std::memcpy(bad_apid.data(), &hdr, sizeof(hdr));
+
+    std::memcpy(&hdr, bad_len.data(), sizeof(hdr));
+    hdr.payload_len = static_cast<uint16_t>(sizeof(CommandPacket) - 1u);
+    std::memcpy(bad_len.data(), &hdr, sizeof(hdr));
+
+    EXPECT_FALSE(topo.radio.ingestUplinkFrameForTest(bad_sync.data(), bad_sync.size()));
+    EXPECT_FALSE(topo.radio.ingestUplinkFrameForTest(bad_apid.data(), bad_apid.size()));
+    EXPECT_FALSE(topo.radio.ingestUplinkFrameForTest(bad_len.data(), bad_len.size()));
+    EXPECT_EQ(topo.radio.getRejectedCount(), rejected_before + 3u);
+
+    // A valid frame should still pass and dispatch after prior malformed rejects.
+    const auto valid = buildUplinkFrame(43u, CommandPacket{200u, 2u, 1.0f});
+    ASSERT_TRUE(topo.radio.ingestUplinkFrameForTest(valid.data(), valid.size()));
+
+    topo.cmd_hub.step();
+    topo.battery.step();
+    EXPECT_LT(topo.battery.getSOC(), 99.5f);
+
+    EventPacket ack{};
+    ASSERT_TRUE(ack_sink.tryConsume(ack));
+    EXPECT_EQ(ack.severity, Severity::INFO);
+    EXPECT_NE(std::string(ack.message.data()).find("ACK"), std::string::npos);
+}
+
 TEST(SystemIntegration, TelemAndEventHubFanOutToRadioAndRecorder) {
     TimeService::initEpoch();
     ScopedReplayPath replay_path{};

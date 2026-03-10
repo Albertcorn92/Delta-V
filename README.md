@@ -12,6 +12,7 @@ DELTA-V is a zero-copy C++20 flight software framework for civilian aerospace, r
 ## Quick Links
 
 - [10-minute quickstart](docs/QUICKSTART_10_MIN.md)
+- [Migration guide template](docs/MIGRATION_GUIDE.md)
 - [Software final status](docs/SOFTWARE_FINAL_STATUS.md)
 - [CubeSat readiness status](docs/CUBESAT_READINESS_STATUS.md)
 - [Safety assurance docs](docs/SAFETY_ASSURANCE.md)

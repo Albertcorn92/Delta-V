@@ -22,7 +22,7 @@ Date: 2026-03-08
 - Expand integration/system tests for command/event/telemetry failure paths.
 - Add deterministic SITL smoke artifacts in CI. (Completed in v4.0.x)
 - Add deterministic SITL soak artifacts in CI. (Completed in v4.0.x)
-- Add migration guide format for minor/major releases.
+- Add migration guide format for minor/major releases. (Completed in v4.0.x)
 
 ## Q4 2026
 
