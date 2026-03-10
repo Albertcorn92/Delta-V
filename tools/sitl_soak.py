@@ -3,15 +3,17 @@
 sitl_soak.py
 
 Run an extended local SITL soak and validate runtime stability markers.
+Emit deterministic log/JSON artifacts for CI archival.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
-import tempfile
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -43,20 +45,60 @@ def tail_excerpt(text: str, lines: int = 60) -> str:
     return "\n".join(split[-lines:])
 
 
+def write_artifact(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run DELTA-V extended SITL soak.")
     parser.add_argument("--build-dir", type=Path, default=Path("build"))
     parser.add_argument("--duration", type=float, default=180.0)
+    parser.add_argument(
+        "--output-json",
+        type=Path,
+        help="Path to soak result JSON artifact (default: <build-dir>/sitl/sitl_soak_result.json)",
+    )
+    parser.add_argument(
+        "--output-log",
+        type=Path,
+        help="Path to captured soak log (default: <build-dir>/sitl/sitl_soak.log)",
+    )
     args = parser.parse_args()
 
+    start = time.monotonic()
     build_dir = args.build_dir.resolve()
+    output_json = (args.output_json or (build_dir / "sitl" / "sitl_soak_result.json")).resolve()
+    output_log = (args.output_log or (build_dir / "sitl" / "sitl_soak.log")).resolve()
     flight_bin = build_dir / "flight_software"
+
+    result = {
+        "gate": "sitl_soak",
+        "generated_utc": datetime.now(timezone.utc).isoformat(),
+        "status": "FAIL",
+        "build_dir": str(build_dir),
+        "flight_binary": str(flight_bin),
+        "duration_requested_s": float(args.duration),
+        "duration_actual_s": 0.0,
+        "early_exit": False,
+        "process_exit_code": None,
+        "missing_markers": [],
+        "failure_markers": [],
+        "log_path": str(output_log),
+        "reason": "",
+        "return_code": 1,
+    }
+
     if not flight_bin.exists():
         print(f"[sitl-soak] ERROR: missing binary: {flight_bin}", file=sys.stderr)
+        result["reason"] = f"missing binary: {flight_bin}"
+        result["return_code"] = 2
+        result["duration_actual_s"] = round(time.monotonic() - start, 3)
+        write_artifact(output_json, result)
         return 2
 
-    with tempfile.NamedTemporaryFile(prefix="deltav_sitl_soak_", suffix=".log", delete=False) as log:
-        log_path = Path(log.name)
+    output_log.parent.mkdir(parents=True, exist_ok=True)
+    with output_log.open("w", encoding="utf-8") as log:
         proc = subprocess.Popen(
             [str(flight_bin)],
             cwd=str(build_dir),
@@ -66,6 +108,7 @@ def main() -> int:
         )
 
     early_exit = False
+    return_code = 0
     t_end = time.monotonic() + max(args.duration, 1.0)
     while time.monotonic() < t_end:
         rc = proc.poll()
@@ -84,39 +127,55 @@ def main() -> int:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 print("[sitl-soak] ERROR: process did not terminate.", file=sys.stderr)
-                return 5
+                result["reason"] = "process did not terminate after kill"
+                return_code = 5
 
-    output = log_path.read_text(encoding="utf-8", errors="ignore")
-    log_path.unlink(missing_ok=True)
+    output = output_log.read_text(encoding="utf-8", errors="ignore")
 
-    if early_exit:
+    if return_code == 0 and early_exit:
         print(
             f"[sitl-soak] ERROR: early process exit before soak duration (code={proc.returncode}).",
             file=sys.stderr,
         )
         print(tail_excerpt(output), file=sys.stderr)
-        return 6
+        result["reason"] = "early process exit before requested soak duration"
+        return_code = 6
 
     missing = [m for m in REQUIRED_MARKERS if m not in output]
     if not any(marker in output for marker in RUNTIME_MARKERS):
         missing.append("RGE runtime marker")
-    if missing:
+    if return_code == 0 and missing:
         print("[sitl-soak] ERROR: missing required runtime markers:", file=sys.stderr)
         for marker in missing:
             print(f"  - {marker}", file=sys.stderr)
         print(tail_excerpt(output), file=sys.stderr)
-        return 3
+        result["reason"] = "missing required runtime markers"
+        return_code = 3
 
     failures = [m for m in FAIL_MARKERS if m in output]
-    if failures:
+    if return_code == 0 and failures:
         print("[sitl-soak] ERROR: failure markers detected:", file=sys.stderr)
         for marker in failures:
             print(f"  - {marker}", file=sys.stderr)
         print(tail_excerpt(output), file=sys.stderr)
-        return 4
+        result["reason"] = "fatal marker detected in runtime output"
+        return_code = 4
 
-    print(f"[sitl-soak] PASS: ran {args.duration:.1f}s with no fatal signatures.")
-    return 0
+    result["duration_actual_s"] = round(time.monotonic() - start, 3)
+    result["early_exit"] = early_exit
+    result["process_exit_code"] = proc.returncode
+    result["missing_markers"] = missing
+    result["failure_markers"] = failures
+    result["return_code"] = return_code
+    if return_code == 0:
+        result["status"] = "PASS"
+        result["reason"] = "markers present and no fatal signatures"
+    write_artifact(output_json, result)
+
+    if return_code == 0:
+        print(f"[sitl-soak] PASS: ran {args.duration:.1f}s with no fatal signatures.")
+        print(f"[sitl-soak] Artifacts: {output_json} , {output_log}")
+    return return_code
 
 
 if __name__ == "__main__":

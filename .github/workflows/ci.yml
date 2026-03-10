@@ -236,6 +236,9 @@ jobs:
       - name: Run software-final gate
         run: cmake --build build_tidy --target software_final
 
+      - name: Run SITL smoke artifact gate
+        run: cmake --build build_tidy --target sitl_smoke
+
       - name: Generate readiness reports (unwaived + scope)
         run: |
           cmake --build build_tidy --target cubesat_readiness
@@ -255,6 +258,10 @@ jobs:
             docs/CUBESAT_READINESS_STATUS.json
             docs/CUBESAT_READINESS_STATUS_SCOPE.md
             docs/CUBESAT_READINESS_STATUS_SCOPE.json
+            build_tidy/sitl/sitl_smoke_result.json
+            build_tidy/sitl/sitl_smoke.log
+            build_tidy/sitl/sitl_soak_result.json
+            build_tidy/sitl/sitl_soak.log
           retention-days: 14
 
   # ---------------------------------------------------------------------------

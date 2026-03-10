@@ -534,6 +534,8 @@ if(PYTHON3 AND TARGET flight_software)
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_smoke.py
             --build-dir ${CMAKE_BINARY_DIR}
             --duration 8
+            --output-json ${CMAKE_BINARY_DIR}/sitl/sitl_smoke_result.json
+            --output-log ${CMAKE_BINARY_DIR}/sitl/sitl_smoke.log
         DEPENDS flight_software
         COMMENT "Running short SITL smoke test"
     )
@@ -545,6 +547,8 @@ if(PYTHON3 AND TARGET flight_software)
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_soak.py
             --build-dir ${CMAKE_BINARY_DIR}
             --duration ${DELTAV_SITL_SOAK_SECONDS}
+            --output-json ${CMAKE_BINARY_DIR}/sitl/sitl_soak_result.json
+            --output-log ${CMAKE_BINARY_DIR}/sitl/sitl_soak.log
         DEPENDS flight_software
         COMMENT "Running extended SITL soak (${DELTAV_SITL_SOAK_SECONDS}s)"
     )
