@@ -2,6 +2,13 @@
 
 Thanks for contributing.
 
+## Contribution Policy
+
+- Public read/download use is enabled.
+- External pull requests are currently not accepted.
+- Security fixes or high-value corrections may be considered by maintainer invitation.
+- All repository changes are maintainer-controlled and must satisfy branch protection and CI gates.
+
 ## Development Setup
 
 1. Install prerequisites:
@@ -25,6 +32,7 @@ cmake --build build --target qualification_bundle
 
 ## Pull Request Requirements
 
+- Pull requests from external contributors are normally closed without merge per policy above.
 - Keep changes focused.
 - Include tests for behavior changes.
 - Update requirements mapping if adding/changing safety-critical behavior:
