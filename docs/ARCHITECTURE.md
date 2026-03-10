@@ -10,6 +10,43 @@ DELTA-V is a Component-Based Software Architecture (CBSA) targeting **DO-178C DA
 2. **Deterministic runtime profile.** Core component graph and data paths are static; host builds can optionally enforce strict no-heap-after-init with `DELTAV_ENABLE_HOST_HEAP_GUARD=1`.
 3. **All faults are observable.** Every error path calls `recordError()`, feeds `EventHub`, and is surfaced to the GDS via the telemetry downlink.
 
+### 1.1 High-Level Architecture Diagram
+
+```mermaid
+flowchart LR
+    GDS["GDS (Streamlit UI)"]
+    LINK["UDP or Serial KISS link"]
+    CCSDS["CCSDS framing + CRC + anti-replay"]
+    BR["TelemetryBridge"]
+    CMD["CommandHub + MissionFsm"]
+    TELEM["TelemHub"]
+    EVENT["EventHub"]
+    TOPO["topology.yaml + autocoder"]
+    TM["Generated TopologyManager"]
+    RGE["RateGroupExecutive"]
+    APPS["Mission components/apps"]
+    WD["Watchdog + FDIR"]
+    PDB["ParamDb + TMR stores"]
+
+    GDS --> LINK --> CCSDS --> BR
+    BR --> CMD
+    BR --> TELEM
+    BR --> EVENT
+    CMD --> APPS
+    APPS --> TELEM
+    APPS --> EVENT
+    TOPO --> TM --> RGE --> APPS
+    WD --> APPS
+    WD --> PDB
+    TELEM --> BR
+    EVENT --> BR
+    BR --> LINK --> GDS
+```
+
+`topology.yaml` is the source of truth. `tools/autocoder.py` generates wiring
+artifacts (`src/TopologyManager.hpp`, `src/Types.hpp`, `dictionary.json`) that
+keep runtime wiring and GDS dictionary in sync.
+
 ---
 
 ## 2. Execution Model

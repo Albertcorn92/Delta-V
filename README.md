@@ -43,6 +43,17 @@ cmake --build build --target quickstart_10min
 
 Quickstart details: `docs/QUICKSTART_10_MIN.md`
 
+## Command Picker (Use This First)
+
+| Goal | Command | What it does |
+|---|---|---|
+| Validate your local setup | `cmake --build build --target quickstart_10min` | Runs legal checks, tests, benchmark guard, and short SITL smoke. |
+| Guided component workflow | `python3 tools/dv-util.py boot-menu` | Interactive wizard to scaffold/register components and commands. |
+| One-command scaffold path | `python3 tools/dv-util.py quickstart-component ThermalControl --build` | Creates component + topology + initial command, regenerates artifacts, then builds. |
+| Manual fine-grained control | `add-component` + `add-command` + `autocoder` | Advanced path when you want explicit control over each step. |
+
+Typical first-day flow: run `quickstart_10min`, then use `boot-menu` (guided) or `quickstart-component` (direct).
+
 ## What DELTA-V Is
 
 DELTA-V pushes mission safety checks earlier into the compiler:
