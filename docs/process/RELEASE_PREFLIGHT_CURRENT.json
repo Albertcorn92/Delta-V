@@ -1,10 +1,10 @@
 {
-  "generated_utc": "2026-03-14T22:44:47.975368+00:00",
+  "generated_utc": "2026-03-14T23:00:54.288791+00:00",
   "workspace": "DELTA-V Framework",
   "status": "FAIL",
   "git": {
     "branch": "main",
-    "commit": "6438f271174bdb96ae8dbd8a74385a403e7f5d24",
+    "commit": "1750d3d012fa616913692eb89713beb78939b52f",
     "exact_tag": "untagged",
     "dirty_worktree": true
   },
@@ -33,91 +33,7 @@
   "dirty_entries": [
     {
       "code": "M",
-      "path": "github/workflows/ci.yml"
-    },
-    {
-      "code": "M",
-      "path": "CMakeLists.txt"
-    },
-    {
-      "code": "M",
-      "path": "README.md"
-    },
-    {
-      "code": "M",
-      "path": "dictionary.json"
-    },
-    {
-      "code": "M",
-      "path": "docs/ARCHITECTURE.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/BENCHMARK_BASELINE.json"
-    },
-    {
-      "code": "M",
-      "path": "docs/BENCHMARK_BASELINE.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/COVERAGE_POLICY.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/CUBESAT_READINESS_STATUS.json"
-    },
-    {
-      "code": "M",
-      "path": "docs/CUBESAT_READINESS_STATUS.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/DEVELOPER_GUIDE.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/HIGH_ASSURANCE_ROADMAP.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/ICD.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/MISSION_ASSURANCE_CHECKLIST.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/QUICKSTART_10_MIN.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/README.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/RELEASE_POLICY.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/SAFETY_ASSURANCE.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/SITL_SOAK.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/SOFTWARE_FINAL_STATUS.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/process/CERTIFICATION_BASELINE.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/process/FLIGHT_ENV_TEST_MATRIX_20260307.md"
+      "path": "ocs/SOFTWARE_FINAL_STATUS.md"
     },
     {
       "code": "M",
@@ -126,13 +42,9 @@
     {
       "code": "M",
       "path": "docs/qualification_report.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/safety_case/README.md"
     }
   ],
-  "dirty_entry_total": 75,
+  "dirty_entry_total": 3,
   "release_blockers": [
     "Worktree is dirty. Commit or intentionally set aside local changes before cutting a release tag.",
     "Current commit does not have an exact release tag."
@@ -189,19 +101,19 @@
     {
       "name": "Qualification report JSON",
       "path": "build/qualification/qualification_report.json",
-      "digest256": "807b87fd7c16f20cdab161634266418dce8e5f66fc74143c37b6f327b4403c44",
+      "digest256": "937fc414ec8b395acad31e1cbd81f44b2267e5d89a81bd50b6ce064bf932061a",
       "notes": "Machine-readable qualification summary."
     },
     {
       "name": "Qualification report Markdown",
       "path": "build/qualification/qualification_report.md",
-      "digest256": "35a28701a6c874267663fc4bf13b5165fdfaee91e9882cb73850405ab5960942",
+      "digest256": "0985d981c1ae4f6c3019f1921e58a32fc64941ddea0c9f1eb4a184fee2ff7737",
       "notes": "Reviewer-readable qualification summary."
     },
     {
       "name": "Software final status",
       "path": "docs/SOFTWARE_FINAL_STATUS.md",
-      "digest256": "3dfffa0f13ab5b0b5ae1c6b485e8e9dfa017cd02ea488a3102fa8a75db7c7bd7",
+      "digest256": "196cd83a3812139caa12d37093909c04ac1299b81eed893756b4f31ffe15fe09",
       "notes": "Synchronized software closeout result."
     }
   ]

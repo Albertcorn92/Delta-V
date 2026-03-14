@@ -1,6 +1,6 @@
 # DELTA-V Release Preflight
 
-- Generated (UTC): `2026-03-14T22:44:47.975368+00:00`
+- Generated (UTC): `2026-03-14T23:00:54.288791+00:00`
 - Workspace: `DELTA-V Framework`
 - Status: `FAIL`
 
@@ -22,33 +22,9 @@
 
 | Status | Path |
 |---|---|
-| `M` | `github/workflows/ci.yml` |
-| `M` | `CMakeLists.txt` |
-| `M` | `README.md` |
-| `M` | `dictionary.json` |
-| `M` | `docs/ARCHITECTURE.md` |
-| `M` | `docs/BENCHMARK_BASELINE.json` |
-| `M` | `docs/BENCHMARK_BASELINE.md` |
-| `M` | `docs/COVERAGE_POLICY.md` |
-| `M` | `docs/CUBESAT_READINESS_STATUS.json` |
-| `M` | `docs/CUBESAT_READINESS_STATUS.md` |
-| `M` | `docs/DEVELOPER_GUIDE.md` |
-| `M` | `docs/HIGH_ASSURANCE_ROADMAP.md` |
-| `M` | `docs/ICD.md` |
-| `M` | `docs/MISSION_ASSURANCE_CHECKLIST.md` |
-| `M` | `docs/QUICKSTART_10_MIN.md` |
-| `M` | `docs/README.md` |
-| `M` | `docs/RELEASE_POLICY.md` |
-| `M` | `docs/SAFETY_ASSURANCE.md` |
-| `M` | `docs/SITL_SOAK.md` |
-| `M` | `docs/SOFTWARE_FINAL_STATUS.md` |
-| `M` | `docs/process/CERTIFICATION_BASELINE.md` |
-| `M` | `docs/process/FLIGHT_ENV_TEST_MATRIX_20260307.md` |
+| `M` | `ocs/SOFTWARE_FINAL_STATUS.md` |
 | `M` | `docs/qualification_report.json` |
 | `M` | `docs/qualification_report.md` |
-| `M` | `docs/safety_case/README.md` |
-
-- Additional unlisted entries: `50`
 
 ## Next Steps
 
