@@ -62,6 +62,8 @@ public:
     static constexpr const char* LINK_MODE_ENV = "DELTAV_LINK_MODE";
     static constexpr const char* SERIAL_PORT_ENV = "DELTAV_SERIAL_PORT";
     static constexpr const char* SERIAL_BAUD_ENV = "DELTAV_SERIAL_BAUD";
+    static constexpr const char* DOWNLINK_PORT_ENV = "DELTAV_DOWNLINK_PORT";
+    static constexpr const char* UPLINK_PORT_ENV = "DELTAV_UPLINK_PORT";
     static constexpr const char* REPLAY_SEQ_NVS_NAMESPACE = "deltav";
     static constexpr const char* REPLAY_SEQ_NVS_KEY = "replay_seq";
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
@@ -160,6 +162,25 @@ public:
             ++processed;
         }
         return processed;
+    }
+
+    auto ingestSerialBytesForTest(const uint8_t* data, size_t len) -> size_t {
+#if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
+        if (data == nullptr || len == 0U) {
+            return 0U;
+        }
+        size_t processed = 0U;
+        for (size_t i = 0; i < len; ++i) {
+            if (processSerialByte(data[i])) {
+                ++processed;
+            }
+        }
+        return processed;
+#else
+        (void)data;
+        (void)len;
+        return 0U;
+#endif
     }
 #endif
 
@@ -277,7 +298,40 @@ private:
     bool         replay_store_ready_{false};
 #endif
 
+    auto maybeOverrideDefaultPortFromEnv(
+        const char* env_name,
+        uint16_t default_port,
+        uint16_t& current_port) -> void {
+        if (current_port != default_port) {
+            return;
+        }
+
+        const char* port_env = std::getenv(env_name);
+        if (port_env == nullptr || port_env[0] == '\0') {
+            return;
+        }
+
+        char* end = nullptr;
+        const unsigned long parsed = std::strtoul(port_env, &end, 10);
+        if (end != nullptr && *end == '\0' && parsed > 0UL && parsed <= 65535UL) {
+            current_port = static_cast<uint16_t>(parsed);
+            return;
+        }
+
+        const auto name = getName();
+        (void)std::fprintf(
+            stderr,
+            "[%.*s] WARN: invalid %s=%s; keeping %u\n",
+            static_cast<int>(name.size()), name.data(),
+            env_name, port_env, static_cast<unsigned>(default_port));
+        recordError();
+    }
+
     auto loadLinkConfiguration() -> void {
+        maybeOverrideDefaultPortFromEnv(
+            DOWNLINK_PORT_ENV, DEFAULT_DOWNLINK_PORT, downlink_port_);
+        maybeOverrideDefaultPortFromEnv(
+            UPLINK_PORT_ENV, DEFAULT_UPLINK_PORT, uplink_port_);
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
         link_mode_ = LinkMode::UDP;
 #else

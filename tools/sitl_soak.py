@@ -53,7 +53,7 @@ def write_artifact(path: Path, payload: dict) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run DELTA-V extended SITL soak.")
     parser.add_argument("--build-dir", type=Path, default=Path("build"))
-    parser.add_argument("--duration", type=float, default=180.0)
+    parser.add_argument("--duration", type=float, default=600.0)
     parser.add_argument(
         "--output-json",
         type=Path,

@@ -8,6 +8,9 @@ python3 tools/legal_compliance_check.py
 echo "[quickstart] Configuring build..."
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
 
+echo "[quickstart] Verifying generated files..."
+cmake --build build --target autocoder_check
+
 echo "[quickstart] Building core binaries..."
 cmake --build build --target flight_software
 cmake --build build --target run_tests

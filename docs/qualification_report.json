@@ -1,17 +1,18 @@
 {
-  "generated_utc": "2026-03-10T07:28:52.759805+00:00",
+  "generated_utc": "2026-03-14T22:44:47.319895+00:00",
   "workspace": "DELTA-V Framework",
   "git": {
     "branch": "main",
-    "commit": "70d94a7c191e862fb830c894cd8ab7ac4395b426",
+    "commit": "6438f271174bdb96ae8dbd8a74385a403e7f5d24",
+    "exact_tag": "untagged",
     "dirty_worktree": true
   },
   "host": {
-    "platform": "macOS-26.2-arm64-arm-64bit",
-    "python": "3.12.12",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.3",
     "cmake": "cmake version 4.2.3"
   },
-  "unit_test_count": 163,
+  "unit_test_count": 174,
   "trace": {
     "summary": {
       "total_requirements": 37,
@@ -52,23 +53,28 @@
   "hashes": [
     {
       "path": "build/requirements_trace_matrix.json",
-      "crc32": "ee56fb4c"
+      "crc32": "ee56fb4c",
+      "digest256": "b4e36530c5655172f3c0a0e8cc4c93bc87890ebff9e8e389a3b4a56242e6ccd5"
     },
     {
       "path": "build/requirements_trace_matrix.md",
-      "crc32": "1600f887"
+      "crc32": "1600f887",
+      "digest256": "8a2cf9a0f41421d2808cbfe95015202df7699086861bf1042fe91baec69e4da9"
     },
     {
       "path": "tests/unit_tests.cpp",
-      "crc32": "861aa16f"
+      "crc32": "f00eace4",
+      "digest256": "e5c488d54d63c796b96ab86911eaa040b646bd1a42080d937628740b798dce14"
     },
     {
       "path": "build/flight_software",
-      "crc32": "036340cc"
+      "crc32": "b532917b",
+      "digest256": "ee2cf707a70e072e743327654edfd69cadfac67c04a8fc5b1561f1f173001491"
     },
     {
       "path": "build/run_tests",
-      "crc32": "3c7742b7"
+      "crc32": "adad57ac",
+      "digest256": "86edbe145c6bc7843ac75deecdab6a7db3909f13571c7d30c311f4ebbc54470a"
     }
   ],
   "manual_remaining": []

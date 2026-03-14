@@ -16,7 +16,10 @@
 namespace deltav {
 
 template <typename T>
-concept FlightData = std::is_trivially_copyable_v<T> && sizeof(T) <= 256;
+concept FlightData =
+    std::is_trivially_copyable_v<T> &&
+    std::is_standard_layout_v<T> &&
+    sizeof(T) <= 256;
 
 template <FlightData T, size_t Capacity>
 class RingBuffer {

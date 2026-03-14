@@ -1,12 +1,12 @@
-# Fault Tree Analysis (Baseline)
+# Fault Tree Analysis (Reference Mission Baseline)
 
-Date: 2026-03-07
+Date: 2026-03-14
 
-Top-event analysis for framework-level software faults.
+Top-event analysis for DELTA-V reference mission software faults.
 
 ## Top Event TE-001
 
-`Unsafe or unintended command effect reaches mission logic`
+`Unsafe or unintended command effect reaches mission logic during a scheduled pass`
 
 ### Major Contributors
 
@@ -19,19 +19,21 @@ Top-event analysis for framework-level software faults.
 - `TE-001-A` controlled by replay rejection and persisted sequence state.
   - Requirements: `DV-COMM-04`, `DV-COMM-06`
   - Evidence: `TelemetryBridge.RejectsReplaySequence`,
-    `TelemetryBridge.PersistsReplaySequenceAcrossRestart`
+    `TelemetryBridge.PersistsReplaySequenceAcrossRestart`,
+    `build/sitl/sitl_fault_campaign_result.json`
 - `TE-001-B` controlled by strict uplink frame validation.
   - Requirements: `DV-SEC-01`, `DV-SEC-03`
   - Evidence: `TelemetryBridge.RejectsInvalidHeaderFields`,
     `TelemetryBridge.RejectsNonCanonicalFrameLength`,
-    `TelemetryBridge.RejectsTruncatedFrame`
+    `TelemetryBridge.RejectsTruncatedFrame`,
+    `build/sitl/sitl_fault_campaign_result.json`
 - `TE-001-C` controlled by NACK-on-route-failure behavior.
   - Requirement: `DV-FDIR-08`
   - Evidence: `CommandHubFixture.NackWhenRouteQueueIsFull`
 
 ## Top Event TE-002
 
-`Timing/persistence fault degrades deterministic safety behavior`
+`Timing or persistence fault degrades deterministic safety behavior`
 
 ### Major Contributors
 

@@ -12,17 +12,27 @@ regressions, and fatal signatures).
 cmake --build build --target sitl_soak
 ```
 
-Default soak duration is 180 seconds. Override at configure time:
+Default soak duration is 600 seconds. Override at configure time:
 
 ```bash
-cmake -B build -DDELTAV_SITL_SOAK_SECONDS=300
+cmake -B build -DDELTAV_SITL_SOAK_SECONDS=900
 cmake --build build --target sitl_soak
+```
+
+Archived long-duration profiles:
+
+```bash
+cmake --build build --target sitl_soak_1h
+cmake --build build --target sitl_soak_6h
+cmake --build build --target sitl_soak_12h
+cmake --build build --target sitl_soak_24h
+cmake --build build --target sitl_long_soak_status
 ```
 
 ## Direct Script Use
 
 ```bash
-python3 tools/sitl_soak.py --build-dir build --duration 180
+python3 tools/sitl_soak.py --build-dir build --duration 600
 ```
 
 ## Pass Criteria

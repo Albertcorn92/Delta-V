@@ -102,7 +102,7 @@ def validate(topology: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 # Build GDS dictionary
 # ---------------------------------------------------------------------------
-def build_dict(topo: dict, quiet: bool) -> None:
+def render_dict(topo: dict, quiet: bool) -> str:
     sys_info = topo["system"]
     if not quiet:
         print(f"[Autocoder] Building dictionary: "
@@ -144,21 +144,24 @@ def build_dict(topo: dict, quiet: bool) -> None:
             "description": p.get("description", ""),
         }
 
-    Path(DICT_FILE).write_text(json.dumps(d, indent=4))
     if not quiet:
         print(f"[Autocoder]   → {DICT_FILE}: "
               f"{len(d['components'])} components, "
               f"{len(d['commands'])} commands, "
               f"{len(d['params'])} params")
+    return json.dumps(d, indent=4)
+
+
+def build_dict(topo: dict, quiet: bool) -> None:
+    Path(DICT_FILE).write_text(render_dict(topo, quiet))
 
 # ---------------------------------------------------------------------------
 # Build src/Types.hpp
 # ---------------------------------------------------------------------------
-def build_types(quiet: bool) -> None:
+def render_types(quiet: bool) -> str:
     if not quiet:
         print(f"[Autocoder] Generating {TYPES_FILE}")
-    Path(TYPES_FILE).parent.mkdir(parents=True, exist_ok=True)
-    Path(TYPES_FILE).write_text("""\
+    return """\
 #pragma once
 // ============================================================================
 // Types.hpp — DELTA-V Wire Protocol & Packet Definitions
@@ -244,12 +247,17 @@ namespace Apid {
 constexpr uint32_t CCSDS_SYNC_WORD = 0x1ACFFC1Du;
 
 } // namespace deltav
-""")
+"""
+
+
+def build_types(quiet: bool) -> None:
+    Path(TYPES_FILE).parent.mkdir(parents=True, exist_ok=True)
+    Path(TYPES_FILE).write_text(render_types(quiet))
 
 # ---------------------------------------------------------------------------
 # Build src/TopologyManager.hpp
 # ---------------------------------------------------------------------------
-def build_topo(topo: dict, quiet: bool) -> None:
+def render_topo(topo: dict, quiet: bool) -> str:
     if not quiet:
         print(f"[Autocoder] Generating {TOPO_FILE}")
 
@@ -277,6 +285,8 @@ def build_topo(topo: dict, quiet: bool) -> None:
     event_wiring:  list[str] = []
     verify_checks: list[str] = []
     tmr_members:   list[str] = []
+    telem_input_count = 0
+    route_count = 0
 
     # System-level hardcoded wires
     cmd_wiring.append(
@@ -337,6 +347,7 @@ def build_topo(topo: dict, quiet: bool) -> None:
         else:
             telem_wiring.append(
                 f'        telem_hub.connectInput({inst}.telemetry_out);')
+            telem_input_count += 1
             event_staging.append(f'    InputPort<EventPacket> e_{inst}_{{}};')
             event_wiring += [
                 f'        {inst}.event_out.connect(&e_{inst}_);',
@@ -346,6 +357,7 @@ def build_topo(topo: dict, quiet: bool) -> None:
             if comp_cmds:
                 cmd_routes.append(
                     f'    OutputPort<CommandPacket> {inst}_route_{{}};')
+                route_count += 1
                 cmd_wiring += [
                     f'        {inst}_route_.connect(&{inst}.cmd_in);',
                     f'        cmd_hub.registerRoute({cid}, &{inst}_route_);',
@@ -366,8 +378,17 @@ def build_topo(topo: dict, quiet: bool) -> None:
     verify_checks.insert(1,
         '        check(cmd_hub.ack_out.isConnected(),'
         '   "cmd_hub.ack_out → event_hub");')
+    verify_checks.insert(2,
+        f'        check(telem_hub.getInputCount() >= {telem_input_count},'
+        f' "telem_hub: expected >={telem_input_count} inputs");')
+    verify_checks.insert(3,
+        '        check(telem_hub.getListenerCount() >= 2,'
+        ' "telem_hub: need >=2 listeners");')
+    verify_checks.insert(4,
+        f'        check(cmd_hub.routeCount() >= {route_count},'
+        f' "cmd_hub: expected >={route_count} routes");')
     if "cmd_hub" in instances_set and "watchdog" in instances_set:
-        verify_checks.insert(2,
+        verify_checks.insert(5,
             '        check(cmd_hub.hasMissionStateSource(),'
             ' "cmd_hub mission state source");')
     if (
@@ -375,7 +396,7 @@ def build_topo(topo: dict, quiet: bool) -> None:
         {"emergency_battery_pct", "safe_mode_battery_pct", "degraded_battery_pct"}
         .issubset(tmr_param_names)
     ):
-        verify_checks.insert(3,
+        verify_checks.insert(6,
             '        check(watchdog.hasBatteryThresholdSources(),'
             ' "watchdog battery threshold sources");')
 
@@ -403,7 +424,9 @@ def build_topo(topo: dict, quiet: bool) -> None:
     tmr_block = ("\n    // TMR-protected parameters (auto-generated)\n" +
                  "\n".join(tmr_members) + "\n") if tmr_members else ""
 
-    content = f"""\
+    expected_event_sources = len(event_staging)
+
+    return f"""\
 #pragma once
 // ============================================================================
 // TopologyManager.hpp — AUTOGENERATED BY DELTA-V AUTOCODER v4.0
@@ -457,7 +480,7 @@ public:
             }}
         }};
 {chr(10).join(verify_checks)}
-        check(event_hub.getSourceCount()   >= 2, "event_hub: need >=2 sources");
+        check(event_hub.getSourceCount()   >= {expected_event_sources}, "event_hub: expected event sources");
         check(event_hub.getListenerCount() >= 2, "event_hub: need >=2 listeners");
         if (!ok) std::cerr << "[Topology] FATAL: wiring incomplete.\\n";
         return ok;
@@ -486,8 +509,29 @@ private:
 
 }} // namespace deltav
 """
+
+
+def build_topo(topo: dict, quiet: bool) -> None:
     Path(TOPO_FILE).parent.mkdir(parents=True, exist_ok=True)
-    Path(TOPO_FILE).write_text(content)
+    Path(TOPO_FILE).write_text(render_topo(topo, quiet))
+
+
+def check_generated_outputs(topo: dict, quiet: bool) -> list[str]:
+    mismatches: list[str] = []
+    expected = {
+        DICT_FILE: render_dict(topo, quiet),
+        TYPES_FILE: render_types(quiet),
+        TOPO_FILE: render_topo(topo, quiet),
+    }
+    for path_str, content in expected.items():
+        path = Path(path_str)
+        if not path.exists():
+            mismatches.append(f"{path_str}: missing generated file")
+            continue
+        current = path.read_text()
+        if current != content:
+            mismatches.append(f"{path_str}: generated output is stale")
+    return mismatches
 
 # ---------------------------------------------------------------------------
 # Entry point
@@ -496,9 +540,14 @@ def main() -> None:
     p = argparse.ArgumentParser(description="DELTA-V Autocoder v4.0")
     p.add_argument("--dry-run", action="store_true",
                    help="Validate only — write no files")
+    p.add_argument("--check", action="store_true",
+                   help="Validate and verify generated files are current")
     p.add_argument("--quiet",   action="store_true",
                    help="Suppress info output")
     args = p.parse_args()
+
+    if args.dry_run and args.check:
+        sys.exit("[Autocoder] ERROR: --dry-run and --check cannot be used together.")
 
     if not Path(YAML_FILE).exists():
         sys.exit(f"[Autocoder] FATAL: {YAML_FILE} not found.")
@@ -516,6 +565,16 @@ def main() -> None:
 
     if not args.quiet:
         print("[Autocoder] Validation OK.")
+
+    if args.check:
+        mismatches = check_generated_outputs(topo, args.quiet)
+        if mismatches:
+            for mismatch in mismatches:
+                print(f"[Autocoder] ERROR: {mismatch}", file=sys.stderr)
+            sys.exit("[Autocoder] Generated files are out of date. Run: python3 tools/autocoder.py")
+        if not args.quiet:
+            print("[Autocoder] Generated files are current.")
+        return
 
     if args.dry_run:
         print("[Autocoder] --dry-run: no files written.")

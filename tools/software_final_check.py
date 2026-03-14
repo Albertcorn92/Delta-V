@@ -128,6 +128,26 @@ def require_any_glob(workspace: Path, pattern: str, label: str) -> None:
 def validate_process_evidence_baseline(workspace: Path) -> None:
     required_static = [
         workspace / "docs" / "process" / "DEPLOYMENT_SCREENING_PROCEDURE.md",
+        workspace / "docs" / "process" / "SOFTWARE_CLASSIFICATION_BASELINE.md",
+        workspace / "docs" / "process" / "NASA_REQUIREMENTS_APPLICABILITY_BASELINE.md",
+        workspace / "docs" / "process" / "PSAC_DELTAV_BASELINE.md",
+        workspace / "docs" / "process" / "SCMP_DELTAV_BASELINE.md",
+        workspace / "docs" / "process" / "SQAP_DELTAV_BASELINE.md",
+        workspace / "docs" / "process" / "SVVP_DELTAV_BASELINE.md",
+        workspace / "docs" / "process" / "SOFTWARE_SAFETY_PLAN_BASELINE.md",
+        workspace / "docs" / "process" / "STATIC_ANALYSIS_DEVIATION_LOG.md",
+        workspace / "docs" / "process" / "TAILORING_AND_SCOPE_DEVIATIONS_BASELINE.md",
+        workspace / "docs" / "process" / "TOOL_GOVERNANCE_BASELINE.md",
+        workspace / "docs" / "process" / "PUBLIC_SECURITY_POSTURE_BASELINE.md",
+        workspace / "docs" / "process" / "REFERENCE_MISSION_PROFILE.md",
+        workspace / "docs" / "process" / "REFERENCE_PAYLOAD_PROFILE.md",
+        workspace / "docs" / "process" / "REFERENCE_MISSION_REQUIREMENTS_ALLOCATION.md",
+        workspace / "docs" / "process" / "REFERENCE_MISSION_INTERFACE_CONTROL.md",
+        workspace / "docs" / "process" / "RISK_REGISTER_BASELINE.md",
+        workspace / "docs" / "process" / "ASSUMPTIONS_LOG_BASELINE.md",
+        workspace / "docs" / "process" / "CONFIGURATION_AUDIT_BASELINE.md",
+        workspace / "docs" / "process" / "PROBLEM_REPORT_AND_CORRECTIVE_ACTION_LOG.md",
+        workspace / "docs" / "process" / "SITL_LONG_SOAK_STATUS.md",
     ]
     missing_static = [
         str(path.relative_to(workspace)) for path in required_static if not path.exists()
@@ -151,6 +171,11 @@ def validate_process_evidence_baseline(workspace: Path) -> None:
         workspace,
         "docs/process/DEPLOYMENT_SCREENING_LOG_*.md",
         "deployment screening log",
+    )
+    require_any_glob(
+        workspace,
+        "docs/process/OPERATIONS_REHEARSAL_*.md",
+        "operations rehearsal record",
     )
 
 

@@ -4,55 +4,59 @@ Date: 2026-03-06
 
 ## Blocking Gates
 
-The repository enforces these assurance gates in CI:
+These gates are part of the enforced software path:
 
-1. `vnv_stress`
-- Runs the full GTest suite in shuffled repeated mode (`--gtest_shuffle --gtest_repeat=25` by default).
-- Detects nondeterministic/flaky behavior before static-analysis and traceability gates.
+1. `autocoder_check`
+   Verifies that `topology.yaml`, `dictionary.json`, `src/Types.hpp`, and `src/TopologyManager.hpp` are in sync.
 
-2. `flight_readiness`
-- Enforces legal checks, test execution, safety static analysis, traceability validation,
-  and final flight binary build in a single target.
-- Includes unit + system integration coverage through `ctest` (`DeltaV_Unit_Tests` and
-  `DeltaV_System_Tests`).
+2. `vnv_stress`
+   Runs the GTest suite in shuffled repeated mode (`--gtest_shuffle --gtest_repeat=25` by default).
 
-3. `tidy_safety`
-- Runs curated high-signal checks (`clang-analyzer-*` and selected `bugprone`/`cert` rules).
-- Treats findings as errors.
+3. `flight_readiness`
+   Runs generated-file checks, legal checks, unit tests, system tests, blocking static analysis, traceability validation, and the final host build.
 
-4. `traceability`
-- Validates one-to-one coverage between requirements in `src/Requirements.hpp`
-  and mapped evidence in `docs/REQUIREMENTS_TRACE.yaml`.
-- Verifies every mapped test name exists in `tests/unit_tests.cpp`.
-- Emits artifacts:
-  - `requirements_trace_matrix.md`
-  - `requirements_trace_matrix.json`
+4. `tidy_safety`
+   Runs curated `clang-analyzer`, `bugprone`, and `cert` checks. Findings are treated as errors.
 
-5. `software_final`
-- Depends on `qualification_bundle` after `flight_readiness` plus
-  `benchmark_guard` and `sitl_soak`.
-- Re-validates legal policy scan (civilian scope + no command-path crypto patterns)
-  and trace/qualification status.
-- Synchronizes release evidence into `docs/` and writes `docs/SOFTWARE_FINAL_STATUS.md`.
+5. `traceability`
+   Validates coverage between `src/Requirements.hpp`, `docs/REQUIREMENTS_TRACE.yaml`, and the mapped tests.
+
+6. `software_final`
+   Depends on `qualification_bundle`. It synchronizes the generated software evidence files in `docs/`.
+
+7. `release_preflight`
+   Release-prep report. Uses the current qualification/software evidence, records release blockers, and writes the current preflight status without requiring a clean tag.
+
+8. `release_candidate`
+   Release-only gate. Requires a clean worktree and an exact git tag, then writes the current release pedigree and release manifest.
+
+9. `review_bundle`
+   Review-only package. Depends on `release_preflight`, then stages a curated reviewer bundle and zip from the synced docs and current build artifacts.
 
 ## Advisory Gates
 
-- `tidy`: broad static-analysis profile for modernization and maintainability improvements.
-- `benchmark_baseline`: regenerates reproducible host/SITL performance baseline
-  (`docs/BENCHMARK_BASELINE.{md,json}`).
-- `benchmark_guard`: enforces threshold-based performance regression checks from
-  `docs/BENCHMARK_THRESHOLDS.json`.
-- `sitl_smoke`: short runtime health check for startup markers, early process exit, and fatal signature scan.
-- `sitl_soak`: extended runtime soak to detect delayed failures and unstable shutdown behavior.
-- `coverage_guard`: enforces minimum line/branch/function coverage thresholds in CI.
-- `coverage-trend` artifact: captures per-run coverage percentages for staged threshold increases.
-- `quickstart_10min`: one-command local path for legal + build + tests + benchmark + smoke.
-- `cubesat_readiness`: generates a consolidated CubeSat mission-readiness status snapshot.
-- Coverage and Python tool checks remain active in CI.
+- `tidy`: broader static analysis profile
+- `benchmark_baseline`: refreshes host/SITL benchmark artifacts
+- `benchmark_guard`: threshold-based performance regression checks
+- `benchmark_trend_guard`: sustained performance drift checks
+- `sitl_smoke`: short startup and fatal-signature check
+- `sitl_soak`: extended host runtime soak
+- `sitl_fault_campaign`: live malformed/replay/valid UDP uplink campaign
+- `sitl_fault_campaign` also checks event-log evidence for unknown-target NACKs,
+  invalid replay-state recovery, and reference payload command handling
+- `sitl_soak_1h`, `sitl_soak_6h`, `sitl_soak_12h`, `sitl_soak_24h`: archived long-duration host/SITL campaigns
+- `sitl_long_soak_status`: generated summary of archived long-duration host/SITL evidence
+- `coverage_guard`: line, branch, and function coverage thresholds in the GCC coverage build
+- `quickstart_10min`: local validation shortcut
+- `cubesat_readiness`: consolidated readiness report
+- `release_preflight`: current release blocker report
+- `release_candidate`: tagged public-release pedigree gate
+- `review_bundle`: curated reviewer package for technical evaluation
 
-## Command Reference
+## Commands
 
 ```bash
+cmake --build build --target autocoder_check
 cmake --build build --target run_system_tests
 cmake --build build --target tidy_safety
 cmake --build build --target traceability
@@ -60,34 +64,55 @@ cmake --build build --target vnv_stress
 cmake --build build --target flight_readiness
 cmake --build build --target qualification_bundle
 cmake --build build --target software_final
+cmake --build build --target release_preflight
+cmake --build build --target release_candidate
+cmake --build build --target review_bundle
 cmake --build build --target cubesat_readiness
 cmake --build build --target benchmark_baseline
 cmake --build build --target benchmark_guard
+cmake --build build --target benchmark_trend_guard
 cmake --build build --target sitl_smoke
 cmake --build build --target sitl_soak
+cmake --build build --target sitl_fault_campaign
+cmake --build build --target sitl_soak_1h
+cmake --build build --target sitl_long_soak_status
 cmake --build build_cov --target coverage_guard
 cmake --build build --target quickstart_10min
 ```
 
-## Qualification Bundle
+## Generated Outputs
 
-`qualification_bundle` produces audit artifacts in:
+`qualification_bundle` writes:
 
 - `build/qualification/qualification_report.md`
 - `build/qualification/qualification_report.json`
 
-`software_final` additionally updates:
+`software_final` updates:
 
 - `docs/REQUIREMENTS_TRACE_MATRIX.md`
 - `docs/REQUIREMENTS_TRACE_MATRIX.json`
 - `docs/qualification_report.md`
 - `docs/qualification_report.json`
 - `docs/SOFTWARE_FINAL_STATUS.md`
+- `docs/process/SITL_LONG_SOAK_STATUS.md`
+- `docs/process/SITL_LONG_SOAK_STATUS.json`
 
-Mission-team safety-case templates are maintained in:
+`release_preflight` updates:
 
-- `docs/safety_case/README.md`
-- `docs/safety_case/hazards.md`
-- `docs/safety_case/mitigations.md`
-- `docs/safety_case/verification_links.md`
-- `docs/safety_case/change_impact.md`
+- `docs/process/RELEASE_PREFLIGHT_CURRENT.md`
+- `docs/process/RELEASE_PREFLIGHT_CURRENT.json`
+
+`release_candidate` updates:
+
+- `docs/process/RELEASE_PEDIGREE_CURRENT.md`
+- `docs/process/RELEASE_PEDIGREE_CURRENT.json`
+- `docs/process/RELEASE_MANIFEST_CURRENT.md`
+- `docs/process/RELEASE_MANIFEST_CURRENT.json`
+
+`review_bundle` updates:
+
+- `build/review_bundle/`
+- `build/review_bundle.zip`
+
+Reference-mission safety-case and process baseline files are in `docs/safety_case/`
+and `docs/process/`.

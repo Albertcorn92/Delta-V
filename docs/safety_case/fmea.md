@@ -1,17 +1,19 @@
-# Failure Modes and Effects Analysis (Baseline)
+# Failure Modes and Effects Analysis (Reference Mission Baseline)
 
-Date: 2026-03-07
+Date: 2026-03-14
 
-This FMEA is for framework-level software behavior only. It is not a complete
-mission FMEA and must be extended with vehicle, payload, and operations inputs.
+This FMEA is for the DELTA-V reference mission software baseline only. It is
+not a complete mission FMEA and must be extended with vehicle, payload, RF, and
+operations inputs.
 
 | FMEA ID | Function | Failure Mode | Local Effect | End Effect | Severity | Detection | Control / Mitigation | Requirement IDs | Evidence |
 |---|---|---|---|---|---|---|---|---|---|
-| FMEA-001 | Uplink replay protection | Replay command accepted | Duplicate command execution | Unintended repeated state/action | Hazardous | Sequence-number check | Reject replay + persist accepted sequence | DV-COMM-04, DV-COMM-06 | `tests/unit_tests.cpp`, `docs/qualification_report.md` |
-| FMEA-002 | Uplink parser validation | Non-canonical frame accepted | Invalid command data enters dispatch | Undefined command handling path | Catastrophic | Header/length checks | Reject invalid/truncated/oversized frame | DV-SEC-01, DV-SEC-03 | `tests/unit_tests.cpp`, `docs/qualification_report.md` |
-| FMEA-003 | Command routing | Route queue full but ACK emitted | False success telemetry | Lost command with no retry trigger | Major | Route send status check | NACK on route saturation + error counter increment | DV-FDIR-08 | `tests/unit_tests.cpp` |
-| FMEA-004 | Timekeeping | MET wrap handling omitted | Aging mission counters drift assumptions | Incorrect timing-dependent behavior | Major | Wrap-threshold warning | One-time warning + 64-bit MET accessor | DV-TIME-02 | `tests/unit_tests.cpp` |
-| FMEA-005 | Parameter persistence | Corrupted persisted parameters | Invalid startup values | Unsafe threshold/config behavior | Hazardous | Integrity verify call | CRC integrity check + controlled load/save path | DV-DATA-01 | `tests/unit_tests.cpp` |
+| FMEA-001 | Uplink replay protection | Replay command accepted | Duplicate command execution | Unintended repeated power or mode change during a pass | Hazardous | Sequence-number check | Reject replay + persist accepted sequence | DV-COMM-04, DV-COMM-06 | `tests/unit_tests.cpp`, `build/sitl/sitl_fault_campaign_result.json` |
+| FMEA-002 | Uplink parser validation | Non-canonical frame accepted | Invalid command data enters dispatch | Undefined command handling path reaches mission logic | Catastrophic | Header/length checks | Reject invalid/truncated/oversized frame | DV-SEC-01, DV-SEC-03 | `tests/unit_tests.cpp`, `build/sitl/sitl_fault_campaign_result.json` |
+| FMEA-003 | Command routing | Route queue full but ACK emitted | False success telemetry | Lost command with no retry trigger before end of pass | Major | Route send status check | NACK on route saturation + error counter increment | DV-FDIR-08 | `tests/unit_tests.cpp` |
+| FMEA-004 | Timekeeping | MET wrap handling omitted | Aging mission counters drift assumptions | Incorrect timing-dependent behavior late in mission life | Major | Wrap-threshold warning | One-time warning + 64-bit MET accessor | DV-TIME-02 | `tests/unit_tests.cpp` |
+| FMEA-005 | Parameter persistence | Corrupted persisted parameters | Invalid startup values | Unsafe threshold/config behavior after restart or recovery | Hazardous | Integrity verify call | CRC integrity check + controlled load/save path | DV-DATA-01 | `tests/unit_tests.cpp` |
+| FMEA-006 | Reference payload control | Payload capture accepted while disabled or outside allowed mission state | Unplanned sample generation | Misleading payload operations during a pass | Major | FSM gating + component enable latch | `RESTRICTED` command class + local enable check + warning event on rejection | DV-SEC-02, DV-FDIR-08 | `tests/unit_tests.cpp`, `build/sitl/sitl_fault_campaign_result.json` |
 
 ## Notes
 

@@ -84,6 +84,12 @@ target_compile_definitions(run_benchmarks PRIVATE DELTAV_FAULT_INJECT)
 # overhead distorting throughput/latency thresholds in CI.
 target_compile_options(run_benchmarks PRIVATE ${DELTAV_RELEASE_FLAGS})
 
+# Synthetic translation unit used by clang-tidy so header-heavy runtime code is
+# analyzed through compile_commands.json as part of the blocking safety gate.
+add_library(tidy_header_probe OBJECT tests/tidy_headers.cpp)
+target_include_directories(tidy_header_probe PRIVATE src)
+target_compile_options(tidy_header_probe PRIVATE ${DELTAV_WARN_FLAGS})
+
 # =============================================================================
 # Target: run_tests  (Google Test suite)
 # Enabled by: cmake --build build --target run_tests
@@ -346,7 +352,10 @@ if(CLANG_TIDY)
     file(GLOB_RECURSE TIDY_FILES CONFIGURE_DEPENDS
         "src/*.cpp"
         "tests/*.cpp")
-    file(GLOB_RECURSE TIDY_SAFETY_FILES CONFIGURE_DEPENDS "src/*.cpp")
+    set(TIDY_SAFETY_FILES)
+    file(GLOB_RECURSE TIDY_SAFETY_CPP CONFIGURE_DEPENDS "src/*.cpp")
+    list(APPEND TIDY_SAFETY_FILES ${TIDY_SAFETY_CPP})
+    list(APPEND TIDY_SAFETY_FILES "${CMAKE_SOURCE_DIR}/tests/tidy_headers.cpp")
 
     set(DELTAV_TIDY_CHECKS
         cppcoreguidelines-*,cert-*,performance-*,modernize-*,bugprone-*)
@@ -385,12 +394,29 @@ endif()
 # Regenerates src/Types.hpp, src/TopologyManager.hpp, dictionary.json
 # from topology.yaml whenever the topology changes.
 # =============================================================================
-find_program(PYTHON3 python3)
+set(PYTHON3 "")
+set(DELTAV_PYTHON_CANDIDATES
+    "${CMAKE_SOURCE_DIR}/.venv/bin/python3"
+    "${CMAKE_SOURCE_DIR}/.venv/bin/python")
+foreach(_python IN LISTS DELTAV_PYTHON_CANDIDATES)
+    if(EXISTS "${_python}")
+        set(PYTHON3 "${_python}")
+        break()
+    endif()
+endforeach()
+if(NOT PYTHON3)
+    find_program(PYTHON3 python3)
+endif()
 if(PYTHON3)
     add_custom_target(gen
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/autocoder.py
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "DELTA-V autocoder: topology.yaml → src/TopologyManager.hpp + dictionary.json"
+    )
+    add_custom_target(autocoder_check
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/autocoder.py --check
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Validating generated files are current"
     )
     add_custom_target(legal_compliance
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/legal_compliance_check.py
@@ -410,12 +436,14 @@ if(PYTHON3)
     )
 
     message(STATUS "Autocoder: ENABLED  (cmake --build build --target gen)")
+    message(STATUS "AutoChk  : ENABLED  (cmake --build build --target autocoder_check)")
     message(STATUS "Legal    : ENABLED  (cmake --build build --target legal_compliance)")
     message(STATUS "Trace    : ENABLED  (cmake --build build --target traceability)")
 endif()
 
-if(TARGET run_tests AND TARGET run_system_tests AND TARGET vnv_stress AND TARGET tidy_safety AND TARGET traceability AND TARGET legal_compliance)
+if(TARGET run_tests AND TARGET run_system_tests AND TARGET vnv_stress AND TARGET tidy_safety AND TARGET traceability AND TARGET legal_compliance AND TARGET autocoder_check)
     add_custom_target(flight_readiness
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target autocoder_check
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target legal_compliance
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_tests
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_system_tests
@@ -456,6 +484,47 @@ if(PYTHON3 AND TARGET qualification_bundle)
         COMMENT "Running software-final release gate and syncing docs artifacts"
     )
     message(STATUS "SoftFinal: ENABLED  (cmake --build build --target software_final)")
+endif()
+
+if(PYTHON3 AND TARGET software_final)
+    add_custom_target(release_preflight
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/software_final_check.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+            --python-exe ${PYTHON3}
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/release_pedigree.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+            --output-dir ${CMAKE_BINARY_DIR}/release_preflight
+            --sync-preflight-docs
+        DEPENDS qualification_bundle
+        COMMENT "Generating current public release preflight status"
+    )
+    message(STATUS "RelCheck : ENABLED  (cmake --build build --target release_preflight)")
+
+    add_custom_target(release_candidate
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/release_pedigree.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+            --output-dir ${CMAKE_BINARY_DIR}/release
+            --sync-docs
+            --require-clean-worktree
+            --require-exact-tag
+        DEPENDS software_final
+        COMMENT "Validating public release pedigree for a tagged clean baseline"
+    )
+    message(STATUS "Release  : ENABLED  (cmake --build build --target release_candidate)")
+
+    add_custom_target(review_bundle
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/review_bundle.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+            --output-dir ${CMAKE_BINARY_DIR}/review_bundle
+            --zip-path ${CMAKE_BINARY_DIR}/review_bundle.zip
+        DEPENDS release_preflight
+        COMMENT "Assembling curated DELTA-V review bundle"
+    )
+    message(STATUS "Review   : ENABLED  (cmake --build build --target review_bundle)")
 endif()
 
 if(PYTHON3)
@@ -575,6 +644,67 @@ if(PYTHON3 AND TARGET flight_software)
         COMMENT "Running extended SITL soak (${DELTAV_SITL_SOAK_SECONDS}s)"
     )
     message(STATUS "SITLSoak : ENABLED  (cmake --build build --target sitl_soak)")
+
+    add_custom_target(sitl_soak_1h
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_soak.py
+            --build-dir ${CMAKE_BINARY_DIR}
+            --duration 3600
+            --output-json ${CMAKE_BINARY_DIR}/sitl/archive/sitl_soak_1h_result.json
+            --output-log ${CMAKE_BINARY_DIR}/sitl/archive/sitl_soak_1h.log
+        DEPENDS flight_software
+        COMMENT "Running archived 1-hour SITL soak"
+    )
+    add_custom_target(sitl_soak_6h
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_soak.py
+            --build-dir ${CMAKE_BINARY_DIR}
+            --duration 21600
+            --output-json ${CMAKE_BINARY_DIR}/sitl/archive/sitl_soak_6h_result.json
+            --output-log ${CMAKE_BINARY_DIR}/sitl/archive/sitl_soak_6h.log
+        DEPENDS flight_software
+        COMMENT "Running archived 6-hour SITL soak"
+    )
+    add_custom_target(sitl_soak_12h
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_soak.py
+            --build-dir ${CMAKE_BINARY_DIR}
+            --duration 43200
+            --output-json ${CMAKE_BINARY_DIR}/sitl/archive/sitl_soak_12h_result.json
+            --output-log ${CMAKE_BINARY_DIR}/sitl/archive/sitl_soak_12h.log
+        DEPENDS flight_software
+        COMMENT "Running archived 12-hour SITL soak"
+    )
+    add_custom_target(sitl_soak_24h
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_soak.py
+            --build-dir ${CMAKE_BINARY_DIR}
+            --duration 86400
+            --output-json ${CMAKE_BINARY_DIR}/sitl/archive/sitl_soak_24h_result.json
+            --output-log ${CMAKE_BINARY_DIR}/sitl/archive/sitl_soak_24h.log
+        DEPENDS flight_software
+        COMMENT "Running archived 24-hour SITL soak"
+    )
+    message(STATUS "SITL1h   : ENABLED  (cmake --build build --target sitl_soak_1h)")
+    message(STATUS "SITL6h   : ENABLED  (cmake --build build --target sitl_soak_6h)")
+    message(STATUS "SITL12h  : ENABLED  (cmake --build build --target sitl_soak_12h)")
+    message(STATUS "SITL24h  : ENABLED  (cmake --build build --target sitl_soak_24h)")
+
+    add_custom_target(sitl_fault_campaign
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_fault_campaign.py
+            --build-dir ${CMAKE_BINARY_DIR}
+            --output-json ${CMAKE_BINARY_DIR}/sitl/sitl_fault_campaign_result.json
+            --output-log ${CMAKE_BINARY_DIR}/sitl/sitl_fault_campaign.log
+        DEPENDS flight_software
+        COMMENT "Running live SITL fault campaign against the UDP uplink path"
+        USES_TERMINAL
+    )
+    message(STATUS "SITLFault: ENABLED  (cmake --build build --target sitl_fault_campaign)")
+
+    add_custom_target(sitl_long_soak_status
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/sitl_long_soak_status.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --build-dir ${CMAKE_BINARY_DIR}
+        DEPENDS sitl_soak
+        COMMENT "Generating archived SITL long-soak status summary"
+    )
+    message(STATUS "SITLStat : ENABLED  (cmake --build build --target sitl_long_soak_status)")
 endif()
 
 if(PYTHON3)
@@ -626,8 +756,9 @@ if(PYTHON3)
     message(STATUS "ESP32Reb : ENABLED  (cmake --build build --target esp32_reboot_campaign)")
 endif()
 
-if(TARGET legal_compliance AND TARGET run_tests AND TARGET run_system_tests AND TARGET benchmark_guard AND TARGET benchmark_trend_guard AND TARGET sitl_smoke)
+if(TARGET autocoder_check AND TARGET legal_compliance AND TARGET run_tests AND TARGET run_system_tests AND TARGET benchmark_guard AND TARGET benchmark_trend_guard AND TARGET sitl_smoke)
     add_custom_target(quickstart_10min
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target autocoder_check
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target legal_compliance
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_tests
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_system_tests
@@ -651,6 +782,14 @@ endif()
 
 if(TARGET software_final AND TARGET sitl_soak)
     add_dependencies(software_final sitl_soak)
+endif()
+
+if(TARGET software_final AND TARGET sitl_fault_campaign)
+    add_dependencies(software_final sitl_fault_campaign)
+endif()
+
+if(TARGET software_final AND TARGET sitl_long_soak_status)
+    add_dependencies(software_final sitl_long_soak_status)
 endif()
 
 if(TARGET software_final AND TARGET coverage_guard)
@@ -684,6 +823,9 @@ message(STATUS "║    traceability     — requirements trace   ║")
 message(STATUS "║    flight_readiness — full assurance gate  ║")
 message(STATUS "║    qualification_bundle — audit artifacts  ║")
 message(STATUS "║    software_final   — software release gate║")
+message(STATUS "║    release_preflight — release blocker rpt ║")
+message(STATUS "║    release_candidate — tagged release gate ║")
+message(STATUS "║    review_bundle    — reviewer evidence zip║")
 message(STATUS "║    cubesat_readiness — mission status rpt  ║")
 message(STATUS "║    cubesat_readiness_scope — waived rpt    ║")
 message(STATUS "║    benchmark_baseline — perf report sync   ║")
@@ -691,6 +833,7 @@ message(STATUS "║    benchmark_guard  — perf regression gate ║")
 message(STATUS "║    benchmark_trend_guard — perf drift gate ║")
 message(STATUS "║    sitl_smoke       — short runtime check  ║")
 message(STATUS "║    sitl_soak        — extended runtime test║")
+message(STATUS "║    sitl_fault_campaign — live fault inject ║")
 message(STATUS "║    portability_matrix — build profile gate ║")
 message(STATUS "║    esp32_runtime_guard — WCET/stack check  ║")
 message(STATUS "║    esp32_reboot_campaign — reboot campaign ║")

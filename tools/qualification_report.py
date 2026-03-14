@@ -9,6 +9,7 @@ This script is intended to run after the `flight_readiness` gate succeeds.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -42,6 +43,14 @@ def crc32_file(path: Path) -> str:
     return f"{checksum & 0xFFFFFFFF:08x}"
 
 
+def digest256_file(path: Path) -> str:
+    digest = hashlib.blake2b(digest_size=32)
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def parse_test_count(tests_path: Path) -> int:
     text = tests_path.read_text(encoding="utf-8")
     return len(TEST_RE.findall(text))
@@ -51,10 +60,12 @@ def build_git_info(workspace: Path) -> dict[str, Any]:
     commit = run_cmd(["git", "rev-parse", "HEAD"], workspace)
     branch = run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"], workspace)
     status = run_cmd(["git", "status", "--porcelain"], workspace)
+    exact_tag = run_cmd(["git", "describe", "--tags", "--exact-match"], workspace)
     dirty = bool(status and status != "unavailable")
     return {
         "branch": branch,
         "commit": commit,
+        "exact_tag": exact_tag if exact_tag != "unavailable" else "untagged",
         "dirty_worktree": dirty,
     }
 
@@ -194,6 +205,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines.append("|---|---|")
     lines.append(f"| Git branch | `{report['git']['branch']}` |")
     lines.append(f"| Git commit | `{report['git']['commit']}` |")
+    lines.append(f"| Exact tag | `{report['git']['exact_tag']}` |")
     lines.append(f"| Dirty worktree | `{report['git']['dirty_worktree']}` |")
     lines.append(f"| Host OS | `{report['host']['platform']}` |")
     lines.append(f"| Python | `{report['host']['python']}` |")
@@ -222,10 +234,12 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines.append("")
     lines.append("## Artifact Checksums (CRC-32)")
     lines.append("")
-    lines.append("| Artifact | CRC-32 |")
-    lines.append("|---|---|")
+    lines.append("| Artifact | CRC-32 | Digest-256 |")
+    lines.append("|---|---|---|")
     for item in report["hashes"]:
-        lines.append(f"| `{item['path']}` | `{item['crc32']}` |")
+        lines.append(
+            f"| `{item['path']}` | `{item['crc32']}` | `{item['digest256']}` |"
+        )
     lines.append("")
     lines.append("## Manual Evidence Remaining")
     lines.append("")
@@ -295,6 +309,7 @@ def main() -> int:
             {
                 "path": display_path(p, workspace),
                 "crc32": crc32_file(p),
+                "digest256": digest256_file(p),
             }
         )
 

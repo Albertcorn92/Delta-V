@@ -13,6 +13,7 @@ Use this checklist to move from open-source baseline toward high-assurance missi
 - [x] Requirements traceability passes (`cmake --build build --target traceability`).
 - [x] Benchmark guard passes (`cmake --build build --target benchmark_guard`).
 - [x] SITL runtime health checks pass (`cmake --build build --target sitl_smoke sitl_soak`).
+- [x] SITL fault campaign passes (`cmake --build build --target sitl_fault_campaign`).
 - [x] Qualification artifacts generate (`cmake --build build --target qualification_bundle`).
 - [x] Software final gate passes (`cmake --build build --target software_final`).
 - [x] Coverage guard passes in dedicated GCC coverage build (`cmake --build build_cov --target coverage_guard`).
@@ -31,6 +32,12 @@ Use this checklist to move from open-source baseline toward high-assurance missi
 - [x] Independent review records attached for safety-critical changes (`docs/process/INDEPENDENT_REVIEW_RECORD_20260307.md`).
 - [x] Mission-level hazard log/FMEA/FTA evidence linked to requirements (`docs/safety_case/hazards.md`, `docs/safety_case/fmea.md`, `docs/safety_case/fta.md`, `docs/safety_case/mitigations.md`, `docs/safety_case/verification_links.md`).
 - [x] Configuration/control board records and release sign-off complete (`docs/process/CCB_RELEASE_SIGNOFF_20260307.md`).
+- [x] Reference mission requirements allocation is documented (`docs/process/REFERENCE_MISSION_REQUIREMENTS_ALLOCATION.md`).
+- [x] Risk register and assumptions log are current (`docs/process/RISK_REGISTER_BASELINE.md`, `docs/process/ASSUMPTIONS_LOG_BASELINE.md`).
+- [x] Interface control supplement exists for the reference mission (`docs/process/REFERENCE_MISSION_INTERFACE_CONTROL.md`).
+- [x] Problem-report and corrective-action log is current (`docs/process/PROBLEM_REPORT_AND_CORRECTIVE_ACTION_LOG.md`).
+- [x] Configuration audit baseline exists (`docs/process/CONFIGURATION_AUDIT_BASELINE.md`).
+- [x] Operations rehearsal evidence exists for the reference mission (`docs/process/OPERATIONS_REHEARSAL_20260314.md`).
 
 ## D. Civilian Scope and Legal Hygiene
 

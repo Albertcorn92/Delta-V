@@ -1,15 +1,29 @@
-# Coverage Policy (Software Baseline)
+# Coverage Policy
 
 Date: 2026-03-06
 
-DELTA-V enforces minimum coverage thresholds in CI using `coverage_guard`.
+The coverage gates run in a dedicated GCC build because the repository uses `lcov`.
 
-## Commands
+## Configure the Coverage Build
+
+Use the helper script to select an available GCC/G++ pair and configure `build_cov`:
+
+```bash
+bash tools/configure_coverage_build.sh
+```
+
+Manual equivalent:
 
 ```bash
 cmake -B build_cov -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=gcc-12 -DCMAKE_CXX_COMPILER=g++-12
+```
+
+## Run the Coverage Gates
+
+```bash
 cmake --build build_cov --target coverage
 cmake --build build_cov --target coverage_guard
+cmake --build build_cov --target coverage_trend
 ```
 
 ## Threshold Source
@@ -22,27 +36,14 @@ Current minimums:
 - Branch coverage: `>= 50%`
 - Function coverage: `>= 80%`
 
-Next staged target (after trend stability):
+Planned next step:
 
 - Line coverage: `>= 75%`
 - Branch coverage: `>= 55%`
 - Function coverage: `>= 85%`
 
-## Trend Tracking
-
-CI now publishes a coverage trend snapshot artifact (`coverage-trend`) generated
-from `build_cov/cov.info`:
-
-```bash
-python3 tools/coverage_trend.py \
-  --workspace . \
-  --build-dir build_cov
-```
-
-This snapshot is used to verify trend stability before raising thresholds again.
-
 ## Notes
 
-- Coverage generation is enabled in CMake when the active compiler is GCC.
-- Threshold increases are applied in staged increments to limit CI volatility.
-- This gate is software-only and does not replace on-target hardware verification.
+- Coverage generation is enabled only when the active compiler is GCC.
+- Coverage is a software-only gate. It does not replace hardware validation.
+- CI archives the coverage HTML report and the trend snapshot artifact.

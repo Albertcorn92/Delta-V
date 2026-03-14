@@ -29,6 +29,7 @@
 #include "SensorComponent.hpp"
 #include "PowerComponent.hpp"
 #include "ImuComponent.hpp"
+#include "PayloadMonitorComponent.hpp"
 
 namespace deltav {
 
@@ -59,6 +60,7 @@ public:
     SensorComponent        star_tracker    {"StarTracker", 100};
     PowerComponent         battery         {"BatterySystem", 200};
     ImuComponent           imu_unit        {"IMU_01", 300, *i2c_};
+    PayloadMonitorComponent payload_monitor {"PayloadMonitor", 400};
 
     // TMR-protected parameters (auto-generated)
     TmrStore<float>  tmr_safe_mode_battery_pct{ 5.0f };
@@ -96,6 +98,7 @@ public:
         rge.registerNorm(&cfdp_manager);
         rge.registerNorm(&mode_manager);
         rge.registerNorm(&battery);
+        rge.registerNorm(&payload_monitor);
         // ── Active (own thread) ────────────────────────
         rge.registerComponent(&radio);
 
@@ -119,6 +122,7 @@ public:
         watchdog.registerSubsystem(&star_tracker);
         watchdog.registerSubsystem(&battery);
         watchdog.registerSubsystem(&imu_unit);
+        watchdog.registerSubsystem(&payload_monitor);
     }
 
     [[nodiscard]] auto verify() -> bool {
@@ -131,6 +135,9 @@ public:
         };
         check(radio.command_out.isConnected(), "radio.command_out → cmd_hub");
         check(cmd_hub.ack_out.isConnected(),   "cmd_hub.ack_out → event_hub");
+        check(telem_hub.getInputCount() >= 14, "telem_hub: expected >=14 inputs");
+        check(telem_hub.getListenerCount() >= 2, "telem_hub: need >=2 listeners");
+        check(cmd_hub.routeCount() >= 14, "cmd_hub: expected >=14 routes");
         check(cmd_hub.hasMissionStateSource(), "cmd_hub mission state source");
         check(watchdog.hasBatteryThresholdSources(), "watchdog battery threshold sources");
         check(cmd_sequencer.telemetry_out.isConnected(), "cmd_sequencer.telemetry_out → telem_hub");
@@ -146,7 +153,8 @@ public:
         check(star_tracker.telemetry_out.isConnected(), "star_tracker.telemetry_out → telem_hub");
         check(battery.telemetry_out.isConnected(), "battery.telemetry_out → telem_hub");
         check(imu_unit.telemetry_out.isConnected(), "imu_unit.telemetry_out → telem_hub");
-        check(event_hub.getSourceCount()   >= 2, "event_hub: need >=2 sources");
+        check(payload_monitor.telemetry_out.isConnected(), "payload_monitor.telemetry_out → telem_hub");
+        check(event_hub.getSourceCount()   >= 16, "event_hub: expected event sources");
         check(event_hub.getListenerCount() >= 2, "event_hub: need >=2 listeners");
         if (!ok) std::cerr << "[Topology] FATAL: wiring incomplete.\n";
         return ok;
@@ -166,6 +174,7 @@ private:
     OutputPort<CommandPacket> star_tracker_route_{};
     OutputPort<CommandPacket> battery_route_{};
     OutputPort<CommandPacket> imu_unit_route_{};
+    OutputPort<CommandPacket> payload_monitor_route_{};
     InputPort<EventPacket> e_watchdog_{};
     InputPort<EventPacket> e_cmd_hub_{};
     InputPort<EventPacket> e_cmd_sequencer_{};
@@ -181,6 +190,7 @@ private:
     InputPort<EventPacket> e_star_tracker_{};
     InputPort<EventPacket> e_battery_{};
     InputPort<EventPacket> e_imu_unit_{};
+    InputPort<EventPacket> e_payload_monitor_{};
 
     auto wireTelemetry() -> void {
         telem_hub.registerListener(&radio.telem_in);
@@ -198,6 +208,7 @@ private:
         telem_hub.connectInput(star_tracker.telemetry_out);
         telem_hub.connectInput(battery.telemetry_out);
         telem_hub.connectInput(imu_unit.telemetry_out);
+        telem_hub.connectInput(payload_monitor.telemetry_out);
     }
 
     auto wireCommands() -> void {
@@ -205,6 +216,9 @@ private:
         cmd_hub.registerCommandPolicy(200, 2, OpClass::OPERATIONAL);
         cmd_hub.registerCommandPolicy(100, 1, OpClass::OPERATIONAL);
         cmd_hub.registerCommandPolicy(300, 1, OpClass::OPERATIONAL);
+        cmd_hub.registerCommandPolicy(400, 1, OpClass::OPERATIONAL);
+        cmd_hub.registerCommandPolicy(400, 2, OpClass::RESTRICTED);
+        cmd_hub.registerCommandPolicy(400, 3, OpClass::HOUSEKEEPING);
         cmd_hub.registerCommandPolicy(40, 1, OpClass::HOUSEKEEPING);
         cmd_hub.registerCommandPolicy(40, 2, OpClass::HOUSEKEEPING);
         cmd_hub.registerCommandPolicy(40, 3, OpClass::HOUSEKEEPING);
@@ -308,6 +322,8 @@ private:
         cmd_hub.registerRoute(200, &battery_route_);
         imu_unit_route_.connect(&imu_unit.cmd_in);
         cmd_hub.registerRoute(300, &imu_unit_route_);
+        payload_monitor_route_.connect(&payload_monitor.cmd_in);
+        cmd_hub.registerRoute(400, &payload_monitor_route_);
     }
 
     auto wireEvents() -> void {
@@ -343,6 +359,8 @@ private:
         event_hub.registerEventSource(&e_battery_);
         imu_unit.event_out.connect(&e_imu_unit_);
         event_hub.registerEventSource(&e_imu_unit_);
+        payload_monitor.event_out.connect(&e_payload_monitor_);
+        event_hub.registerEventSource(&e_payload_monitor_);
     }
 
     auto wireCustom() -> void {

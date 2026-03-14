@@ -78,8 +78,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-ci.txt --quiet
 
-      - name: Run autocoder
-        run: python tools/autocoder.py
+      - name: Verify generated files
+        run: python tools/autocoder.py --check
 
       - name: Configure (Debug + ASan/UBSan)
         env:
@@ -134,8 +134,12 @@ jobs:
           python -m pip install -r requirements-ci.txt --quiet
       - name: Dry-run validation
         run: python tools/autocoder.py --dry-run
-      - name: Full autocoder run
-        run: python tools/autocoder.py
+      - name: Generated output check
+        run: python tools/autocoder.py --check
+      - name: Determinism check
+        run: |
+          python tools/autocoder.py
+          git diff --exit-code
 
   # ---------------------------------------------------------------------------
   # 3. Coverage report (Ubuntu gcc only)
@@ -160,7 +164,7 @@ jobs:
       - run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-ci.txt --quiet
-      - run: python tools/autocoder.py
+      - run: python tools/autocoder.py --check
 
       - name: Configure with coverage
         run: |
@@ -225,7 +229,7 @@ jobs:
           sudo apt-get install -y cmake ninja-build clang-14 clang-tidy-14 libgtest-dev
           python -m pip install --upgrade pip
           python -m pip install -r requirements-ci.txt --quiet
-      - run: python tools/autocoder.py
+      - run: python tools/autocoder.py --check
       - name: Configure
         env: { CC: clang-14, CXX: clang++-14 }
         run: |
@@ -273,6 +277,8 @@ jobs:
             build_tidy/sitl/sitl_smoke.log
             build_tidy/sitl/sitl_soak_result.json
             build_tidy/sitl/sitl_soak.log
+            build_tidy/sitl/sitl_fault_campaign_result.json
+            build_tidy/sitl/sitl_fault_campaign.log
             build_tidy/benchmark/benchmark_baseline.json
             build_tidy/benchmark/benchmark_baseline.md
             build_tidy/benchmark/benchmark_runs.json
@@ -310,11 +316,14 @@ jobs:
             tools/cubesat_readiness_report.py \
             tools/software_final_check.py \
             tools/qualification_report.py \
+            tools/release_pedigree.py \
+            tools/review_bundle.py \
             tools/benchmark_report.py \
             tools/benchmark_guard.py \
             tools/coverage_guard.py \
             tools/coverage_trend.py \
-            tools/portability_matrix.py
+            tools/portability_matrix.py \
+            tools/sitl_fault_campaign.py
 
       - name: dv-util list
         run: python tools/dv-util.py list

@@ -1,0 +1,62 @@
+{
+  "build_dir": "/Users/albertcornelius/DELTA-V Framework/build",
+  "generated_utc": "2026-03-14T14:55:08.027338+00:00",
+  "profiles": [
+    {
+      "actual_duration_s": 601.051,
+      "duration_s": 600.0,
+      "evidence": "build/sitl/sitl_soak_result.json, build/sitl/sitl_soak.log",
+      "generated_utc": "2026-03-14T14:45:06.857106+00:00",
+      "id": "default-gate",
+      "label": "Default software_final soak gate",
+      "reason": "archived run passed duration and marker checks",
+      "status": "PASS",
+      "target": "sitl_soak"
+    },
+    {
+      "actual_duration_s": 0.0,
+      "duration_s": 3600.0,
+      "evidence": "build/sitl/archive/sitl_soak_1h_result.json",
+      "generated_utc": null,
+      "id": "soak-1h",
+      "label": "1-hour host/SITL soak",
+      "reason": "no archived artifact at build/sitl/archive/sitl_soak_1h_result.json",
+      "status": "MISSING",
+      "target": "sitl_soak_1h"
+    },
+    {
+      "actual_duration_s": 0.0,
+      "duration_s": 21600.0,
+      "evidence": "build/sitl/archive/sitl_soak_6h_result.json",
+      "generated_utc": null,
+      "id": "soak-6h",
+      "label": "6-hour host/SITL soak",
+      "reason": "no archived artifact at build/sitl/archive/sitl_soak_6h_result.json",
+      "status": "MISSING",
+      "target": "sitl_soak_6h"
+    },
+    {
+      "actual_duration_s": 0.0,
+      "duration_s": 43200.0,
+      "evidence": "build/sitl/archive/sitl_soak_12h_result.json",
+      "generated_utc": null,
+      "id": "soak-12h",
+      "label": "12-hour host/SITL soak",
+      "reason": "no archived artifact at build/sitl/archive/sitl_soak_12h_result.json",
+      "status": "MISSING",
+      "target": "sitl_soak_12h"
+    },
+    {
+      "actual_duration_s": 0.0,
+      "duration_s": 86400.0,
+      "evidence": "build/sitl/archive/sitl_soak_24h_result.json",
+      "generated_utc": null,
+      "id": "soak-24h",
+      "label": "24-hour host/SITL soak",
+      "reason": "no archived artifact at build/sitl/archive/sitl_soak_24h_result.json",
+      "status": "MISSING",
+      "target": "sitl_soak_24h"
+    }
+  ],
+  "workspace": "DELTA-V Framework"
+}

@@ -45,6 +45,7 @@
 #include "TelemetryBridge.hpp"
 #include "SensorComponent.hpp"
 #include "PowerComponent.hpp"
+#include "PayloadMonitorComponent.hpp"
 #include "WatchdogComponent.hpp"
 #include "LoggerComponent.hpp"
 #include "TopologyManager.hpp"
@@ -84,6 +85,28 @@ auto buildUplinkFrame(
     std::memcpy(frame.data(), &hdr, sizeof(hdr));
     std::memcpy(frame.data() + sizeof(hdr), &cmd, sizeof(cmd));
     return frame;
+}
+
+auto buildRawKissWireFrame(
+    const std::array<uint8_t, sizeof(CcsdsHeader) + sizeof(CommandPacket)>& frame)
+    -> std::vector<uint8_t> {
+    std::vector<uint8_t> wire{};
+    wire.reserve(2u + (frame.size() * 2u) + 1u);
+    wire.push_back(TelemetryBridge::KISS_FEND);
+    wire.push_back(TelemetryBridge::KISS_CMD_DATA);
+    for (uint8_t byte : frame) {
+        if (byte == TelemetryBridge::KISS_FEND) {
+            wire.push_back(TelemetryBridge::KISS_FESC);
+            wire.push_back(TelemetryBridge::KISS_TFEND);
+        } else if (byte == TelemetryBridge::KISS_FESC) {
+            wire.push_back(TelemetryBridge::KISS_FESC);
+            wire.push_back(TelemetryBridge::KISS_TFESC);
+        } else {
+            wire.push_back(byte);
+        }
+    }
+    wire.push_back(TelemetryBridge::KISS_FEND);
+    return wire;
 }
 
 auto makeUniqueTestLogPath(const char* stem, const char* ext) -> std::string {
@@ -870,6 +893,89 @@ TEST(SensorComponent, UnknownOpcodeIncreasesErrors) {
     sender.send(CommandPacket{100, 99, 0.0f});
     s.step();
     EXPECT_GT(s.getErrorCount(), 0u);
+}
+
+// =============================================================================
+// PayloadMonitorComponent
+// =============================================================================
+TEST(PayloadMonitorComponent, CaptureRejectedWhenDisabled) {
+    TimeService::initEpoch();
+    PayloadMonitorComponent payload{"PayloadMonitor", 400};
+    InputPort<EventPacket> events{};
+    payload.event_out.connect(&events);
+    payload.init();
+
+    OutputPort<CommandPacket> sender{};
+    sender.connect(&payload.cmd_in);
+    sender.send(CommandPacket{400u, PayloadMonitorComponent::OP_CAPTURE_SAMPLE, 5.0f});
+    payload.step();
+
+    EXPECT_GT(payload.getErrorCount(), 0u);
+    EXPECT_EQ(payload.captureCountForTest(), 0u);
+
+    EventPacket evt{};
+    bool saw_reject = false;
+    while (events.tryConsume(evt)) {
+        if (std::string_view(evt.message.data()).find("Capture rejected") != std::string_view::npos) {
+            saw_reject = true;
+        }
+    }
+    EXPECT_TRUE(saw_reject);
+}
+
+TEST(PayloadMonitorComponent, EnableGainAndCaptureSample) {
+    TimeService::initEpoch();
+    PayloadMonitorComponent payload{"PayloadMonitor", 400};
+    InputPort<EventPacket> events{};
+    InputPort<Serializer::ByteArray> telemetry{};
+    payload.event_out.connect(&events);
+    payload.telemetry_out.connect(&telemetry);
+    payload.init();
+
+    OutputPort<CommandPacket> sender{};
+    sender.connect(&payload.cmd_in);
+    sender.send(CommandPacket{400u, PayloadMonitorComponent::OP_SET_ENABLE, 1.0f});
+    sender.send(CommandPacket{400u, PayloadMonitorComponent::OP_SET_GAIN, 2.0f});
+    sender.send(CommandPacket{400u, PayloadMonitorComponent::OP_CAPTURE_SAMPLE, 4.0f});
+    payload.step();
+
+    EXPECT_TRUE(payload.isEnabledForTest());
+    EXPECT_FLOAT_EQ(payload.gainForTest(), 2.0f);
+    EXPECT_FLOAT_EQ(payload.lastSampleForTest(), 8.0f);
+    EXPECT_EQ(payload.captureCountForTest(), 1u);
+
+    Serializer::ByteArray raw{};
+    ASSERT_TRUE(telemetry.tryConsume(raw));
+    const auto telem = Serializer::unpackTelem(raw);
+    EXPECT_EQ(telem.component_id, 400u);
+    EXPECT_FLOAT_EQ(telem.data_payload, 8.0f);
+
+    EventPacket evt{};
+    bool saw_enable = false;
+    bool saw_gain = false;
+    bool saw_capture = false;
+    while (events.tryConsume(evt)) {
+        const std::string_view msg{evt.message.data()};
+        saw_enable = saw_enable || (msg.find("Enabled") != std::string_view::npos);
+        saw_gain = saw_gain || (msg.find("Gain updated") != std::string_view::npos);
+        saw_capture = saw_capture || (msg.find("Sample captured") != std::string_view::npos);
+    }
+    EXPECT_TRUE(saw_enable);
+    EXPECT_TRUE(saw_gain);
+    EXPECT_TRUE(saw_capture);
+}
+
+TEST(PayloadMonitorComponent, InvalidGainIncreasesErrors) {
+    TimeService::initEpoch();
+    PayloadMonitorComponent payload{"PayloadMonitor", 400};
+    payload.init();
+
+    OutputPort<CommandPacket> sender{};
+    sender.connect(&payload.cmd_in);
+    sender.send(CommandPacket{400u, PayloadMonitorComponent::OP_SET_GAIN, 99.0f});
+    payload.step();
+
+    EXPECT_GT(payload.getErrorCount(), 0u);
 }
 
 // =============================================================================
@@ -1842,6 +1948,43 @@ TEST_F(CommandHubFixture, NullRouteRegistrationIsRejected) {
     EXPECT_GT(hub.getErrorCount(), before);
 }
 
+TEST_F(CommandHubFixture, ConflictingDuplicatePolicyRegistrationPreservesOriginalPolicy) {
+    InputPort<CommandPacket> target;
+    OutputPort<CommandPacket> route;
+    route.connect(&target);
+    hub.registerRoute(46, &route);
+    hub.registerCommandPolicy(46, 2, OpClass::HOUSEKEEPING);
+    const uint32_t before = hub.getErrorCount();
+    hub.registerCommandPolicy(46, 2, OpClass::OPERATIONAL);
+    EXPECT_GT(hub.getErrorCount(), before);
+
+    OutputPort<float> batt_src;
+    batt_src.connect(&wd.battery_level_in);
+    batt_src.send(4.0f);
+    wd.step();
+    ASSERT_EQ(wd.getMissionState(), MissionState::SAFE_MODE);
+
+    OutputPort<CommandPacket> sender;
+    sender.connect(&hub.cmd_input);
+    sender.send(CommandPacket{46, 2, 0.0f});
+    hub.step();
+    EXPECT_TRUE(target.hasNew());
+}
+
+TEST_F(CommandHubFixture, RouteTableSaturationIsRejected) {
+    std::array<InputPort<CommandPacket>, MAX_COMMAND_ROUTES + 1u> targets{};
+    std::array<OutputPort<CommandPacket>, MAX_COMMAND_ROUTES + 1u> routes{};
+    for (size_t i = 0; i < MAX_COMMAND_ROUTES; ++i) {
+        routes.at(i).connect(&targets.at(i));
+        hub.registerRoute(1000u + static_cast<uint32_t>(i), &routes.at(i));
+    }
+    const uint32_t before = hub.getErrorCount();
+    routes.back().connect(&targets.back());
+    hub.registerRoute(5000u, &routes.back());
+    EXPECT_EQ(hub.routeCount(), MAX_COMMAND_ROUTES);
+    EXPECT_GT(hub.getErrorCount(), before);
+}
+
 TEST(CommandHub, MissionStateSourceFlag) {
     CommandHub hub{"CmdHub", 11};
     EXPECT_FALSE(hub.hasMissionStateSource());
@@ -2057,6 +2200,40 @@ TEST(TelemetryBridge, SerialKissModeSelectedFromEnv) {
     EXPECT_EQ(bridge.getLinkMode(), TelemetryBridge::LinkMode::SERIAL_KISS);
 }
 
+TEST(TelemetryBridge, DefaultPortsCanBeOverriddenFromEnv) {
+    ScopedReplaySeqFile replay_path_env{};
+    ScopedEnvVar downlink_env(TelemetryBridge::DOWNLINK_PORT_ENV, "19143");
+    ScopedEnvVar uplink_env(TelemetryBridge::UPLINK_PORT_ENV, "19144");
+    TelemetryBridge bridge{"RadioLink", 20};
+    EXPECT_EQ(bridge.getDownlinkPort(), 19143u);
+    EXPECT_EQ(bridge.getUplinkPort(), 19144u);
+}
+
+TEST(TelemetryBridge, ExplicitPortsTakePrecedenceOverEnvOverrides) {
+    ScopedReplaySeqFile replay_path_env{};
+    ScopedEnvVar downlink_env(TelemetryBridge::DOWNLINK_PORT_ENV, "19145");
+    ScopedEnvVar uplink_env(TelemetryBridge::UPLINK_PORT_ENV, "19146");
+    TelemetryBridge bridge{"RadioLink", 20, 19147, 19148};
+    EXPECT_EQ(bridge.getDownlinkPort(), 19147u);
+    EXPECT_EQ(bridge.getUplinkPort(), 19148u);
+}
+
+TEST(TelemetryBridge, InvalidAllowIpEnvFallsBackWithoutBlockingLocalIngress) {
+    ScopedReplaySeqFile replay_path_env{};
+    ScopedEnvVar allow_ip_env(TelemetryBridge::UPLINK_ALLOW_IP_ENV, "not-an-ip");
+    TelemetryBridge bridge{"RadioLink", 20, 19129, 19130};
+    InputPort<CommandPacket, 8> sink{};
+    bridge.command_out.connect(&sink);
+    EXPECT_GT(bridge.getErrorCount(), 0u);
+
+    auto frame = buildUplinkFrame(899u, CommandPacket{200u, 1u, 0.0f});
+    EXPECT_TRUE(bridge.ingestUplinkFrameForTest(frame.data(), frame.size()));
+    CommandPacket cmd{};
+    ASSERT_TRUE(sink.tryConsume(cmd));
+    EXPECT_EQ(cmd.target_id, 200u);
+    EXPECT_EQ(cmd.opcode, 1u);
+}
+
 TEST(TelemetryBridge, KISSFrameDispatchesCommand) {
     ScopedReplaySeqFile replay_path_env{};
     TelemetryBridge bridge{"RadioLink", 20, 19133, 19134};
@@ -2084,6 +2261,68 @@ TEST(TelemetryBridge, RejectsNonDataKissFrames) {
     std::memcpy(kiss.data() + 1, ccsds.data(), ccsds.size());
     EXPECT_FALSE(bridge.ingestKissFrameForTest(kiss.data(), kiss.size()));
     EXPECT_EQ(bridge.getRejectedCount(), 1u);
+}
+
+TEST(TelemetryBridge, RawKissWireFrameDispatchesCommand) {
+    ScopedReplaySeqFile replay_path_env{};
+    TelemetryBridge bridge{"RadioLink", 20, 19137, 19138};
+    InputPort<CommandPacket, 16> sink{};
+    bridge.command_out.connect(&sink);
+
+    const auto frame = buildUplinkFrame(903u, CommandPacket{200u, 1u, 0.0f});
+    const auto wire = buildRawKissWireFrame(frame);
+    EXPECT_EQ(bridge.ingestSerialBytesForTest(wire.data(), wire.size()), 1u);
+
+    CommandPacket cmd{};
+    ASSERT_TRUE(sink.tryConsume(cmd));
+    EXPECT_EQ(cmd.target_id, 200u);
+    EXPECT_EQ(cmd.opcode, 1u);
+}
+
+TEST(TelemetryBridge, InvalidRawKissEscapeIsRejected) {
+    ScopedReplaySeqFile replay_path_env{};
+    TelemetryBridge bridge{"RadioLink", 20, 19139, 19140};
+
+    const std::array<uint8_t, 5> wire{{
+        TelemetryBridge::KISS_FEND,
+        TelemetryBridge::KISS_CMD_DATA,
+        TelemetryBridge::KISS_FESC,
+        0x01u,
+        TelemetryBridge::KISS_FEND,
+    }};
+    EXPECT_EQ(bridge.ingestSerialBytesForTest(wire.data(), wire.size()), 0u);
+    EXPECT_GT(bridge.getRejectedCount(), 0u);
+}
+
+TEST(TelemetryBridge, RawKissNoiseStillAllowsValidFrameProperty) {
+    ScopedReplaySeqFile replay_path_env{};
+    TelemetryBridge bridge{"RadioLink", 20, 19141, 19142};
+    InputPort<CommandPacket, 256> sink{};
+    bridge.command_out.connect(&sink);
+
+    std::mt19937 rng(0xC011D00Du);
+    std::uniform_int_distribution<int> noise_len_dist(1, 8);
+    std::uniform_int_distribution<int> byte_dist(0, 255);
+
+    for (uint16_t seq = 1000u; seq < 1064u; ++seq) {
+        const int noise_len = noise_len_dist(rng);
+        std::vector<uint8_t> noise(static_cast<size_t>(noise_len), 0u);
+        for (uint8_t& byte : noise) {
+            byte = static_cast<uint8_t>(byte_dist(rng));
+        }
+
+        const auto frame = buildUplinkFrame(seq, CommandPacket{200u, 1u, 0.0f});
+        auto wire = buildRawKissWireFrame(frame);
+        noise.insert(noise.end(), wire.begin(), wire.end());
+        (void)bridge.ingestSerialBytesForTest(noise.data(), noise.size());
+    }
+
+    size_t consumed = 0u;
+    CommandPacket cmd{};
+    while (sink.tryConsume(cmd)) {
+        ++consumed;
+    }
+    EXPECT_EQ(consumed, 64u);
 }
 
 TEST(HalMocks, SpiTransferEchoesTxBytes) {

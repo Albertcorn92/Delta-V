@@ -17,6 +17,13 @@ DELTA-V supports two transport profiles for the same CCSDS payloads:
 | Downlink (flight → ground) | 9001 | Telemetry and events |
 | Uplink (ground → flight) | 9002 | Commands |
 
+Default host/SITL UDP ports can be overridden for isolated local rehearsal:
+
+```bash
+export DELTAV_DOWNLINK_PORT=19001
+export DELTAV_UPLINK_PORT=19002
+```
+
 ### 2.2 Serial-KISS (radio-oriented integration)
 
 Enable with:
@@ -113,6 +120,8 @@ All command frames must match canonical command framing:
 - host/SITL UDP command ingest is disabled by default unless `DELTAV_ENABLE_UNAUTH_UPLINK=1`
 - host/SITL accepted source IP defaults to `127.0.0.1` and can be overridden with `DELTAV_UPLINK_ALLOW_IP`
 - Replay-state persistence path: `DELTAV_REPLAY_SEQ_FILE`.
+- Default SITL/local UDP ports can be overridden with `DELTAV_DOWNLINK_PORT`
+  and `DELTAV_UPLINK_PORT`.
 - Replay protection: sequence number must be strictly greater than the last accepted value (with wrap detection at `0xFF00`→`0x0100`)
 
 ---
@@ -140,6 +149,7 @@ Commands rejected by the FSM return a NACK event with message `FSM_BLOCKED: OPx 
 - IMU component entry (`ID 300`, `IMU_01`)
 - Star-tracker amplitude command (`SET_STAR_AMPLITUDE`, target `ID 100`, opcode `1`)
 - IMU recalibration command (`IMU_RECALIBRATE`, target `ID 300`, opcode `1`)
+- Reference payload profile commands (`PAYLOAD_SET_ENABLE`, `PAYLOAD_CAPTURE_SAMPLE`, `PAYLOAD_SET_GAIN`, target `ID 400`)
 - Civilian ops app commands (`SEQ_*`, `FILE_*`, `DWELL_*`, `TIME_*`, `PLAYBACK_*`, `OTA_*`, `ATS_*`, `LIM_*`, `CFDP_*`, `MODE_*`)
 
 To refresh dictionary and interface artifacts after topology updates:

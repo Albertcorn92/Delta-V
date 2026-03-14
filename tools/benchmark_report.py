@@ -95,6 +95,40 @@ def sample_process_stats_procfs(
     return cpu_pct, rss_mb, current_jiffies, now_s
 
 
+def sample_process_stats_ps(pid: int) -> tuple[float, float] | None:
+    cmd = ["ps", "-p", str(pid), "-o", "%cpu=", "-o", "rss="]
+    try:
+        result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    except (OSError, PermissionError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not lines:
+        return None
+
+    fields = lines[0].split()
+    if len(fields) < 2:
+        return None
+
+    try:
+        cpu_pct = max(0.0, float(fields[0]))
+        rss_kb = float(fields[1])
+    except ValueError:
+        return None
+
+    rss_mb = rss_kb / 1024.0
+    return cpu_pct, rss_mb
+
+
+def can_sample_process_stats_ps() -> bool:
+    ps_path = shutil.which("ps")
+    if ps_path is None:
+        return False
+    return sample_process_stats_ps(os.getpid()) is not None
+
+
 def scan_log_for_markers(
     log_path: Path,
     cursor: int,
@@ -141,9 +175,11 @@ def run_runtime_profile(
     ready_time = 0.0
     cpu_samples: list[float] = []
     rss_samples: list[float] = []
-    sampling_supported = Path("/proc").exists()
-    clock_ticks_per_sec = float(os.sysconf("SC_CLK_TCK")) if sampling_supported else 0.0
-    page_size_bytes = float(os.sysconf("SC_PAGE_SIZE")) if sampling_supported else 0.0
+    procfs_supported = Path("/proc").exists()
+    ps_supported = can_sample_process_stats_ps()
+    sampling_supported = procfs_supported or ps_supported
+    clock_ticks_per_sec = float(os.sysconf("SC_CLK_TCK")) if procfs_supported else 0.0
+    page_size_bytes = float(os.sysconf("SC_PAGE_SIZE")) if procfs_supported else 0.0
     prev_jiffies: int | None = None
     prev_sample_time_s: float | None = None
 
@@ -164,7 +200,7 @@ def run_runtime_profile(
                 ready_seen = True
                 ready_time = elapsed
 
-            if sampling_supported:
+            if procfs_supported:
                 sample = sample_process_stats_procfs(
                     proc.pid,
                     prev_jiffies,
@@ -174,6 +210,12 @@ def run_runtime_profile(
                 )
                 if sample is not None:
                     cpu_pct, rss_mb, prev_jiffies, prev_sample_time_s = sample
+                    cpu_samples.append(cpu_pct)
+                    rss_samples.append(rss_mb)
+            elif ps_supported:
+                sample = sample_process_stats_ps(proc.pid)
+                if sample is not None:
+                    cpu_pct, rss_mb = sample
                     cpu_samples.append(cpu_pct)
                     rss_samples.append(rss_mb)
 

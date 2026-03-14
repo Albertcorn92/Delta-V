@@ -1,53 +1,74 @@
 # Documentation Map
 
-This map keeps onboarding simple for first-time users and CubeSat teams.
+## Start Here
 
-## Start Here (First 30 Minutes)
+Read these in order for a first pass through the repository:
 
-1. `README.md` (repo root): install/build/run overview
-2. `docs/QUICKSTART_10_MIN.md`: one-command local validation
-3. `docs/DEVELOPER_GUIDE.md`: scaffold components + commands with `dv-util`
-4. `docs/ARCHITECTURE.md`: subsystem boundaries and data flow
+1. `README.md`
+2. `docs/ASSESS_DELTA_V.md`
+3. `docs/QUICKSTART_10_MIN.md`
+4. `docs/DEVELOPER_GUIDE.md`
+5. `docs/ARCHITECTURE.md`
 
 ## Daily Development
 
-- `docs/DEVELOPER_GUIDE.md`: component workflow, topology updates, test gates
-- `docs/MIGRATION_GUIDE.md`: release-to-release migration notes template
-- `docs/SOFTWARE_PORTABILITY_MATRIX.md`: host/SITL build profile validation matrix
-- `docs/ICD.md`: packet/interface contract
-- `docs/SAFETY_ASSURANCE.md`: requirements traceability + assurance gates
-- `docs/COVERAGE_POLICY.md`: coverage expectations and guard behavior
+- `docs/DEVELOPER_GUIDE.md`: component workflow, topology updates, and build targets
+- `docs/ICD.md`: packet and interface contract
+- `docs/SAFETY_ASSURANCE.md`: assurance gates and release checks
+- `docs/COVERAGE_POLICY.md`: coverage workflow and thresholds
+- `docs/SOFTWARE_PORTABILITY_MATRIX.md`: host/SITL portability results
+- `docs/MIGRATION_GUIDE.md`: release migration notes template
+- `docs/REFERENCE_MISSION_WALKTHROUGH.md`: end-to-end reference mission path through the repo
 
-## CubeSat Team Readiness
-
-- `docs/CUBESAT_TEAM_READINESS.md`: mission-team readiness checklist
-- `docs/TEAM_READY_MASTER_CHECKLIST.md`: end-to-end execution checklist for team handoff
-- `docs/CUBESAT_READINESS_STATUS_SCOPE.md`: current scoped readiness snapshot
-- Scoped readiness runs record excluded checks as `WAIVED` with explicit `--exclude-check` rationale in the evidence column
-- `docs/ESP32_GOLDEN_IMAGE_BOOTCHAIN.md`: OTA rollback + golden-image partition workflow
-- `docs/MISSION_ASSURANCE_CHECKLIST.md`: review/acceptance checklist
-- `docs/process/OPERATIONS_RUNBOOK.md`: operations runbook starter
-
-## Compliance and Scope
-
-- `docs/CIVILIAN_USE_POLICY.md`: allowed-use boundary
-- `docs/EXPORT_CONTROL_NOTE.md`: export-control scope note
-- `docs/LEGAL_FAQ.md`: plain-language legal scope answers
-- `docs/LEGAL_SCOPE_CHECKLIST.md`: maintainer release checklist
-- `docs/MAINTAINER_BOUNDARY_POLICY.md`: support and interaction boundaries
-
-## Evidence and Release Artifacts
+## Readiness and Evidence
 
 - `docs/SOFTWARE_FINAL_STATUS.md`: software closeout status
-- `docs/qualification_report.md`: qualification bundle summary
-- `docs/REQUIREMENTS_TRACE_MATRIX.md`: generated RTM snapshot
-- `docs/RELEASE_NOTES_20260308.md`: release notes snapshot
-- `docs/process/`: process records and release signoff templates
-- `docs/evidence/`: test/validation evidence records
+- `docs/CUBESAT_READINESS_STATUS.md`: consolidated readiness report
+- `docs/CUBESAT_READINESS_STATUS_SCOPE.md`: readiness report with excluded checks documented
+- `docs/qualification_report.md`: qualification summary
+- `docs/process/RELEASE_PREFLIGHT_CURRENT.md`: current release-prep status and blockers
+- `docs/REQUIREMENTS_TRACE_MATRIX.md`: requirements trace matrix
+- `docs/process/`: process records, signoff templates, and release artifacts
+- `docs/process/SOFTWARE_CLASSIFICATION_BASELINE.md`: reference classification baseline
+- `docs/process/NASA_REQUIREMENTS_APPLICABILITY_BASELINE.md`: internal NASA-style applicability and gap matrix
+- `docs/process/PSAC_DELTAV_BASELINE.md`, `SCMP_DELTAV_BASELINE.md`, `SQAP_DELTAV_BASELINE.md`, `SVVP_DELTAV_BASELINE.md`: instantiated process plans
+- `docs/process/SOFTWARE_SAFETY_PLAN_BASELINE.md`: software safety planning baseline
+- `docs/process/STATIC_ANALYSIS_DEVIATION_LOG.md`: current clang-tidy/static-analysis deviation record
+- `docs/process/TAILORING_AND_SCOPE_DEVIATIONS_BASELINE.md`: explicit public-baseline out-of-scope decisions
+- `docs/process/PUBLIC_SECURITY_POSTURE_BASELINE.md`: public no-crypto security posture and limits
+- `docs/process/REFERENCE_MISSION_PROFILE.md`: reference mission used for planning assumptions
+- `docs/process/REFERENCE_PAYLOAD_PROFILE.md`: concrete public payload profile for the reference mission
+- `docs/process/REFERENCE_MISSION_REQUIREMENTS_ALLOCATION.md`: reference mission applicability and ownership allocation
+- `docs/process/RISK_REGISTER_BASELINE.md`, `ASSUMPTIONS_LOG_BASELINE.md`: reference mission risk and assumption records
+- `docs/process/REFERENCE_MISSION_INTERFACE_CONTROL.md`: reference mission subsystem interface supplement
+- `docs/process/CONFIGURATION_AUDIT_BASELINE.md`: baseline functional/physical configuration audit record
+- `docs/process/PROBLEM_REPORT_AND_CORRECTIVE_ACTION_LOG.md`: baseline defect/corrective-action record
+- `docs/process/OPERATIONS_REHEARSAL_20260314.md`: current reference mission rehearsal record
+- `docs/process/SITL_LONG_SOAK_STATUS.md`: current archived long-duration SITL soak status
+- `docs/process/TOOL_GOVERNANCE_BASELINE.md`: build/generation/verification tool controls
+- `docs/evidence/`: test and validation records
+- `build/review_bundle/` or `build/review_bundle.zip`: curated reviewer package generated by `review_bundle`
 
-## Is This Overkill for GitHub?
+## ESP32 and Mission Bring-Up
 
-For student/open-source usage, the minimum practical set is:
+- `docs/ESP32_BRINGUP.md`
+- `docs/ESP32_SENSORLESS_BASELINE.md`
+- `docs/ESP32_GOLDEN_IMAGE_BOOTCHAIN.md`
+- `docs/CUBESAT_TEAM_READINESS.md`
+- `docs/TEAM_READY_MASTER_CHECKLIST.md`
+- `docs/process/OPERATIONS_RUNBOOK.md`
+
+## Legal and Scope
+
+- `docs/CIVILIAN_USE_POLICY.md`
+- `docs/EXPORT_CONTROL_NOTE.md`
+- `docs/LEGAL_FAQ.md`
+- `docs/LEGAL_SCOPE_CHECKLIST.md`
+- `docs/MAINTAINER_BOUNDARY_POLICY.md`
+
+## Minimal Set
+
+For basic repository use, the minimum document set is:
 
 1. `README.md`
 2. `docs/QUICKSTART_10_MIN.md`
@@ -55,6 +76,3 @@ For student/open-source usage, the minimum practical set is:
 4. `docs/ARCHITECTURE.md`
 5. `docs/CIVILIAN_USE_POLICY.md`
 6. `docs/EXPORT_CONTROL_NOTE.md`
-
-Everything else is mission-assurance and release evidence that improves team
-handoff, design review quality, and reproducibility.

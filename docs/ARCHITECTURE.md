@@ -4,9 +4,11 @@
 
 ## 1. Design Philosophy
 
-DELTA-V is a Component-Based Software Architecture (CBSA) targeting **DO-178C DAL-B** compliance. Its three foundational rules are:
+DELTA-V uses a component-based architecture with deterministic runtime behavior, generated topology wiring, and software assurance tooling. The codebase and documentation follow a DO-178C-influenced style, but the repository does not claim certification by itself.
 
-1. **Compile-time correctness over runtime validation.** Wiring errors, type mismatches, and capacity violations are compiler errors, not runtime crashes.
+Its three working rules are:
+
+1. **Catch structural errors early.** Type mismatches fail at compile time, and generated topology checks fail during startup instead of later in mission execution.
 2. **Deterministic runtime profile.** Core component graph and data paths are static; host builds can optionally enforce strict no-heap-after-init with `DELTAV_ENABLE_HOST_HEAP_GUARD=1`.
 3. **All faults are observable.** Every error path calls `recordError()`, feeds `EventHub`, and is surfaced to the GDS via the telemetry downlink.
 
@@ -66,7 +68,7 @@ ESP profiles. It runs deterministic tiers:
 - FAST: `10 Hz`
 - NORM: `1 Hz`
 - SLOW: `0.1 Hz`
-- ACTIVE: dedicated component threads
+- ACTIVE: dedicated component threads on host; cooperative execution on ESP32
 
 Tier frame drops are counted and surfaced as watchdog health signals.
 
@@ -75,7 +77,7 @@ Tier frame drops are counted and surfaced as watchdog health signals.
 | Class | Thread | Typical Use |
 |---|---|---|
 | `Component` | Master scheduler thread | Control loops, state logic, hubs |
-| `ActiveComponent` | Own `Os::Thread` | I/O-bound tasks (radio, future IMU DMA) |
+| `ActiveComponent` | Host: own `Os::Thread` / ESP32: cooperative loop | I/O-bound tasks (radio, future IMU DMA) |
 
 `Os::Thread` uses `sleep_until` (absolute deadline) — **not** `sleep_for` — so wakeup times never drift. On FreeRTOS this maps to `vTaskDelayUntil`.
 

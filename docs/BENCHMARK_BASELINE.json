@@ -1,14 +1,14 @@
 {
-  "generated_utc": "2026-03-10T07:29:09.517734+00:00",
+  "generated_utc": "2026-03-14T14:55:34.162693+00:00",
   "workspace": "DELTA-V Framework",
   "host": {
-    "platform": "macOS-26.2-arm64-arm-64bit",
-    "python": "3.12.12",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.3",
     "cmake": "cmake version 4.2.3"
   },
   "git": {
     "branch": "main",
-    "commit": "70d94a7c191e862fb830c894cd8ab7ac4395b426",
+    "commit": "6438f271174bdb96ae8dbd8a74385a403e7f5d24",
     "dirty_worktree": true
   },
   "benchmark_runs": 3,
@@ -18,23 +18,23 @@
       "frames": 20000,
       "accepted": 20000,
       "consumed": 20000,
-      "duration_s": 0.786959,
-      "throughput_cmd_per_s": 25414.283,
-      "latency_p50_us": 36.042,
-      "latency_p95_us": 53.292
+      "duration_s": 0.736181,
+      "throughput_cmd_per_s": 27167.232,
+      "latency_p50_us": 34.75,
+      "latency_p95_us": 45.833
     },
     "crc16": {
       "iterations": 300000,
       "bytes_per_iteration": 256,
-      "duration_s": 0.66199,
-      "throughput_mb_per_s": 116.014,
+      "duration_s": 0.643938,
+      "throughput_mb_per_s": 119.266,
       "accumulator": 0
     },
     "cobs_roundtrip": {
       "iterations": 300000,
       "bytes_per_iteration": 22,
-      "duration_s": 0.008037,
-      "throughput_mb_per_s": 821.172,
+      "duration_s": 0.007791,
+      "throughput_mb_per_s": 847.149,
       "accumulator": 38246416
     },
     "command_router": {
@@ -42,8 +42,8 @@
       "injected": 20000,
       "routed": 20000,
       "ack_events": 20000,
-      "duration_s": 0.002485,
-      "throughput_cmd_per_s": 8049368.386,
+      "duration_s": 0.002462,
+      "throughput_cmd_per_s": 8123889.312,
       "latency_p50_us": 0.084,
       "latency_p95_us": 0.125
     },
@@ -52,9 +52,9 @@
       "injected": 20000,
       "delivered_listener_a": 20000,
       "delivered_listener_b": 20000,
-      "duration_s": 0.001093,
-      "throughput_pkt_per_s": 18291283.198,
-      "latency_p50_us": 0.042,
+      "duration_s": 0.001046,
+      "throughput_pkt_per_s": 19116639.218,
+      "latency_p50_us": 0.041,
       "latency_p95_us": 0.042
     },
     "startup_runtime": {
@@ -80,42 +80,42 @@
     {
       "label": "Uplink throughput (cmd/s)",
       "key": "uplink.throughput_cmd_per_s",
-      "median": 25414.283,
-      "p95": 25414.283,
-      "min": 24883.53,
-      "max": 27122.588
+      "median": 27167.232,
+      "p95": 27167.232,
+      "min": 24811.16,
+      "max": 27556.905
     },
     {
       "label": "Uplink latency p95 (us)",
       "key": "uplink.latency_p95_us",
-      "median": 53.292,
-      "p95": 53.292,
-      "min": 44.875,
-      "max": 54.25
+      "median": 45.833,
+      "p95": 45.833,
+      "min": 42.5,
+      "max": 48.792
     },
     {
       "label": "CRC-16 throughput (MB/s)",
       "key": "crc16.throughput_mb_per_s",
-      "median": 116.014,
-      "p95": 116.014,
-      "min": 115.373,
-      "max": 117.306
+      "median": 119.266,
+      "p95": 119.266,
+      "min": 119.262,
+      "max": 119.438
     },
     {
       "label": "COBS roundtrip throughput (MB/s)",
       "key": "cobs_roundtrip.throughput_mb_per_s",
-      "median": 821.172,
-      "p95": 821.172,
-      "min": 735.649,
-      "max": 832.93
+      "median": 847.149,
+      "p95": 847.149,
+      "min": 847.095,
+      "max": 847.163
     },
     {
       "label": "Command router throughput (cmd/s)",
       "key": "command_router.throughput_cmd_per_s",
-      "median": 8049368.386,
-      "p95": 8049368.386,
-      "min": 7890713.616,
-      "max": 8173273.396
+      "median": 8123889.312,
+      "p95": 8123889.312,
+      "min": 7603958.469,
+      "max": 8191125.162
     },
     {
       "label": "Command router latency p95 (us)",
@@ -128,10 +128,10 @@
     {
       "label": "Telem fanout throughput (pkt/s)",
       "key": "telem_fanout.throughput_pkt_per_s",
-      "median": 18291283.198,
-      "p95": 18291283.198,
-      "min": 17176596.887,
-      "max": 19068049.1
+      "median": 19116639.218,
+      "p95": 19116639.218,
+      "min": 19102963.061,
+      "max": 19124261.803
     },
     {
       "label": "Telem fanout latency p95 (us)",

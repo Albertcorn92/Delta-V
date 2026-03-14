@@ -173,11 +173,18 @@ components:
     type: "Passive"
     rate_group: "fast"      # 10 Hz — HAL-injected (Esp32I2c or MockI2c)
 
+  - id: 400
+    name: "PayloadMonitor"
+    class: "PayloadMonitorComponent"
+    instance: "payload_monitor"
+    type: "Passive"
+    rate_group: "norm"      # 1 Hz — low-rate civilian tech-demo payload profile
+
 # ---------------------------------------------------------------------------
 # Commands
 #
 # op_class controls which mission states accept this command (MissionFsm.hpp):
-#   HOUSEKEEPING  — allowed in ALL states including SAFE_MODE and EMERGENCY
+#   HOUSEKEEPING  — allowed in BOOT, NOMINAL, DEGRADED, and SAFE_MODE
 #   OPERATIONAL   — blocked during SAFE_MODE and EMERGENCY
 #   RESTRICTED    — NOMINAL state only (propulsion, payload deployment, etc.)
 # ---------------------------------------------------------------------------
@@ -206,6 +213,24 @@ commands:
     opcode: 1
     op_class: "OPERATIONAL"
     description: "Triggers IMU self-calibration sequence. arg: unused (0.0)"
+
+  - name: "PAYLOAD_SET_ENABLE"
+    target_id: 400
+    opcode: 1
+    op_class: "OPERATIONAL"
+    description: "Enable or disable the reference payload profile. arg: >=0.5 enable, <0.5 disable"
+
+  - name: "PAYLOAD_CAPTURE_SAMPLE"
+    target_id: 400
+    opcode: 2
+    op_class: "RESTRICTED"
+    description: "Capture one bounded reference payload sample. arg: requested sample magnitude"
+
+  - name: "PAYLOAD_SET_GAIN"
+    target_id: 400
+    opcode: 3
+    op_class: "HOUSEKEEPING"
+    description: "Set bounded payload gain. arg: 0.1–10.0"
 
   # ── Sequencer controls (target_id 40) ──────────────────────────────────────
   - name: "SEQ_SET_TARGET"

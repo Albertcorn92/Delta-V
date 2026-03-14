@@ -6,6 +6,7 @@
 #include "Port.hpp"
 #include "Serializer.hpp"
 #include <array>
+#include <cstdio>
 #include <string_view>
 
 namespace deltav {
@@ -32,17 +33,35 @@ public:
     }
 
     auto connectInput(OutputPort<Serializer::ByteArray>& source) -> void {
-        if (input_count < MAX_TELEM_INPUTS) {
-            source.connect(&internal_inputs.at(input_count++));
+        if (input_count >= MAX_TELEM_INPUTS) {
+            recordError();
+            (void)std::fprintf(stderr,
+                "[TelemHub] WARN: exceeded MAX_TELEM_INPUTS (%zu)\n",
+                static_cast<size_t>(MAX_TELEM_INPUTS));
+            return;
         }
+        source.connect(&internal_inputs.at(input_count++));
     }
 
     auto registerListener(InputPort<Serializer::ByteArray>* dest) -> void {
-        if (listener_count < MAX_TELEM_LISTENERS) {
-            internal_outputs.at(listener_count).connect(dest);
-            ++listener_count;
+        if (dest == nullptr) {
+            recordError();
+            (void)std::fprintf(stderr, "[TelemHub] WARN: rejected null listener\n");
+            return;
         }
+        if (listener_count >= MAX_TELEM_LISTENERS) {
+            recordError();
+            (void)std::fprintf(stderr,
+                "[TelemHub] WARN: exceeded MAX_TELEM_LISTENERS (%zu)\n",
+                static_cast<size_t>(MAX_TELEM_LISTENERS));
+            return;
+        }
+        internal_outputs.at(listener_count).connect(dest);
+        ++listener_count;
     }
+
+    [[nodiscard]] auto getInputCount() const -> size_t { return input_count; }
+    [[nodiscard]] auto getListenerCount() const -> size_t { return listener_count; }
 
 private:
     std::array<InputPort<Serializer::ByteArray>, MAX_TELEM_INPUTS>     internal_inputs{};

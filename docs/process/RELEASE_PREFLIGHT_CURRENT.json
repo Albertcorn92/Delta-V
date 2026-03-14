@@ -1,0 +1,208 @@
+{
+  "generated_utc": "2026-03-14T22:44:47.975368+00:00",
+  "workspace": "DELTA-V Framework",
+  "status": "FAIL",
+  "git": {
+    "branch": "main",
+    "commit": "6438f271174bdb96ae8dbd8a74385a403e7f5d24",
+    "exact_tag": "untagged",
+    "dirty_worktree": true
+  },
+  "checks": [
+    {
+      "name": "Qualification bundle present",
+      "status": "PASS",
+      "evidence": "build/qualification/qualification_report.json"
+    },
+    {
+      "name": "Software-final docs synchronized",
+      "status": "PASS",
+      "evidence": "docs/SOFTWARE_FINAL_STATUS.md"
+    },
+    {
+      "name": "Worktree clean",
+      "status": "FAIL",
+      "evidence": "working tree has uncommitted or untracked changes"
+    },
+    {
+      "name": "Exact release tag present",
+      "status": "FAIL",
+      "evidence": "git describe --tags --exact-match returned no tag"
+    }
+  ],
+  "dirty_entries": [
+    {
+      "code": "M",
+      "path": "github/workflows/ci.yml"
+    },
+    {
+      "code": "M",
+      "path": "CMakeLists.txt"
+    },
+    {
+      "code": "M",
+      "path": "README.md"
+    },
+    {
+      "code": "M",
+      "path": "dictionary.json"
+    },
+    {
+      "code": "M",
+      "path": "docs/ARCHITECTURE.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/BENCHMARK_BASELINE.json"
+    },
+    {
+      "code": "M",
+      "path": "docs/BENCHMARK_BASELINE.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/COVERAGE_POLICY.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/CUBESAT_READINESS_STATUS.json"
+    },
+    {
+      "code": "M",
+      "path": "docs/CUBESAT_READINESS_STATUS.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/DEVELOPER_GUIDE.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/HIGH_ASSURANCE_ROADMAP.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/ICD.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/MISSION_ASSURANCE_CHECKLIST.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/QUICKSTART_10_MIN.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/README.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/RELEASE_POLICY.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/SAFETY_ASSURANCE.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/SITL_SOAK.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/SOFTWARE_FINAL_STATUS.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/process/CERTIFICATION_BASELINE.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/process/FLIGHT_ENV_TEST_MATRIX_20260307.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/qualification_report.json"
+    },
+    {
+      "code": "M",
+      "path": "docs/qualification_report.md"
+    },
+    {
+      "code": "M",
+      "path": "docs/safety_case/README.md"
+    }
+  ],
+  "dirty_entry_total": 75,
+  "release_blockers": [
+    "Worktree is dirty. Commit or intentionally set aside local changes before cutting a release tag.",
+    "Current commit does not have an exact release tag."
+  ],
+  "next_steps": [
+    "Review `git status --short`, then commit the intended release set on a clean worktree.",
+    "Create an annotated semantic-version tag on the exact release commit.",
+    "Rerun `cmake --build build --target release_preflight` after cleanup to confirm all blockers are closed."
+  ],
+  "toolchain": {
+    "build_type": "Debug",
+    "c_compiler": "/usr/bin/cc",
+    "cxx_compiler": "/usr/bin/c++"
+  },
+  "host": {
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.3",
+    "cmake": "cmake version 4.2.3"
+  },
+  "baseline_docs": [
+    "docs/process/SOFTWARE_CLASSIFICATION_BASELINE.md",
+    "docs/process/PSAC_DELTAV_BASELINE.md",
+    "docs/process/SCMP_DELTAV_BASELINE.md",
+    "docs/process/SQAP_DELTAV_BASELINE.md",
+    "docs/process/SVVP_DELTAV_BASELINE.md",
+    "docs/process/TOOL_GOVERNANCE_BASELINE.md",
+    "docs/process/REFERENCE_MISSION_PROFILE.md"
+  ],
+  "artifacts": [
+    {
+      "name": "Flight binary",
+      "path": "build/flight_software",
+      "digest256": "ee2cf707a70e072e743327654edfd69cadfac67c04a8fc5b1561f1f173001491",
+      "notes": "Primary SITL executable."
+    },
+    {
+      "name": "Test binary",
+      "path": "build/run_tests",
+      "digest256": "86edbe145c6bc7843ac75deecdab6a7db3909f13571c7d30c311f4ebbc54470a",
+      "notes": "Unit-test executable used by qualification."
+    },
+    {
+      "name": "Requirements matrix JSON",
+      "path": "build/requirements_trace_matrix.json",
+      "digest256": "b4e36530c5655172f3c0a0e8cc4c93bc87890ebff9e8e389a3b4a56242e6ccd5",
+      "notes": "Traceability source synchronized by software_final."
+    },
+    {
+      "name": "Requirements matrix Markdown",
+      "path": "build/requirements_trace_matrix.md",
+      "digest256": "8a2cf9a0f41421d2808cbfe95015202df7699086861bf1042fe91baec69e4da9",
+      "notes": "Reviewer-readable traceability view."
+    },
+    {
+      "name": "Qualification report JSON",
+      "path": "build/qualification/qualification_report.json",
+      "digest256": "807b87fd7c16f20cdab161634266418dce8e5f66fc74143c37b6f327b4403c44",
+      "notes": "Machine-readable qualification summary."
+    },
+    {
+      "name": "Qualification report Markdown",
+      "path": "build/qualification/qualification_report.md",
+      "digest256": "35a28701a6c874267663fc4bf13b5165fdfaee91e9882cb73850405ab5960942",
+      "notes": "Reviewer-readable qualification summary."
+    },
+    {
+      "name": "Software final status",
+      "path": "docs/SOFTWARE_FINAL_STATUS.md",
+      "digest256": "3dfffa0f13ab5b0b5ae1c6b485e8e9dfa017cd02ea488a3102fa8a75db7c7bd7",
+      "notes": "Synchronized software closeout result."
+    }
+  ]
+}

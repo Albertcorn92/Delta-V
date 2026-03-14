@@ -1,6 +1,6 @@
-# Verification Links (Baseline Record)
+# Verification Links (Reference Mission Baseline)
 
-Date: 2026-03-07
+Date: 2026-03-14
 
 | Link ID | Hazard ID | Mitigation ID | Evidence Type | Evidence Path | Result | Reviewer |
 |---|---|---|---|---|---|---|
@@ -14,6 +14,13 @@ Date: 2026-03-07
 | VL-008 | HZ-005 | MT-005 | Unit test | `tests/unit_tests.cpp` (`ParamDb.IntegrityAfterWrite`) | PASS | Maintainer |
 | VL-009 | HZ-001 | MT-001 | Qualification gate | `docs/qualification_report.md` | PASS | Maintainer |
 | VL-010 | HZ-003 | MT-003 | Software-final gate | `docs/SOFTWARE_FINAL_STATUS.md` | PASS | Maintainer |
+| VL-011 | HZ-001 | MT-001 | SITL fault campaign | `build/sitl/sitl_fault_campaign_result.json` | PASS | Maintainer |
+| VL-012 | HZ-002 | MT-002 | SITL fault campaign | `build/sitl/sitl_fault_campaign_result.json` | PASS | Maintainer |
+| VL-013 | HZ-001 | MT-001 | Operations rehearsal | `docs/process/OPERATIONS_REHEARSAL_20260314.md` | PASS | Maintainer |
+| VL-014 | HZ-002 | MT-002 | Operations rehearsal | `docs/process/OPERATIONS_REHEARSAL_20260314.md` | PASS | Maintainer |
+| VL-015 | HZ-006 | MT-006 | Unit test | `tests/unit_tests.cpp` (`PayloadMonitorComponent.CaptureRejectedWhenDisabled`) | PASS | Maintainer |
+| VL-016 | HZ-006 | MT-006 | Unit test | `tests/unit_tests.cpp` (`PayloadMonitorComponent.EnableGainAndCaptureSample`) | PASS | Maintainer |
+| VL-017 | HZ-006 | MT-006 | SITL fault campaign | `build/sitl/sitl_fault_campaign_result.json` | PASS | Maintainer |
 
 ## Maintenance Rules
 
