@@ -1,6 +1,6 @@
 # SITL Long Soak Status
 
-- Generated (UTC): `2026-03-14T14:55:08.027338+00:00`
+- Generated (UTC): `2026-03-14T22:52:43.971633+00:00`
 - Scope: host/SITL archival status for the public DELTA-V baseline
 - Rule: missing long-duration runs do not fail `software_final`, but they remain open review gaps until archived.
 

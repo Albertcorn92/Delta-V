@@ -1,12 +1,12 @@
 {
   "build_dir": "/Users/albertcornelius/DELTA-V Framework/build",
-  "generated_utc": "2026-03-14T14:55:08.027338+00:00",
+  "generated_utc": "2026-03-14T22:52:43.971633+00:00",
   "profiles": [
     {
-      "actual_duration_s": 601.051,
+      "actual_duration_s": 601.066,
       "duration_s": 600.0,
       "evidence": "build/sitl/sitl_soak_result.json, build/sitl/sitl_soak.log",
-      "generated_utc": "2026-03-14T14:45:06.857106+00:00",
+      "generated_utc": "2026-03-14T22:42:42.742419+00:00",
       "id": "default-gate",
       "label": "Default software_final soak gate",
       "reason": "archived run passed duration and marker checks",
