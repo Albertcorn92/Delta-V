@@ -1,12 +1,12 @@
 {
-  "generated_utc": "2026-03-14T23:00:54.288791+00:00",
+  "generated_utc": "2026-03-14T23:01:29.458497+00:00",
   "workspace": "DELTA-V Framework",
   "status": "FAIL",
   "git": {
     "branch": "main",
-    "commit": "1750d3d012fa616913692eb89713beb78939b52f",
+    "commit": "085703d1ae1190ca8cc7cf165ecdb9546e507cef",
     "exact_tag": "untagged",
-    "dirty_worktree": true
+    "dirty_worktree": false
   },
   "checks": [
     {
@@ -21,8 +21,8 @@
     },
     {
       "name": "Worktree clean",
-      "status": "FAIL",
-      "evidence": "working tree has uncommitted or untracked changes"
+      "status": "PASS",
+      "evidence": "git status --porcelain clean"
     },
     {
       "name": "Exact release tag present",
@@ -30,27 +30,13 @@
       "evidence": "git describe --tags --exact-match returned no tag"
     }
   ],
-  "dirty_entries": [
-    {
-      "code": "M",
-      "path": "ocs/SOFTWARE_FINAL_STATUS.md"
-    },
-    {
-      "code": "M",
-      "path": "docs/qualification_report.json"
-    },
-    {
-      "code": "M",
-      "path": "docs/qualification_report.md"
-    }
-  ],
-  "dirty_entry_total": 3,
+  "dirty_entries": [],
+  "dirty_entry_total": 0,
   "release_blockers": [
-    "Worktree is dirty. Commit or intentionally set aside local changes before cutting a release tag.",
     "Current commit does not have an exact release tag."
   ],
   "next_steps": [
-    "Review `git status --short`, then commit the intended release set on a clean worktree.",
+    "Worktree is clean.",
     "Create an annotated semantic-version tag on the exact release commit.",
     "Rerun `cmake --build build --target release_preflight` after cleanup to confirm all blockers are closed."
   ],
