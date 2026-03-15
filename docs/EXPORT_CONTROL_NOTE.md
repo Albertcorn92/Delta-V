@@ -1,42 +1,51 @@
-# Export Control Note (Not Legal Advice)
+# Export Control Note
 
 Date: 2026-03-07
 
-This repository is published as open-source software for civilian development
-and research use. Export-control treatment still depends on mission context,
-payload, customer, destination, and operational use.
+This repository is published as public open-source software for civilian
+development, research, and learning. That helps keep the baseline in a simpler
+compliance posture, but it does not answer every export-control question by
+itself.
 
-## Important
+## What This Note Means
 
-- This document is informational only and is **not legal advice**.
-- This repository alone cannot provide legal clearance or eliminate legal liability.
-- Final ITAR/EAR determination must be made by qualified export counsel.
-- Publishing this repo does not create a blanket ITAR/EAR exemption for every use.
+- This note is general guidance only. It is **not legal advice**.
+- A public GitHub repository does not provide automatic legal clearance for
+  every reuse, deployment, or support activity.
+- Final ITAR/EAR classification decisions belong with qualified export counsel.
+- End user, destination, sanctions, and mission context still matter.
 
-## Practical Guidance
+## Practical Reading Of The Repo
 
-- Publicly available source-code treatment under U.S. rules is often relevant
-  for open-source distribution.
-- The baseline repository profile intentionally avoids command-path
-  cryptographic features to reduce export-compliance complexity.
-- Public repository access is global by default; maintainers who need stricter
-  access control should use private repositories.
-- This project maintainer uses a no-direct-non-U.S.-operational-support policy
-  documented in `docs/MAINTAINER_BOUNDARY_POLICY.md`.
-- For typical public open-source publication of this civilian baseline, users
-  often do not perform special filings solely to publish code; deployment and
-  export operations can still require formal review.
-- ITAR applicability depends on whether software/technical data is specifically
-  controlled as a defense article/technical data for USML use.
-- Sanctions obligations (for end user, destination, and prohibited parties)
-  remain applicable to deployment and support activities.
+- The repository is meant to stay in a civilian, public-source lane.
+- The baseline intentionally avoids command-path crypto/auth features.
+- Public publication is different from private deployment or direct operational
+  support.
+- If the repository is reused in a real program, that program owns the final
+  export and sanctions review.
 
-Plain-language Q&A: see `docs/LEGAL_FAQ.md`.
+## What Usually Changes The Risk
 
-## Suggested Pre-Release Controls
+Risk goes up when a project moves away from the public baseline and into one of
+these areas:
 
-1. Keep the project scoped to civilian, non-weaponized use.
-2. Keep command-path cryptography/encryption features out of the baseline.
-3. Obtain an export-classification memo from counsel before production release.
-4. Prohibit committed production secrets in CI policy.
-5. Maintain destination/end-user screening in deployment operations.
+- military or weapons-related use
+- private distribution or customer-specific delivery
+- operational support tied to a real mission
+- controlled third-party technical data
+- features that change the export classification
+
+## Good Default Rules
+
+1. Keep the repository civilian and non-weaponized.
+2. Keep command-path crypto/auth out of the public baseline.
+3. Do not commit controlled third-party data or private defense material.
+4. Use a private repository if access needs to be limited.
+5. Get legal review before production deployment, private transfer, or export
+   support work.
+
+## Related Documents
+
+- `docs/LEGAL_FAQ.md`
+- `docs/LEGAL_SCOPE_CHECKLIST.md`
+- `docs/MAINTAINER_BOUNDARY_POLICY.md`

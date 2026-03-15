@@ -1,12 +1,12 @@
-# DELTA-V NASA-Style Requirements Applicability Baseline
+# DELTA-V External Assurance Applicability Baseline
 
 Date: 2026-03-14
 Scope: internal planning baseline for public DELTA-V review
 
-This matrix records how the public DELTA-V baseline maps to selected NASA-style
-software and assurance expectations. It is an internal applicability record for
-review and gap analysis. It is not an official NASA tailoring decision and it
-does not claim compliance approval.
+This matrix records how the public DELTA-V baseline maps to a stricter external
+software-assurance benchmark. It is an internal applicability record for review
+and gap analysis. It is not an external authority decision and it does not
+claim compliance approval.
 
 ## Applicability Summary
 
@@ -31,6 +31,6 @@ does not claim compliance approval.
 
 ## What This Matrix Does Not Do
 
-- it does not assign an official NASA software class
+- it does not assign an official external program classification
 - it does not tailor requirements on behalf of a real program authority
 - it does not convert public repository evidence into flight approval

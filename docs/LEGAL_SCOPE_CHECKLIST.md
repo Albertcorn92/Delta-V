@@ -1,41 +1,45 @@
-# Legal Scope Checklist (Civilian Baseline)
+# Legal Scope Checklist
 
 Date: 2026-03-07
 
 Use this checklist before pushing or releasing DELTA-V.
 
-## 1. Required Local Checks
+## Required Checks
 
 ```bash
 python3 tools/legal_compliance_check.py
 cmake --build build --target software_final
 ```
 
-Both commands must pass.
-Read `docs/LEGAL_FAQ.md` before public release if scope boundaries are unclear.
+Both commands should pass. If the project boundary is unclear, read
+`docs/LEGAL_FAQ.md` before releasing.
 
-## 2. Civilian Scope Boundaries
+## Confirm The Repository Still Matches Its Scope
 
-- No military, weapons, targeting, fire-control, munition, missile, or combat behavior.
-- No command-path cryptography/encryption additions in the baseline framework.
-- No controlled third-party technical data or private export-controlled documents.
+- no military, weapons, targeting, fire-control, munition, missile, or combat
+  behavior
+- no command-path crypto/auth additions in the public baseline
+- no controlled third-party technical data
+- no private export-controlled documents committed to the repo
 
-## 3. Claims You Must Not Make
+## Do Not Claim More Than The Repo Actually Provides
 
-- Do not claim blanket legality, no-responsibility status, or blanket export-control exemption.
-- Do not claim this repo gives legal clearance by itself.
-- Do not claim blanket ITAR/EAR exemption status for all users or all deployments.
+- do not claim blanket legality
+- do not claim this repo provides legal clearance by itself
+- do not claim blanket ITAR/EAR exemption for every user or deployment
 
-## 4. Remaining User Responsibility
+## Keep The Remaining Responsibilities Clear
 
-- Deployment/export decisions still require end-user, destination, and sanctions checks.
-- Final ITAR/EAR determination for production use must be made by qualified counsel.
+- deployment and export decisions still require end-user, destination, and
+  sanctions checks
+- production or operational use may still require qualified legal review
 
-## 5. Maintainer Boundary (Public Repo Mode)
+## Maintainer Boundary
 
-- Maintainer does not provide direct operational support to non-U.S. users.
-- Maintainer may decline requests for deployment/export consulting.
-- Maintainer keeps mission/customer-specific records and hardware evidence logs private.
-- Maintainer follows `docs/MAINTAINER_BOUNDARY_POLICY.md`.
+- the maintainer does not provide direct operational support to non-U.S. users
+- the maintainer may decline deployment or export consulting requests
+- mission-specific records and hardware evidence stay outside the public repo
 
-This checklist is process guidance and not legal advice.
+See `docs/MAINTAINER_BOUNDARY_POLICY.md`.
+
+This checklist is project guidance only. It is not legal advice.

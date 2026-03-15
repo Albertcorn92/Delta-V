@@ -40,7 +40,10 @@ MILITARY_PATTERNS = [
     re.compile(r"\bcombat\b", re.IGNORECASE),
 ]
 
-ENDORSEMENT_PATTERN = re.compile(r"\bnasa[- ]grade\b", re.IGNORECASE)
+MISLEADING_AFFILIATION_PATTERNS = [
+    re.compile(r"\bgovernment[- ]grade\b", re.IGNORECASE),
+    re.compile(r"\bagency[- ]endorsed\b", re.IGNORECASE),
+]
 
 CRYPTO_PATTERNS = [
     re.compile(r"\bcryptography\b", re.IGNORECASE),
@@ -340,7 +343,9 @@ def main() -> int:
         if root.exists():
             text_paths.extend(iter_files(root, TEXT_SCAN_SUFFIXES))
 
-    endorsement_violations = scan_for_patterns(text_paths, [ENDORSEMENT_PATTERN])
+    endorsement_violations = scan_for_patterns(
+        text_paths, MISLEADING_AFFILIATION_PATTERNS
+    )
 
     claim_violations = scan_for_patterns(text_paths, PROHIBITED_CLAIM_PATTERNS)
 

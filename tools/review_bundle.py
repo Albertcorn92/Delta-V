@@ -169,8 +169,8 @@ def main() -> int:
                     Path("docs/process/SOFTWARE_CLASSIFICATION_BASELINE.md"),
                 ),
                 (
-                    workspace / "docs" / "process" / "NASA_REQUIREMENTS_APPLICABILITY_BASELINE.md",
-                    Path("docs/process/NASA_REQUIREMENTS_APPLICABILITY_BASELINE.md"),
+                    workspace / "docs" / "process" / "EXTERNAL_ASSURANCE_APPLICABILITY_BASELINE.md",
+                    Path("docs/process/EXTERNAL_ASSURANCE_APPLICABILITY_BASELINE.md"),
                 ),
                 (
                     workspace / "docs" / "process" / "PSAC_DELTAV_BASELINE.md",

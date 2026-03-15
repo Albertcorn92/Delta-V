@@ -3,61 +3,57 @@
 Date: 2026-03-14
 Scope: public DELTA-V framework baseline
 
-This document records the security posture of the public DELTA-V repository.
-It exists to make the public baseline explicit and reviewable. It is not an
-operational security accreditation.
+This record defines the security posture of the public DELTA-V repository. It
+describes what the public baseline does, what it does not do, and where the
+boundary moves to the adopting mission.
 
-## 1. Baseline Security Scope
-
-The public baseline includes:
+## Included In The Public Baseline
 
 - CCSDS header validation
 - frame-length and parser checks
 - anti-replay sequence checks
 - mission-state command gating
-- local-only SITL unauthenticated uplink controls through environment settings
+- local-only SITL uplink controls through environment settings
 
-The public baseline intentionally excludes:
+## Not Included In The Public Baseline
 
 - command-path encryption
 - cryptographic authentication
 - key management
 - protected uplink operations over exposed live links
 
-## 2. Threat Assumptions
+## Assumptions
 
-- the repository is public and should be evaluated as public source code
-- default host/SITL operation is local and controlled
-- exposed operational uplinks require mission-owned security controls outside
-  this repository
-- mission-specific payload abuse cases and mission networks are outside the
+- the repository is public source code
+- the default host/SITL setup is local and controlled
+- any exposed operational uplink requires mission-owned security controls
+- mission-specific payload abuse cases and network controls are outside the
   reference payload baseline
 
-## 3. Current Technical Controls
+## Current Technical Controls
 
 - invalid CCSDS/APID/length traffic is rejected before dispatch
 - replayed command sequence numbers are rejected
 - accepted sequence state can be persisted through `DELTAV_REPLAY_SEQ_FILE`
 - local-only SITL ingest can be restricted to `127.0.0.1`
-- safety and qualification gates exercise malformed/replay traffic in
-  `sitl_fault_campaign`
+- malformed and replay traffic is exercised in `sitl_fault_campaign`
 
-## 4. Public-Baseline Rules
+## Rules For The Public Repo
 
-- keep the repository civilian/scientific/educational only
+- keep the repository civilian, scientific, and educational in scope
 - do not add weapons, targeting, or military mission logic
-- do not add command-path crypto/auth to the baseline
-- do not describe the public baseline as an operationally secure uplink stack
+- do not add command-path crypto/auth to the public baseline
+- do not describe the repo as a complete operational uplink security stack
 - keep deployment screening and maintainer-boundary records current
 
-## 5. Known Limits
+## Known Limits
 
-- the public baseline is not suitable as-is for exposed operational uplinks
+- the public baseline is not enough for exposed operational uplinks
 - mission-specific RF security controls remain mission-owned
-- ground-segment identity, approval workflow, and secret handling are outside
-  the current repository baseline
+- ground identity, approval workflow, and secret handling are outside the
+  current public baseline
 
-## 6. Review Artifacts
+## Related Records
 
 - `docs/process/RISK_REGISTER_BASELINE.md`
 - `docs/process/REFERENCE_MISSION_REQUIREMENTS_ALLOCATION.md`

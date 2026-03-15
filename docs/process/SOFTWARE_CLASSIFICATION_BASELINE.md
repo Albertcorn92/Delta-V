@@ -3,10 +3,10 @@
 Date: 2026-03-14
 Scope: public DELTA-V framework baseline
 
-This document is the repository's internal planning baseline for NASA-style
-software classification work. It is not an official NASA project classification
-and does not replace mission-level classification by project technical
-authority.
+This document is the repository's internal planning baseline for software
+classification work under a stricter external assurance model. It is not an
+official program classification and does not replace mission-level
+classification by project technical authority.
 
 ## Reference Mission Assumptions
 
@@ -40,7 +40,8 @@ authority.
 
 ## Explicit Non-Claims
 
-- No official NASA software class is claimed by this repository alone.
+- No official external program software class is claimed by this repository
+  alone.
 - No certification, flight acceptance, or mission authority approval is implied.
 - Hardware qualification, environmental testing, and launch-provider acceptance
   remain outside this document.

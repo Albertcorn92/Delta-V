@@ -1,45 +1,41 @@
 # How To Assess DELTA-V
 
-This document is for reviewers, recruiters, and adopters who want to judge the
-repository quickly without reading the entire process package first.
+Use this guide to review the repository without reading every process file first.
 
-## What This Repository Is
+## What The Repository Contains
 
-DELTA-V is a C++20 flight-software framework with:
+DELTA-V includes:
 
-- a host/SITL runtime,
-- an ESP32 port,
-- topology-driven code generation,
-- a ground-data workflow,
-- and an in-repo assurance package.
+- a host/SITL runtime
+- an ESP32 port
+- topology-driven code generation
+- a Streamlit ground-data workflow
+- tests, release tooling, and process records in the same repository
 
-It is a serious software framework. It is not a complete flight program.
+## What The Repository Proves
 
-## What The Repository Already Proves
+The repository provides evidence for:
 
-- The runtime architecture is coherent and implemented, not just described.
-- The generated topology flow is part of the enforced build path.
-- Requirements traceability exists and closes at `37/37`.
-- Unit, system, stress, static-analysis, benchmark, soak, and live SITL fault
-  checks are part of the normal software closeout path.
-- The process package is now mission-shaped around one reference mission rather
-  than being only generic templates.
-- Civilian/legal scope is explicit and enforced in the repo.
+- implemented runtime architecture
+- enforced generated-file freshness
+- requirements traceability
+- unit and system testing
+- stress, benchmark, and SITL validation
+- a controlled public release process
 
-## What The Repository Does Not Claim
+## What The Repository Does Not Prove
 
-- It does not claim NASA flight readiness.
-- It does not claim hardware qualification.
-- It does not claim sensor-attached HIL closure.
-- It does not claim independent program authority.
-- It does not ship command-path crypto/auth in the public baseline.
+The repository does not claim:
 
-If someone reads this repo as “ready to fly a spacecraft by itself,” that is a
-misread.
+- hardware qualification
+- sensor-attached HIL completion
+- independent mission authority
+- standalone flight readiness
+- protected uplink security features in the public baseline
 
-## Fast Review Path
+## Short Review Path
 
-If you only have 10-15 minutes, open these files in order:
+For a 10-15 minute review, read:
 
 1. `README.md`
 2. `docs/ARCHITECTURE.md`
@@ -47,17 +43,9 @@ If you only have 10-15 minutes, open these files in order:
 4. `docs/CUBESAT_READINESS_STATUS.md`
 5. `docs/qualification_report.md`
 
-That path tells you:
+## Code Review Path
 
-- what the framework is,
-- how it is structured,
-- what passed,
-- what did not pass,
-- and what remains outside software scope.
-
-## Technical Review Path
-
-If you want to assess engineering quality, review these next:
+For the implementation details, read:
 
 1. `topology.yaml`
 2. `tools/autocoder.py`
@@ -67,21 +55,12 @@ If you want to assess engineering quality, review these next:
 6. `tests/unit_tests.cpp`
 7. `CMakeLists.txt`
 
-This path shows:
+## Process Review Path
 
-- the source of truth,
-- how generation is controlled,
-- how the command path is validated,
-- how FDIR is implemented,
-- how tests are written,
-- and what the build actually enforces.
-
-## Assurance Review Path
-
-If you want to judge process maturity, review these:
+For the assurance and release side, read:
 
 1. `docs/process/SOFTWARE_CLASSIFICATION_BASELINE.md`
-2. `docs/process/NASA_REQUIREMENTS_APPLICABILITY_BASELINE.md`
+2. `docs/process/EXTERNAL_ASSURANCE_APPLICABILITY_BASELINE.md`
 3. `docs/process/PSAC_DELTAV_BASELINE.md`
 4. `docs/process/SOFTWARE_SAFETY_PLAN_BASELINE.md`
 5. `docs/process/STATIC_ANALYSIS_DEVIATION_LOG.md`
@@ -94,37 +73,33 @@ If you want to judge process maturity, review these:
 12. `docs/process/PUBLIC_SECURITY_POSTURE_BASELINE.md`
 13. `docs/safety_case/`
 
-This is where the repo stops looking like “just code” and starts looking like a
-governed software baseline.
+## Strongest Signals
 
-## Best Signal For A Reviewer
+The clearest indicators in the repository are:
 
-The strongest signals in this repository are:
+- generated-file checks are enforced
+- runtime and dictionary generation share one source of truth
+- requirements map to tests
+- release and reviewer bundles are generated from current artifacts
+- scope limits are documented explicitly
 
-- enforced generated-file freshness,
-- real traceability,
-- live malformed/replay fault exercise in SITL,
-- consistent documentation about what is still missing,
-- and a clean separation between framework closure and flight-program closure.
+## Main Remaining Gaps
 
-## Remaining Gaps
+The main gaps are outside repository-only closure:
 
-The highest-value missing items are not Mac-only documentation issues anymore.
-They are:
+- sensor-attached HIL
+- target-hardware timing and margin evidence
+- environmental qualification
+- independent review authority
+- mission-specific security and operational approval
 
-- sensor-attached HIL,
-- target-hardware timing and margin evidence,
-- environmental qualification,
-- independent verification authority,
-- and a clean tagged release pedigree for an external release unit.
-
-## One Command For Reviewers
-
-Run:
+## Review Bundle
 
 ```bash
 cmake --build build --target review_bundle
 ```
 
-That stages a curated reviewer bundle in `build/review_bundle/` and writes
-`build/review_bundle.zip`.
+Output:
+
+- `build/review_bundle/`
+- `build/review_bundle.zip`

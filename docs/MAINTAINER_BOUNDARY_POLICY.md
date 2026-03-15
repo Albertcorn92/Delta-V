@@ -1,36 +1,42 @@
-# Maintainer Boundary Policy (Public Repo Mode)
+# Maintainer Boundary Policy
 
 Date: 2026-03-07
 
-## Purpose
+This document defines what the DELTA-V maintainer does and does not provide in
+public-repository mode.
 
-This document defines maintainer limits for DELTA-V public-repo operation.
-It is designed to keep this project in a low-risk civilian open-source lane.
+## What The Maintainer Provides
 
-## Maintainer Commitments
+- public source code
+- public documentation
+- public issue and pull-request discussion about framework behavior,
+  correctness, and documentation
 
-- The maintainer provides public source code and documentation only.
-- The maintainer does not provide direct operational support to non-U.S. users.
-- The maintainer does not provide military, weaponization, targeting, or
-  fire-control guidance to any user.
-- The maintainer does not provide legal advice, export classification services,
-  or sanctions determinations.
-- The maintainer does not provide private controlled technical data outside the
-  public repository baseline.
+## What The Maintainer Does Not Provide
 
-## Scope of Interaction
+- direct operational support to non-U.S. users
+- military, weaponization, targeting, or fire-control guidance
+- legal advice
+- export-classification or sanctions determinations
+- private controlled technical data outside the public repository
 
-- Public issue/PR discussion is limited to framework code quality, correctness,
-  and documentation quality.
-- Requests for deployment consulting, export workflow consulting, mission
-  operations support, or regulated-use approval may be declined.
-- Users are responsible for their own export, sanctions, and local-law
-  compliance decisions.
+## Interaction Boundary
 
-## Practical Defaults
+Requests may be declined if they are really asking for:
 
-- Keep the repository civilian-only and non-weaponized.
-- Keep command-path cryptography out of baseline.
-- Keep mission/customer-specific records and hardware evidence logs private.
+- deployment consulting
+- export workflow consulting
+- mission-operations support
+- approval for regulated use
 
-This policy is process guidance and not legal advice.
+Users remain responsible for their own export, sanctions, and local-law
+compliance decisions.
+
+## Default Project Posture
+
+- keep the repository civilian and non-weaponized
+- keep command-path crypto/auth out of the public baseline
+- keep mission-specific records, private customer material, and hardware
+  evidence outside the public repo
+
+This policy is project guidance only. It is not legal advice.

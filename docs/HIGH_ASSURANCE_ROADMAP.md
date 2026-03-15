@@ -13,7 +13,7 @@ Date: 2026-03-08
 - Civilian legal scope checks pass (`tools/legal_compliance_check.py`).
 - Reference mission allocation, risk, assumptions, interface, audit, and
   operations rehearsal records are current in `docs/process/`.
-- NASA-style applicability, software safety, and public security posture
+- External-assurance applicability, software safety, and public security posture
   baselines are current in `docs/process/`.
 - ESP32 runtime guard and reboot campaign evidence are current:
   - `artifacts/esp32_runtime_guard_20260308T060432Z.json`

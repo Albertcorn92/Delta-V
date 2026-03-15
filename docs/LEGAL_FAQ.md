@@ -1,54 +1,57 @@
-# Legal FAQ (Civilian Open-Source Baseline)
+# Legal FAQ
 
 Date: 2026-03-07
 
-This FAQ is process guidance only and is **not legal advice**.
+This FAQ is general process guidance only. It is **not legal advice**.
 
-## 1) Public publication on GitHub
+## Is it okay to publish this repo on GitHub?
 
-For this baseline repository, public publication is generally aligned with its
-civilian open-source scope, provided restricted third-party technical data,
-private defense data, and prohibited content are not included.
+That is the intended use for the public DELTA-V baseline, as long as the repo
+stays civilian, public, and free of restricted third-party material.
 
-## 2) Filing/notification expectations for baseline publication
+## Does public GitHub publication solve export-control questions by itself?
 
-For normal public open-source publication of this civilian baseline, most users
-do not perform special filings just to push code.
-Production/export operations are different and may require formal review.
+No. Public publication helps define the baseline, but it does not answer every
+question about export controls, sanctions, destinations, or mission use.
 
-## 3) Low-risk civilian-scope operating practices
+## Do I usually need to file something just to publish the baseline repo?
 
-1. Keep the repo civilian/non-weaponized.
-2. Do not add command-path cryptography/encryption to the baseline.
-3. Do not add controlled technical data or private defense documentation.
+For normal public open-source publication of this baseline, most people do not
+file special paperwork just to push code. That changes once the work turns into
+private delivery, operational support, or production deployment.
+
+## What keeps the repo in the lowest-risk posture?
+
+1. Keep it civilian and non-weaponized.
+2. Do not add command-path crypto/auth to the public baseline.
+3. Do not add controlled third-party technical data.
 4. Run `python3 tools/legal_compliance_check.py` before release.
 5. Run `cmake --build build --target software_final` before release.
 
-## 4) Changes that increase ITAR/EAR or sanctions risk
+## What kinds of changes increase the risk?
 
-- Adding military/weapon targeting behavior.
-- Importing or distributing controlled third-party technical data.
-- Adding command-path crypto/security protocol implementation to baseline.
-- Supporting restricted destinations/end-users without screening.
+- military, weapons, targeting, or fire-control behavior
+- private or restricted technical data
+- security features that change classification
+- support for restricted destinations or end users without screening
 
-## 5) Limits of legal liability guarantees
+## Does this repo protect anyone from legal liability?
 
-No. No software repository can provide blanket legal immunity.
-Users and deployers are responsible for export, sanctions, and local-law
-compliance in their own mission and business context.
+No. The repository can narrow project scope, but it does not give blanket legal
+protection. Anyone deploying or distributing the software is responsible for
+their own compliance decisions.
 
-## 6) When qualified export counsel is recommended
+## When is export counsel a good idea?
 
-- Before commercial/production deployments.
-- Before international customer support or distribution.
-- If features are added that may affect export classification.
-- If destination/end-user restrictions are uncertain.
+- before a commercial or production deployment
+- before private international distribution or support
+- before adding features that may change classification
+- when destination or end-user restrictions are not clear
 
-## 7) Maintainer support boundary for this public repo
+## What support does the maintainer provide?
 
-- Framework code and docs are published publicly for civilian use.
-- The maintainer does not provide direct operational support to non-U.S. users.
-- Requests for deployment/export consulting may be declined.
-- Users remain responsible for their own compliance decisions.
+The public repo provides source code and documentation. The maintainer may
+decline requests for deployment consulting, export consulting, or direct
+operational support.
 
-See `docs/MAINTAINER_BOUNDARY_POLICY.md`.
+See `docs/MAINTAINER_BOUNDARY_POLICY.md` for the maintainer boundary.

@@ -129,7 +129,7 @@ def validate_process_evidence_baseline(workspace: Path) -> None:
     required_static = [
         workspace / "docs" / "process" / "DEPLOYMENT_SCREENING_PROCEDURE.md",
         workspace / "docs" / "process" / "SOFTWARE_CLASSIFICATION_BASELINE.md",
-        workspace / "docs" / "process" / "NASA_REQUIREMENTS_APPLICABILITY_BASELINE.md",
+        workspace / "docs" / "process" / "EXTERNAL_ASSURANCE_APPLICABILITY_BASELINE.md",
         workspace / "docs" / "process" / "PSAC_DELTAV_BASELINE.md",
         workspace / "docs" / "process" / "SCMP_DELTAV_BASELINE.md",
         workspace / "docs" / "process" / "SQAP_DELTAV_BASELINE.md",

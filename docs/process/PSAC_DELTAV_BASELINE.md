@@ -19,8 +19,7 @@ their own authority, hardware, and hazard classifications.
 
 - C++20 project baseline
 - CCSDS packet framing as implemented in `TelemetryBridge`
-- NASA-style software lifecycle planning reference:
-  `NPR 7150.2`, `NASA-STD-8739.8`, and the NASA Systems Engineering Handbook
+- Internal high-assurance planning reference set maintained in `docs/process/`
 - Internal project constraints:
   civilian-only scope, no command-path encryption, public-source publication
 

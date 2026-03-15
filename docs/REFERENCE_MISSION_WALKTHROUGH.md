@@ -1,50 +1,56 @@
 # Reference Mission Walkthrough
 
-This walkthrough shows the shortest complete path through DELTA-V using the
-reference civilian 3U CubeSat mission baseline.
+The reference mission is a civilian 3U CubeSat profile used to show how the
+main DELTA-V runtime, process, and safety records fit together.
 
-## 1. Source Of Truth
+## Purpose
 
-Start with `topology.yaml`.
+Use this page after reading:
 
-That file defines:
+- `README.md`
+- `docs/QUICKSTART_10_MIN.md`
+- `docs/DEVELOPER_GUIDE.md`
 
-- components,
-- IDs,
-- commands,
-- telemetry routes,
-- event routes,
-- and mission-state command classes.
+Use this page to move from topology to a running host build and then into the
+reference mission records.
 
-The repository does not treat topology as a comment or design note. It is a
-build input.
+## 1. Start With `topology.yaml`
 
-## 2. Generation
+`topology.yaml` is the source of truth for the generated runtime description.
+It defines:
 
-Run:
+- components
+- numeric IDs
+- commands
+- telemetry routes
+- event routes
+- mission-state command classes
+
+When the topology changes, regenerate the derived files before building.
+
+## 2. Regenerate Derived Files
 
 ```bash
 python3 tools/autocoder.py
 ```
 
-That regenerates:
+This updates:
 
 - `src/Types.hpp`
 - `src/TopologyManager.hpp`
 - `dictionary.json`
 
-The normal build path also checks that these generated artifacts are current.
+The normal build also checks that these files are in sync with
+`topology.yaml`.
 
-## 3. Runtime Build
-
-Run:
+## 3. Build The Host Runtime
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --target flight_software
 ```
 
-The host runtime includes:
+The reference host runtime includes:
 
 - `TelemetryBridge`
 - `CommandHub`
@@ -54,116 +60,106 @@ The host runtime includes:
 - `MissionFsm`
 - `RateGroupExecutive`
 
-## 4. Runtime Behavior
-
-Start the host runtime:
+## 4. Start The Runtime
 
 ```bash
 ./build/flight_software
 ```
 
-For the reference mission, the expected early markers are:
+Normal startup should show the topology loading, scheduler initialization, and
+the bridge coming online without fatal runtime errors.
 
-- topology wired,
-- scheduler tiers ready,
-- bridge online,
-- no fatal runtime signatures.
+## 5. Command And Telemetry Flow
 
-## 5. Command Path
-
-The command path is:
+The reference command path is:
 
 `Ground -> TelemetryBridge -> CommandHub -> target component`
 
-Key controls on that path:
+The command path enforces:
 
-- canonical frame validation,
-- mission-state gating,
-- anti-replay sequence enforcement,
-- per-tick command-rate limiting,
-- and explicit NACK/error behavior on routing failure.
+- frame validation
+- mission-state gating
+- anti-replay sequence checks
+- command-rate limiting
+- explicit NACK/error handling for invalid or unroutable commands
 
-## 6. Live Fault Exercise
+Telemetry and events move through `TelemHub` and `EventHub` based on the routes
+declared in `topology.yaml`.
 
-Run:
+## 6. Exercise The Runtime
 
 ```bash
 cmake --build build --target sitl_fault_campaign
 ```
 
-That launches the live runtime, injects:
+This target starts the host runtime, injects valid and invalid traffic, and
+checks that:
 
-- valid traffic,
-- replayed traffic,
-- malformed sync/APID/length frames,
-- and random invalid blobs,
+- malformed input is rejected
+- replayed input is rejected
+- valid commands still dispatch
+- the process stays alive
 
-then verifies:
-
-- the process stays alive,
-- the invalid traffic is rejected,
-- and valid commands still dispatch.
-
-## 7. Software Closeout
-
-Run:
+## 7. Run The Software Closeout Path
 
 ```bash
 cmake --build build --target software_final
 ```
 
-That closes the enforced software path:
+`software_final` synchronizes the generated software evidence in `docs/` after
+running the enforced repository checks.
 
-- generation checks,
-- legal checks,
-- unit tests,
-- system tests,
-- stress,
-- static analysis,
-- traceability,
-- benchmarks,
-- SITL soak,
-- and the live fault campaign.
+## 8. Read The Reference Mission Records
 
-## 8. Reference Mission Process Layer
-
-The repo now carries one concrete mission-shaped process baseline in
-`docs/process/`.
-
-The most important records are:
+The reference mission baseline is described in `docs/process/`. The main files
+are:
 
 - `REFERENCE_MISSION_PROFILE.md`
 - `REFERENCE_MISSION_REQUIREMENTS_ALLOCATION.md`
 - `REFERENCE_MISSION_INTERFACE_CONTROL.md`
+- `REFERENCE_PAYLOAD_PROFILE.md`
 - `RISK_REGISTER_BASELINE.md`
 - `ASSUMPTIONS_LOG_BASELINE.md`
 - `CONFIGURATION_AUDIT_BASELINE.md`
 - `OPERATIONS_REHEARSAL_20260314.md`
 
-These documents answer the question “what does this framework mean in one real
-mission context?”
+These records define the mission context used by the public DELTA-V baseline.
 
-## 9. What Still Requires A Real Mission Program
+## 9. Review The Safety Case
 
-This repo still does not close:
+The reference mission safety case is in `docs/safety_case/`:
 
-- sensor-attached HIL,
-- hardware timing margin,
-- thermal/vibe/EMI/radiation evidence,
-- independent approval authority,
-- and mission-owned security controls.
+- `hazards.md`
+- `mitigations.md`
+- `fmea.md`
+- `fta.md`
+- `verification_links.md`
 
-Those are outside the public reference baseline by design.
+These files connect hazards, mitigations, and verification evidence for the
+reference mission profile.
 
-## 10. Reviewer Output
+## 10. Current Boundary
 
-Run:
+The public repository does not close:
+
+- sensor-attached HIL
+- hardware timing margin on the target flight computer
+- environmental qualification
+- independent mission approval authority
+- mission-owned protected uplink/security controls
+
+Those items remain outside the public baseline.
+
+## 11. Review Bundle
 
 ```bash
 cmake --build build --target review_bundle
 ```
 
-That produces a staged package for technical review in:
+This creates:
 
 - `build/review_bundle/`
 - `build/review_bundle.zip`
+
+Use that package when handing the current software baseline to another engineer
+for review.

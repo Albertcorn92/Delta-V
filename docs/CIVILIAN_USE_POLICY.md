@@ -2,37 +2,45 @@
 
 Date: 2026-03-07
 
-## Scope
+DELTA-V is a civilian framework. The project is intended for scientific,
+industrial, educational, and research use.
 
-DELTA-V is intended for civilian, scientific, industrial, and educational
-flight-software use cases.
+## Accepted Scope
 
-## Out of Scope
+The public baseline is meant for:
 
-Contributions and integrations are not accepted if they add or document:
+- civilian aerospace and robotics software
+- research and experimentation
+- education and portfolio work
+- public open-source collaboration within the project scope
 
-- weapon systems behavior,
-- military targeting or fire-control behavior,
-- munition, missile, or warhead functionality,
-- combat-operations features,
-- command-path cryptography/encryption features in the baseline framework,
-- controlled technical data that is not authorized for open publication.
+## Out Of Scope
 
-## Contribution Requirement
+Changes are not accepted if they add or document:
 
-By opening a pull request, contributors affirm that:
+- weapon behavior
+- military targeting or fire-control behavior
+- munition, missile, or warhead functionality
+- combat operations features
+- command-path crypto/auth in the public baseline
+- controlled technical data not cleared for open publication
 
-1. Their change is for civilian/non-weaponized use.
-2. Their contribution does not include restricted third-party data.
-3. They are authorized to contribute the code and documentation.
+## Pull Request Requirement
 
-## Compliance Note
+By opening a pull request, a contributor is affirming that:
 
-This policy narrows project scope but does not itself provide legal clearance.
-Users are responsible for export, sanctions, and local-law compliance for their
-own deployment and distribution activities.
+1. the change is for civilian, non-weaponized use
+2. the contribution does not include restricted third-party data
+3. the contributor is allowed to submit the code and documentation
 
-Maintainer interaction boundaries are documented in
-`docs/MAINTAINER_BOUNDARY_POLICY.md`.
+## Responsibility
 
-For practical release questions, see `docs/LEGAL_FAQ.md`.
+This policy defines project scope. It does not provide legal clearance.
+Anyone deploying, redistributing, or adapting the software remains responsible
+for export, sanctions, and local-law compliance in their own use case.
+
+Related documents:
+
+- `docs/LEGAL_FAQ.md`
+- `docs/LEGAL_SCOPE_CHECKLIST.md`
+- `docs/MAINTAINER_BOUNDARY_POLICY.md`
