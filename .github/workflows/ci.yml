@@ -194,11 +194,14 @@ jobs:
             --output-json "${{ github.workspace }}/build_cov/coverage_trend.json"
 
       - name: Upload coverage to Codecov
-        if: ${{ secrets.CODECOV_TOKEN != '' }}
         continue-on-error: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: |
+          if [ -z "${CODECOV_TOKEN:-}" ]; then
+            echo "Skipping Codecov upload: CODECOV_TOKEN is not set."
+            exit 0
+          fi
           codecovcli upload-process \
             --disable-search \
             --file build_cov/cov.info \
