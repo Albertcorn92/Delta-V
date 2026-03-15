@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(DELTA_V VERSION 4.0.0 LANGUAGES CXX)
+project(DELTA_V VERSION 4.0.3 LANGUAGES CXX)
 
 # =============================================================================
 # Global Settings  (DO-178C: strict ISO C++20, no extensions)

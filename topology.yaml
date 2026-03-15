@@ -19,7 +19,7 @@
 
 system:
   name: "DeltaV_Flight_Computer"
-  version: "4.0.0"
+  version: "4.0.3"
 
 # ---------------------------------------------------------------------------
 # Components
