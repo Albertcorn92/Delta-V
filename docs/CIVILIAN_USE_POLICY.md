@@ -35,7 +35,7 @@ By opening a pull request, a contributor is affirming that:
 
 ## Responsibility
 
-This policy defines project scope. It does not provide legal clearance.
+This policy defines project scope. It does not itself provide legal clearance.
 Anyone deploying, redistributing, or adapting the software remains responsible
 for export, sanctions, and local-law compliance in their own use case.
 

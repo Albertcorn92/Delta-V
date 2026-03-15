@@ -12,6 +12,7 @@ itself.
 - This note is general guidance only. It is **not legal advice**.
 - A public GitHub repository does not provide automatic legal clearance for
   every reuse, deployment, or support activity.
+- This repository cannot provide legal clearance by itself.
 - Final ITAR/EAR classification decisions belong with qualified export counsel.
 - End user, destination, sanctions, and mission context still matter.
 

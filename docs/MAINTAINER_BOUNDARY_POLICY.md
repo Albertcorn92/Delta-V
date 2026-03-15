@@ -14,6 +14,7 @@ public-repository mode.
 
 ## What The Maintainer Does Not Provide
 
+- maintainer does not provide direct operational support to non-U.S. users
 - direct operational support to non-U.S. users
 - military, weaponization, targeting, or fire-control guidance
 - legal advice

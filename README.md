@@ -78,6 +78,7 @@ The current generated status documents report:
 
 The software baseline is released. Sensor-attached HIL and mission-specific
 qualification remain outside the public baseline.
+This repository is not certified for operational or safety-critical deployment.
 
 Reference documents:
 
@@ -161,6 +162,9 @@ Out of scope for this public baseline:
 - command-path crypto/auth additions
 - hardware qualification claims
 - operational support commitments
+
+Maintainer boundary: maintainer does not provide direct operational support to
+non-U.S. users.
 
 Legal references:
 
