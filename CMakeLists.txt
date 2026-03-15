@@ -390,24 +390,38 @@ if(CLANG_TIDY)
 endif()
 
 # =============================================================================
-# Target: gen  (run the DELTA-V autocoder)
-# Regenerates src/Types.hpp, src/TopologyManager.hpp, dictionary.json
-# from topology.yaml whenever the topology changes.
+# Python interpreter for automation/reporting targets
 # =============================================================================
-set(PYTHON3 "")
-set(DELTAV_PYTHON_CANDIDATES
-    "${CMAKE_SOURCE_DIR}/.venv/bin/python3"
-    "${CMAKE_SOURCE_DIR}/.venv/bin/python")
-foreach(_python IN LISTS DELTAV_PYTHON_CANDIDATES)
-    if(EXISTS "${_python}")
-        set(PYTHON3 "${_python}")
-        break()
-    endif()
-endforeach()
+set(PYTHON3 "${PYTHON3}" CACHE FILEPATH
+    "Python interpreter for DELTA-V automation and reporting targets")
 if(NOT PYTHON3)
-    find_program(PYTHON3 python3)
+    set(DELTAV_PYTHON_CANDIDATES
+        "${CMAKE_SOURCE_DIR}/.venv/bin/python3"
+        "${CMAKE_SOURCE_DIR}/.venv/bin/python")
+    foreach(_python IN LISTS DELTAV_PYTHON_CANDIDATES)
+        if(EXISTS "${_python}")
+            set(PYTHON3 "${_python}")
+            break()
+        endif()
+    endforeach()
+endif()
+if(NOT PYTHON3)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        set(PYTHON3 "${Python3_EXECUTABLE}")
+    endif()
+endif()
+if(NOT PYTHON3)
+    find_program(PYTHON3 NAMES python3 python)
 endif()
 if(PYTHON3)
+    message(STATUS "Python3  : ENABLED  (${PYTHON3})")
+
+    # =============================================================================
+    # Target: gen  (run the DELTA-V autocoder)
+    # Regenerates src/Types.hpp, src/TopologyManager.hpp, dictionary.json
+    # from topology.yaml whenever the topology changes.
+    # =============================================================================
     add_custom_target(gen
         COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/autocoder.py
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -754,6 +768,11 @@ if(PYTHON3)
 
     message(STATUS "ESP32Run : ENABLED  (cmake --build build --target esp32_runtime_guard)")
     message(STATUS "ESP32Reb : ENABLED  (cmake --build build --target esp32_reboot_campaign)")
+else()
+    message(WARNING
+        "Python3 interpreter not found. Python-backed DELTA-V automation targets "
+        "(autocoder, software_final, coverage_guard, release tooling, readiness "
+        "reports) will be disabled.")
 endif()
 
 if(TARGET autocoder_check AND TARGET legal_compliance AND TARGET run_tests AND TARGET run_system_tests AND TARGET benchmark_guard AND TARGET benchmark_trend_guard AND TARGET sitl_smoke)
