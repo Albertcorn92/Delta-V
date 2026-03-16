@@ -43,7 +43,7 @@ public:
         }
 
         const float health = enabled_ ? last_sample_ : 0.0f;
-        telemetry_out.send(Serializer::pack(
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(
             TelemetryPacket{TimeService::getMET(), getId(), health}));
     }
 
@@ -62,7 +62,7 @@ private:
         switch (cmd.opcode) {
             case OP_SET_ENABLE:
                 enabled_ = (cmd.argument >= 0.5f);
-                event_out.send(EventPacket::create(
+                (void)sendOrRecordError(event_out, EventPacket::create(
                     Severity::INFO, getId(),
                     enabled_ ? "PAYLOAD: Enabled" : "PAYLOAD: Disabled"));
                 break;
@@ -70,14 +70,14 @@ private:
             case OP_CAPTURE_SAMPLE:
                 if (!enabled_) {
                     recordError();
-                    event_out.send(EventPacket::create(
+                    (void)sendOrRecordError(event_out, EventPacket::create(
                         Severity::WARNING, getId(),
                         "PAYLOAD: Capture rejected (disabled)"));
                     return;
                 }
                 last_sample_ = std::clamp(cmd.argument, -100.0f, 100.0f) * gain_;
                 ++capture_count_;
-                event_out.send(EventPacket::create(
+                (void)sendOrRecordError(event_out, EventPacket::create(
                     Severity::INFO, getId(), "PAYLOAD: Sample captured"));
                 {
                     const auto name = getName();
@@ -91,19 +91,19 @@ private:
             case OP_SET_GAIN:
                 if (cmd.argument < 0.1f || cmd.argument > 10.0f) {
                     recordError();
-                    event_out.send(EventPacket::create(
+                    (void)sendOrRecordError(event_out, EventPacket::create(
                         Severity::WARNING, getId(),
                         "PAYLOAD: Invalid gain"));
                     return;
                 }
                 gain_ = cmd.argument;
-                event_out.send(EventPacket::create(
+                (void)sendOrRecordError(event_out, EventPacket::create(
                     Severity::INFO, getId(), "PAYLOAD: Gain updated"));
                 break;
 
             default:
                 recordError();
-                event_out.send(EventPacket::create(
+                (void)sendOrRecordError(event_out, EventPacket::create(
                     Severity::WARNING, getId(), "PAYLOAD: Unknown opcode"));
                 break;
         }

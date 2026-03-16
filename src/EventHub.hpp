@@ -39,7 +39,9 @@ public:
             while (inputs[i]->tryConsume(evt)) {
                 // Broadcast to ALL registered listeners
                 for (size_t j = 0; j < listener_count; ++j) {
-                    listeners[j].send(evt);
+                    if (!listeners[j].send(evt)) {
+                        recordError();
+                    }
                 }
             }
         }

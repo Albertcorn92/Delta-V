@@ -65,8 +65,7 @@ public:
     auto init() -> void override {
         mission_state  = MissionState::NOMINAL;
         last_batt_soc  = 100.0f;
-        event_out.send(EventPacket::create(Severity::INFO, getId(),
-            "WATCHDOG: Init complete. FDIR active."));
+        emit(Severity::INFO, "WATCHDOG: Init complete. FDIR active.");
         const auto name = getName();
         std::printf("[%.*s] FDIR online. Supervising %zu subsystems.\n",
             static_cast<int>(name.size()), name.data(), monitored_count);
@@ -155,7 +154,7 @@ public:
             (void)std::snprintf(msg.data(), msg.size(), "HB: %s T+%lus",
                 missionStateName(mission_state),
                 static_cast<unsigned long>(TimeService::getMET() / 1000));
-            event_out.send(EventPacket::create(Severity::INFO, getId(), msg.data()));
+            emit(Severity::INFO, msg.data());
         }
     }
 
@@ -355,7 +354,7 @@ private:
     }
 
     auto emit(uint32_t sev, const char* msg) -> void {
-        event_out.send(EventPacket::create(sev, getId(), msg));
+        (void)sendOrRecordError(event_out, EventPacket::create(sev, getId(), msg));
     }
 };
 

@@ -143,6 +143,9 @@ public:
     }
 
     [[nodiscard]] auto isConnected() const -> bool { return connected != nullptr; }
+    [[nodiscard]] auto isConnectedTo(const IInputPort<T>* dest) const -> bool {
+        return connected == dest;
+    }
 
 private:
     IInputPort<T>* connected{nullptr};

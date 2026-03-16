@@ -81,7 +81,7 @@ public:
             getId(),
             static_cast<float>(modeToU8(current_mode_)),
         };
-        (void)telemetry_out.send(Serializer::pack(mode_tlm));
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(mode_tlm));
     }
 
 private:
@@ -220,14 +220,14 @@ private:
             getId(),
             static_cast<float>(transitions_),
         };
-        (void)telemetry_out.send(Serializer::pack(transitions_tlm));
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(transitions_tlm));
 
         const TelemetryPacket dispatch_tlm{
             TimeService::getMET(),
             getId(),
             static_cast<float>(dispatched_count_),
         };
-        (void)telemetry_out.send(Serializer::pack(dispatch_tlm));
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(dispatch_tlm));
     }
 
     auto clearRules() -> void {
@@ -311,7 +311,7 @@ private:
     }
 
     auto publishEvent(uint32_t severity, const char* msg) -> void {
-        (void)event_out.send(EventPacket::create(severity, getId(), msg));
+        (void)sendOrRecordError(event_out, EventPacket::create(severity, getId(), msg));
     }
 };
 

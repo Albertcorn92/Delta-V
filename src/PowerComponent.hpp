@@ -46,8 +46,8 @@ public:
 
         // 3. Telemetry — timestamp was previously hardcoded to 0, now fixed
         TelemetryPacket p{ TimeService::getMET(), getId(), soc };
-        telemetry_out.send(Serializer::pack(p));
-        battery_out_internal.send(soc);
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(p));
+        (void)sendOrRecordError(battery_out_internal, soc);
     }
 
     float getSOC() const { return soc; }
@@ -60,7 +60,7 @@ private:
         switch (cmd.opcode) {
             case 1: // RESET_BATTERY
                 soc = 100.0f;
-                event_out.send(EventPacket::create(Severity::INFO, getId(),
+                (void)sendOrRecordError(event_out, EventPacket::create(Severity::INFO, getId(),
                     "BATT: SOC reset to 100%"));
                 {
                     const auto name = getName();
@@ -72,7 +72,7 @@ private:
             case 2: // SET_DRAIN_RATE
                 if (cmd.argument >= 0.0f && cmd.argument <= 10.0f) {
                     drain_rate = cmd.argument;
-                    event_out.send(EventPacket::create(Severity::INFO, getId(),
+                    (void)sendOrRecordError(event_out, EventPacket::create(Severity::INFO, getId(),
                         "BATT: Drain rate updated"));
                     {
                         const auto name = getName();
@@ -82,14 +82,14 @@ private:
                     }
                 } else {
                     recordError();
-                    event_out.send(EventPacket::create(Severity::WARNING, getId(),
+                    (void)sendOrRecordError(event_out, EventPacket::create(Severity::WARNING, getId(),
                         "BATT: Invalid drain rate arg"));
                 }
                 break;
 
             default:
                 recordError();
-                event_out.send(EventPacket::create(Severity::WARNING, getId(),
+                (void)sendOrRecordError(event_out, EventPacket::create(Severity::WARNING, getId(),
                     "BATT: Unknown opcode"));
                 break;
         }

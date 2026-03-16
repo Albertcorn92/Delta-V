@@ -59,7 +59,7 @@ public:
         const float reading = std::sin(angle) * amplitude;
 
         TelemetryPacket p{ TimeService::getMET(), getId(), reading };
-        telemetry_out.send(Serializer::pack(p));
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(p));
     }
 
 private:
@@ -69,7 +69,7 @@ private:
         switch (cmd.opcode) {
             case 1: // SET_AMPLITUDE
                 ParamDb::getInstance().setParam(PARAM_STAR_AMPLITUDE, cmd.argument);
-                event_out.send(EventPacket::create(Severity::INFO, getId(),
+                (void)sendOrRecordError(event_out, EventPacket::create(Severity::INFO, getId(),
                     "STAR: Amplitude updated"));
                 {
                     const auto name = getName();
@@ -80,7 +80,7 @@ private:
                 break;
             default:
                 recordError(); // Unknown opcode — FDIR visible
-                event_out.send(EventPacket::create(Severity::WARNING, getId(),
+                (void)sendOrRecordError(event_out, EventPacket::create(Severity::WARNING, getId(),
                     "STAR: Unknown opcode"));
                 break;
         }

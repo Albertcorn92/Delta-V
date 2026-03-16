@@ -46,17 +46,48 @@ public:
         std::printf("[%.*s] FDR online. File logging disabled on ESP local-only target.\n",
             static_cast<int>(name.size()), name.data());
 #else
+        telem_log_available_ = false;
+        event_log_available_ = false;
+        telem_drop_reported_ = false;
+        event_drop_reported_ = false;
         telem_log.open(telem_log_path_, std::ios::out | std::ios::app);
         event_log.open(event_log_path_, std::ios::out | std::ios::app);
         if (telem_log.is_open()) {
             telem_log << "timestamp_ms,component_id,data_payload\n";
+            telem_log_available_ = telem_log.good();
+        }
+        if (!telem_log_available_) {
+            recordError();
+            if (telem_log.is_open()) {
+                telem_log.close();
+            }
+            const auto name = getName();
+            (void)std::fprintf(stderr, "[%.*s] WARN: telemetry log unavailable: %s\n",
+                static_cast<int>(name.size()), name.data(), telem_log_path_);
         }
         if (event_log.is_open()) {
             event_log << "--- SESSION START T+" << TimeService::getMET() << " ---\n";
+            event_log_available_ = event_log.good();
+        }
+        if (!event_log_available_) {
+            recordError();
+            if (event_log.is_open()) {
+                event_log.close();
+            }
+            const auto name = getName();
+            (void)std::fprintf(stderr, "[%.*s] WARN: event log unavailable: %s\n",
+                static_cast<int>(name.size()), name.data(), event_log_path_);
         }
         const auto name = getName();
-        std::printf("[%.*s] FDR online. Telemetry->%s | Events->%s\n",
-            static_cast<int>(name.size()), name.data(), telem_log_path_, event_log_path_);
+        if (telem_log_available_ && event_log_available_) {
+            std::printf("[%.*s] FDR online. Telemetry->%s | Events->%s\n",
+                static_cast<int>(name.size()), name.data(), telem_log_path_, event_log_path_);
+        } else {
+            std::printf("[%.*s] FDR degraded. Telemetry->%s (%s) | Events->%s (%s)\n",
+                static_cast<int>(name.size()), name.data(),
+                telem_log_path_, telem_log_available_ ? "ok" : "unavailable",
+                event_log_path_, event_log_available_ ? "ok" : "unavailable");
+        }
 #endif
     }
 
@@ -75,6 +106,13 @@ public:
         Serializer::ByteArray raw{};
         while (telemetry_in.tryConsume(raw)) {
             TelemetryPacket p = Serializer::unpackTelem(raw);
+            if (!telem_log_available_) {
+                if (!telem_drop_reported_) {
+                    recordError();
+                    telem_drop_reported_ = true;
+                }
+                continue;
+            }
             if (telem_log.is_open()) {
                 telem_log << p.timestamp_ms << ","
                           << p.component_id << ","
@@ -82,12 +120,27 @@ public:
                 if (++telem_packet_count % LOG_FLUSH_INTERVAL == 0) {
                     telem_log.flush();
                 }
+                if (!telem_log.good()) {
+                    recordError();
+                    telem_log_available_ = false;
+                    telem_drop_reported_ = false;
+                    const auto name = getName();
+                    (void)std::fprintf(stderr, "[%.*s] WARN: telemetry log write failed: %s\n",
+                        static_cast<int>(name.size()), name.data(), telem_log_path_);
+                }
             }
         }
 
         // Drain events — always flush events immediately (low volume, high importance)
         EventPacket evt{};
         while (event_in.tryConsume(evt)) {
+            if (!event_log_available_) {
+                if (!event_drop_reported_) {
+                    recordError();
+                    event_drop_reported_ = true;
+                }
+                continue;
+            }
             if (event_log.is_open()) {
                 const char* sev_str =
                     evt.severity == Severity::CRITICAL ? "CRIT" :
@@ -96,6 +149,14 @@ public:
                           << sev_str << "][ID" << evt.source_id << "] "
                           << evt.message.data() << "\n";
                 event_log.flush();
+                if (!event_log.good()) {
+                    recordError();
+                    event_log_available_ = false;
+                    event_drop_reported_ = false;
+                    const auto name = getName();
+                    (void)std::fprintf(stderr, "[%.*s] WARN: event log write failed: %s\n",
+                        static_cast<int>(name.size()), name.data(), event_log_path_);
+                }
             }
         }
 #endif
@@ -112,6 +173,10 @@ private:
 #if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
     std::ofstream telem_log;
     std::ofstream event_log;
+    bool          telem_log_available_{false};
+    bool          event_log_available_{false};
+    bool          telem_drop_reported_{false};
+    bool          event_drop_reported_{false};
 #endif
     uint32_t      telem_packet_count{0};
     const char*   telem_log_path_{DEFAULT_TELEM_LOG_PATH};

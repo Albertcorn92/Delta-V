@@ -56,7 +56,7 @@ public:
             getId(),
             static_cast<float>(missingCount()),
         };
-        (void)telemetry_out.send(Serializer::pack(tlm));
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(tlm));
     }
 
     [[nodiscard]] auto missingCount() const -> size_t {
@@ -203,11 +203,11 @@ private:
 
     auto reportValue(float v) -> void {
         const TelemetryPacket tlm{TimeService::getMET(), getId(), v};
-        (void)telemetry_out.send(Serializer::pack(tlm));
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(tlm));
     }
 
     auto publishEvent(uint32_t severity, const char* msg) -> void {
-        (void)event_out.send(EventPacket::create(severity, getId(), msg));
+        (void)sendOrRecordError(event_out, EventPacket::create(severity, getId(), msg));
     }
 };
 

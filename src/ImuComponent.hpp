@@ -29,7 +29,7 @@ public:
         if (!bus.write(0x68, 0x6B, &wake_cmd, 1)) {
 #if defined(DELTAV_ALLOW_IMU_SIMULATION)
             simulation_mode = true;
-            event_out.send(EventPacket::create(
+            (void)sendOrRecordError(event_out, EventPacket::create(
                 Severity::WARNING, getId(), "IMU hardware missing: simulation fallback active"));
             const auto name = getName();
             (void)std::fprintf(stderr, "[%.*s] WARN: Hardware IMU missing. Using simulation fallback.\n",
@@ -37,7 +37,8 @@ public:
             return;
 #else
             recordError();
-            event_out.send(EventPacket::create(Severity::CRITICAL, getId(), "IMU I2C Wake Failed"));
+            (void)sendOrRecordError(
+                event_out, EventPacket::create(Severity::CRITICAL, getId(), "IMU I2C Wake Failed"));
             const auto name = getName();
             (void)std::fprintf(stderr, "[%.*s] FATAL: Hardware IMU missing.\n",
                 static_cast<int>(name.size()), name.data());
@@ -68,7 +69,7 @@ public:
         }
         
         TelemetryPacket p{ TimeService::getMET(), getId(), static_cast<float>(accel_x) };
-        telemetry_out.send(Serializer::pack(p));
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(p));
     }
 
 private:
@@ -77,7 +78,8 @@ private:
 
     void handleCommand(const CommandPacket& cmd) {
         recordError();
-        event_out.send(EventPacket::create(Severity::WARNING, getId(), "IMU: Unknown opcode"));
+        (void)cmd;
+        (void)sendOrRecordError(event_out, EventPacket::create(Severity::WARNING, getId(), "IMU: Unknown opcode"));
     }
 };
 

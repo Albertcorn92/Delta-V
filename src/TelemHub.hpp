@@ -26,7 +26,9 @@ public:
         for (size_t i = 0; i < input_count; ++i) {
             while (internal_inputs.at(i).tryConsume(data)) {
                 for (size_t j = 0; j < listener_count; ++j) {
-                    internal_outputs.at(j).send(data);
+                    if (!internal_outputs.at(j).send(data)) {
+                        recordError();
+                    }
                 }
             }
         }
@@ -62,6 +64,11 @@ public:
 
     [[nodiscard]] auto getInputCount() const -> size_t { return input_count; }
     [[nodiscard]] auto getListenerCount() const -> size_t { return listener_count; }
+    [[nodiscard]] auto isInputConnected(
+        size_t index,
+        const OutputPort<Serializer::ByteArray>& source) const -> bool {
+        return index < input_count && source.isConnectedTo(&internal_inputs.at(index));
+    }
 
 private:
     std::array<InputPort<Serializer::ByteArray>, MAX_TELEM_INPUTS>     internal_inputs{};

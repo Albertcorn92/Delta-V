@@ -118,6 +118,7 @@ public:
             close(sock_fd);
             sock_fd = -1;
         }
+        udp_socket_open_ = false;
 #if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
         if (serial_fd_ >= 0) {
             close(serial_fd_);
@@ -136,8 +137,46 @@ public:
     [[nodiscard]] auto getUplinkPort() const -> uint16_t { return uplink_port_; }
     [[nodiscard]] auto getDownlinkPort() const -> uint16_t { return downlink_port_; }
     [[nodiscard]] auto getLinkMode() const -> LinkMode { return link_mode_; }
+    [[nodiscard]] auto isCommandIngressReady() const -> bool {
+        if (!uplink_enabled_) {
+            return false;
+        }
+
+        if (link_mode_ == LinkMode::SERIAL_KISS) {
+#if !defined(ESP_PLATFORM) && !defined(ARDUINO_ARCH_ESP32)
+            return serial_fd_ >= 0;
+#else
+            return false;
+#endif
+        }
+
+#if defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
+        return false;
+#else
+        return udp_socket_open_ && udp_uplink_bound_;
+#endif
+    }
 
 #ifdef DELTAV_FAULT_INJECT
+    auto setUdpIngressStateForTest(bool socket_open, bool uplink_bound) -> void {
+#if !defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
+        udp_socket_open_ = socket_open;
+        udp_uplink_bound_ = uplink_bound;
+#else
+        (void)socket_open;
+        (void)uplink_bound;
+#endif
+    }
+
+    auto simulateUdpBindFailureForTest() -> void {
+#if !defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
+        setUdpIngressStateForTest(true, false);
+        if (uplink_enabled_) {
+            recordError();
+        }
+#endif
+    }
+
     auto ingestUplinkFrameForTest(const uint8_t* data, size_t len) -> bool {
         return processIncomingFrame(data, len);
     }
@@ -212,15 +251,24 @@ public:
                 recordError();
                 return;
             }
-            std::printf(
-                "[%.*s] Bridge online. Downlink:%u Uplink:%u [CCSDS 0x1ACFFC1D | strict frame + anti-replay]\n",
+            std::printf("[%.*s] Bridge online. Downlink:%u [CCSDS 0x1ACFFC1D]\n",
                 static_cast<int>(name.size()), name.data(),
-                static_cast<unsigned>(downlink_port_), static_cast<unsigned>(uplink_port_));
+                static_cast<unsigned>(downlink_port_));
             if (!uplink_enabled_) {
                 std::printf(
                     "[%.*s] Uplink command ingest DISABLED by default. "
                     "Set DELTAV_ENABLE_UNAUTH_UPLINK=1 for local SITL command tests.\n",
                     static_cast<int>(name.size()), name.data());
+            } else if (!isCommandIngressReady()) {
+                std::printf(
+                    "[%.*s] Uplink command ingest UNAVAILABLE: failed to bind UDP port %u. "
+                    "Command ingress disabled for this run.\n",
+                    static_cast<int>(name.size()), name.data(),
+                    static_cast<unsigned>(uplink_port_));
+            } else {
+                std::printf("[%.*s] Uplink:%u [strict frame + anti-replay]\n",
+                    static_cast<int>(name.size()), name.data(),
+                    static_cast<unsigned>(uplink_port_));
             }
 #endif
         }
@@ -279,6 +327,8 @@ private:
     uint32_t     rejected_count{0};
     std::string  replay_seq_path{DEFAULT_REPLAY_SEQ_FILE};
     bool         uplink_enabled_{true};
+    bool         udp_socket_open_{false};
+    bool         udp_uplink_bound_{false};
 #if !defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
     uint32_t     allowed_uplink_addr_{INADDR_LOOPBACK};
 #else
@@ -371,6 +421,8 @@ private:
 #if defined(DELTAV_EMBEDDED_NETWORK_DISABLED)
         return false;
 #else
+        udp_socket_open_ = false;
+        udp_uplink_bound_ = false;
         sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
         if (sock_fd < 0) {
             const auto name = getName();
@@ -378,6 +430,7 @@ private:
                 static_cast<int>(name.size()), name.data());
             return false;
         }
+        udp_socket_open_ = true;
         (void)fcntl(sock_fd, F_SETFL, O_NONBLOCK);
 
         sockaddr_in bind_addr{};
@@ -386,9 +439,14 @@ private:
         bind_addr.sin_addr.s_addr = INADDR_ANY;
         if (bind(sock_fd, reinterpret_cast<sockaddr*>(&bind_addr), sizeof(bind_addr)) < 0) {
             const auto name = getName();
-            (void)std::fprintf(stderr, "[%.*s] WARN: bind() on port %u failed - uplink disabled\n",
+            (void)std::fprintf(stderr, "[%.*s] WARN: bind() on port %u failed - command ingress disabled\n",
                 static_cast<int>(name.size()), name.data(),
                 static_cast<unsigned>(uplink_port_));
+            if (uplink_enabled_) {
+                recordError();
+            }
+        } else {
+            udp_uplink_bound_ = true;
         }
 
         dest_addr.sin_family      = AF_INET;
@@ -835,7 +893,7 @@ private:
 #endif
 
     auto receiveCommands() -> void {
-        if (!uplink_enabled_) {
+        if (!isCommandIngressReady()) {
             return;
         }
 

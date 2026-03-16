@@ -77,6 +77,15 @@ protected:
     constexpr Component(std::string_view comp_name, uint32_t comp_id)
         : name(comp_name), id(comp_id) {}
 
+    template <typename PortT, typename DataT>
+    auto sendOrRecordError(PortT& port, const DataT& data) -> bool {
+        if (!port.send(data)) {
+            recordError();
+            return false;
+        }
+        return true;
+    }
+
 private:
     std::string_view      name;
     uint32_t              id;

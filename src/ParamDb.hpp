@@ -77,9 +77,8 @@ public:
 
     // -----------------------------------------------------------------------
     // Core API — use uint32_t IDs in flight code.
-    // F-06 fix: write_mutex serialises the find+insert across all threads.
-    // The fast path (key found) does NOT hold write_mutex — only the atomic
-    // value load, which is safe without a mutex.
+    // F-06 fix: write_mutex serialises inserts, writes, and integrity checks.
+    // Reads of already-registered keys remain lock-free via atomic loads.
     // -----------------------------------------------------------------------
     float getParam(uint32_t param_id, float default_val) {
         // Fast path: scan existing entries (read-only, no lock needed for
@@ -110,20 +109,8 @@ public:
     }
 
     void setParam(uint32_t param_id, float value) {
-        // Try to update an existing entry first (without the write lock).
-        size_t n = count.load(std::memory_order_acquire);
-        for (size_t i = 0; i < n; ++i) {
-            if (params[i].id == param_id) {
-                params[i].value.store(value, std::memory_order_release);
-                // Checksum update must be serialised.
-                std::lock_guard<std::mutex> lk(write_mutex);
-                updateChecksum();
-                return;
-            }
-        }
-        // Insert new entry — serialize fully.
         std::lock_guard<std::mutex> lk(write_mutex);
-        n = count.load(std::memory_order_acquire);
+        size_t n = count.load(std::memory_order_acquire);
         for (size_t i = 0; i < n; ++i) {
             if (params[i].id == param_id) {
                 params[i].value.store(value, std::memory_order_release);
@@ -152,6 +139,7 @@ public:
     // Returns false if memory has been silently corrupted.
     // -----------------------------------------------------------------------
     bool verifyIntegrity() {
+        std::lock_guard<std::mutex> lk(write_mutex);
         return calculateCurrentChecksum() == expected_crc.load(std::memory_order_acquire);
     }
 

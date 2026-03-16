@@ -62,7 +62,7 @@ public:
             getId(),
             static_cast<float>(received_bytes_),
         };
-        (void)telemetry_out.send(Serializer::pack(progress));
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(progress));
     }
 
     auto ingestChunk(const uint8_t* data, size_t len) -> bool {
@@ -261,7 +261,7 @@ private:
     }
 
     auto publishEvent(uint32_t severity, const char* msg) -> void {
-        (void)event_out.send(EventPacket::create(severity, getId(), msg));
+        (void)sendOrRecordError(event_out, EventPacket::create(severity, getId(), msg));
     }
 };
 

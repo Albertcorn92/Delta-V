@@ -459,6 +459,44 @@ TEST(ParamDb, CapacityBoundedAtCompileTimeLimit) {
     EXPECT_EQ(db.paramCount(), MAX_PARAMS);
 }
 
+TEST(ParamDb, ConcurrentVerifyIntegrityStaysStableDuringWrites) {
+    ParamDb db;
+    for (size_t i = 0; i < MAX_PARAMS; ++i) {
+        db.setParam(static_cast<uint32_t>(i + 1u), static_cast<float>(i));
+    }
+
+    std::atomic<bool> mismatch{false};
+    std::atomic<uint32_t> active_writers{2u};
+
+    auto writer = [&]() {
+        for (int i = 0; i < 20000; ++i) {
+            db.setParam(1u, static_cast<float>(i));
+            if ((i % 64) == 0) {
+                std::this_thread::yield();
+            }
+        }
+        active_writers.fetch_sub(1u, std::memory_order_acq_rel);
+    };
+
+    std::thread writer_a(writer);
+    std::thread writer_b(writer);
+    std::thread verifier([&]() {
+        while (active_writers.load(std::memory_order_acquire) > 0u) {
+            if (!db.verifyIntegrity()) {
+                mismatch.store(true, std::memory_order_release);
+                return;
+            }
+        }
+    });
+
+    writer_a.join();
+    writer_b.join();
+    verifier.join();
+
+    EXPECT_FALSE(mismatch.load(std::memory_order_acquire));
+    EXPECT_TRUE(db.verifyIntegrity());
+}
+
 // =============================================================================
 // EventHub
 // =============================================================================
@@ -506,6 +544,39 @@ TEST(EventHub, BurstMultipleEventsAllListeners) {
     EXPECT_TRUE(l2.hasNew());
 }
 
+TEST(EventHub, BackpressuredListenerIncrementsErrorCount) {
+    EventHub hub{"EventHub", 12};
+    InputPort<EventPacket> src;
+    InputPort<EventPacket> constrained_listener;
+    InputPort<EventPacket> healthy_listener;
+    hub.registerEventSource(&src);
+    hub.registerListener(&constrained_listener);
+    hub.registerListener(&healthy_listener);
+    hub.init();
+
+    OutputPort<EventPacket> sender;
+    sender.connect(&src);
+    OutputPort<EventPacket> filler;
+    filler.connect(&constrained_listener);
+    for (size_t i = 0; i < DEFAULT_QUEUE_DEPTH; ++i) {
+        ASSERT_TRUE(filler.send(EventPacket::create(Severity::WARNING, 1, "prefill")));
+    }
+    ASSERT_TRUE(sender.send(EventPacket::create(Severity::WARNING, 1, "evt-1")));
+    ASSERT_TRUE(sender.send(EventPacket::create(Severity::WARNING, 1, "evt-2")));
+
+    hub.step();
+
+    EXPECT_GT(hub.getErrorCount(), 0u);
+    EXPECT_EQ(constrained_listener.size(), DEFAULT_QUEUE_DEPTH);
+
+    size_t healthy_count = 0u;
+    EventPacket evt{};
+    while (healthy_listener.tryConsume(evt)) {
+        ++healthy_count;
+    }
+    EXPECT_EQ(healthy_count, 2u);
+}
+
 // =============================================================================
 // TelemHub
 // =============================================================================
@@ -540,6 +611,40 @@ TEST(TelemHub, MultiplePacketsFanOut) {
     Serializer::ByteArray buf{};
     while (l1.tryConsume(buf)) ++count;
     EXPECT_EQ(count, 4);
+}
+
+TEST(TelemHub, BackpressuredListenerIncrementsErrorCount) {
+    TelemHub hub{"TelemHub", 10};
+    InputPort<Serializer::ByteArray> constrained_listener;
+    InputPort<Serializer::ByteArray> healthy_listener;
+    hub.registerListener(&constrained_listener);
+    hub.registerListener(&healthy_listener);
+    hub.init();
+
+    OutputPort<Serializer::ByteArray> src;
+    hub.connectInput(src);
+
+    const auto prefill = Serializer::pack(TelemetryPacket{1u, 10u, 1.0f});
+    OutputPort<Serializer::ByteArray> filler;
+    filler.connect(&constrained_listener);
+    for (size_t i = 0; i < DEFAULT_QUEUE_DEPTH; ++i) {
+        ASSERT_TRUE(filler.send(prefill));
+    }
+
+    ASSERT_TRUE(src.send(Serializer::pack(TelemetryPacket{2u, 10u, 2.0f})));
+    ASSERT_TRUE(src.send(Serializer::pack(TelemetryPacket{3u, 10u, 3.0f})));
+
+    hub.step();
+
+    EXPECT_GT(hub.getErrorCount(), 0u);
+    EXPECT_EQ(constrained_listener.size(), DEFAULT_QUEUE_DEPTH);
+
+    size_t healthy_count = 0u;
+    Serializer::ByteArray buf{};
+    while (healthy_listener.tryConsume(buf)) {
+        ++healthy_count;
+    }
+    EXPECT_EQ(healthy_count, 2u);
 }
 
 // =============================================================================
@@ -789,6 +894,29 @@ TEST(LoggerComponent, TelemetryFlushesAtInterval) {
     (void)std::remove(event_log.c_str());
 }
 
+TEST(LoggerComponent, InitFailureAndDroppedDataIncrementErrors) {
+    const std::string telem_log = makeUniqueTestLogPath("missing_dir/test_telem_fail", ".csv");
+    const std::string event_log = makeUniqueTestLogPath("missing_dir/test_event_fail", ".log");
+
+    LoggerComponent logger{"Logger", 30, telem_log.c_str(), event_log.c_str()};
+    OutputPort<Serializer::ByteArray> ts;
+    OutputPort<EventPacket> es;
+    ts.connect(&logger.telemetry_in);
+    es.connect(&logger.event_in);
+
+    logger.init();
+    EXPECT_GE(logger.getErrorCount(), 2u);
+
+    const uint32_t before = logger.getErrorCount();
+    ASSERT_TRUE(ts.send(Serializer::pack(TelemetryPacket{1u, 42u, 3.14f})));
+    ASSERT_TRUE(es.send(EventPacket::create(Severity::WARNING, 1u, "drop_check")));
+    logger.step();
+
+    EXPECT_GT(logger.getErrorCount(), before);
+    EXPECT_FALSE(logger.telemetry_in.hasNew());
+    EXPECT_FALSE(logger.event_in.hasNew());
+}
+
 // =============================================================================
 // PowerComponent
 // =============================================================================
@@ -976,6 +1104,30 @@ TEST(PayloadMonitorComponent, InvalidGainIncreasesErrors) {
     payload.step();
 
     EXPECT_GT(payload.getErrorCount(), 0u);
+}
+
+TEST(PayloadMonitorComponent, OutputBackpressureIncrementsErrorCount) {
+    TimeService::initEpoch();
+    PayloadMonitorComponent payload{"PayloadMonitor", 400};
+    InputPort<EventPacket, 1> events{};
+    InputPort<Serializer::ByteArray, 1> telemetry{};
+    OutputPort<EventPacket> event_prefill{};
+    OutputPort<Serializer::ByteArray> telem_prefill{};
+    payload.event_out.connect(&events);
+    payload.telemetry_out.connect(&telemetry);
+    event_prefill.connect(&events);
+    telem_prefill.connect(&telemetry);
+    payload.init();
+
+    ASSERT_TRUE(event_prefill.send(EventPacket::create(Severity::INFO, 1u, "prefill")));
+    ASSERT_TRUE(telem_prefill.send(Serializer::pack(TelemetryPacket{1u, 1u, 1.0f})));
+    ASSERT_TRUE(payload.cmd_in.receive(
+        CommandPacket{400u, PayloadMonitorComponent::OP_SET_ENABLE, 1.0f}));
+
+    const uint32_t before = payload.getErrorCount();
+    payload.step();
+
+    EXPECT_GE(payload.getErrorCount(), before + 2u);
 }
 
 // =============================================================================
@@ -1211,6 +1363,21 @@ TEST(WatchdogThresholds, RecoveryUsesHysteresisBand) {
     EXPECT_EQ(wd.getMissionState(), MissionState::NOMINAL);
 }
 
+TEST(WatchdogComponent, InitBackpressureIncrementsErrorCount) {
+    TimeService::initEpoch();
+    WatchdogComponent wd{"Supervisor", 1};
+    InputPort<EventPacket, 1> events{};
+    OutputPort<EventPacket> prefill{};
+    wd.event_out.connect(&events);
+    prefill.connect(&events);
+
+    ASSERT_TRUE(prefill.send(EventPacket::create(Severity::INFO, 99u, "prefill")));
+    const uint32_t before = wd.getErrorCount();
+    wd.init();
+
+    EXPECT_GT(wd.getErrorCount(), before);
+}
+
 // =============================================================================
 // TopologyManager
 // =============================================================================
@@ -1247,6 +1414,30 @@ TEST(TopologyManager, WireSetsWatchdogThresholdSources) {
     TopologyManager topo(bus);
     topo.wire();
     EXPECT_TRUE(topo.watchdog.hasBatteryThresholdSources());
+}
+
+TEST(TopologyManager, VerifyFailsOnBrokenEventSourceConnection) {
+    TimeService::initEpoch();
+    hal::MockI2c bus;
+    TopologyManager topo(bus);
+    topo.wire();
+
+    InputPort<EventPacket> wrong_sink{};
+    topo.watchdog.event_out.connect(&wrong_sink);
+
+    EXPECT_FALSE(topo.verify());
+}
+
+TEST(TopologyManager, VerifyFailsOnBrokenTelemetryConnection) {
+    TimeService::initEpoch();
+    hal::MockI2c bus;
+    TopologyManager topo(bus);
+    topo.wire();
+
+    InputPort<Serializer::ByteArray> wrong_sink{};
+    topo.cmd_sequencer.telemetry_out.connect(&wrong_sink);
+
+    EXPECT_FALSE(topo.verify());
 }
 
 // =============================================================================
@@ -2000,6 +2191,19 @@ TEST(TelemetryBridge, UsesConfiguredPorts) {
     EXPECT_EQ(bridge.getUplinkPort(), 19102u);
 }
 
+TEST(TelemetryBridge, BindFailureDisablesUdpCommandIngress) {
+    ScopedReplaySeqFile replay_path_env{};
+    ScopedEnvVar enable_uplink_env(TelemetryBridge::ENABLE_UNAUTH_UPLINK_ENV, "1");
+    TelemetryBridge bridge{"RadioLink", 20, 19103u, 19104u};
+    const uint32_t errors_before = bridge.getErrorCount();
+
+    bridge.setUdpIngressStateForTest(true, true);
+    EXPECT_TRUE(bridge.isCommandIngressReady());
+    bridge.simulateUdpBindFailureForTest();
+    EXPECT_FALSE(bridge.isCommandIngressReady());
+    EXPECT_GT(bridge.getErrorCount(), errors_before);
+}
+
 TEST(TelemetryBridge, PersistsReplaySequenceAcrossRestart) {
     const std::string replay_file = makeUniqueTestLogPath("test_replay_seq", ".db");
     (void)std::remove(replay_file.c_str());
@@ -2535,6 +2739,27 @@ TEST(TimeSyncComponent, ApplySyncFromWordCommands) {
     EXPECT_TRUE(TimeService::hasUtcSync());
     const int64_t diff = static_cast<int64_t>(TimeService::getUtcUnixMs()) - static_cast<int64_t>(utc_ms);
     EXPECT_LT(std::llabs(diff), 2000LL);
+}
+
+TEST(TimeSyncComponent, OutputBackpressureIncrementsErrorCount) {
+    TimeService::initEpoch();
+    TimeSyncComponent sync{"TimeSync", 43};
+    InputPort<Serializer::ByteArray, 1> telem_sink{};
+    InputPort<EventPacket, 1> event_sink{};
+    OutputPort<Serializer::ByteArray> telem_prefill{};
+
+    sync.telemetry_out.connect(&telem_sink);
+    sync.event_out.connect(&event_sink);
+    telem_prefill.connect(&telem_sink);
+    sync.init();
+
+    ASSERT_TRUE(telem_prefill.send(Serializer::pack(TelemetryPacket{1u, 99u, 1.0f})));
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{43u, TimeSyncComponent::OP_PUBLISH_STATUS, 0.0f}));
+
+    const uint32_t before = sync.getErrorCount();
+    sync.step();
+
+    EXPECT_GE(sync.getErrorCount(), before + 2u);
 }
 
 TEST(PlaybackComponent, LoadsAndReplaysHistoricalSamples) {

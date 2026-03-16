@@ -51,7 +51,7 @@ public:
             getId(),
             static_cast<float>(TimeService::getUtcOffsetMs() / 1000),
         };
-        (void)telemetry_out.send(Serializer::pack(tlm));
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(tlm));
     }
 
 private:
@@ -109,7 +109,7 @@ private:
     }
 
     auto publishEvent(uint32_t severity, const char* msg) -> void {
-        (void)event_out.send(EventPacket::create(severity, getId(), msg));
+        (void)sendOrRecordError(event_out, EventPacket::create(severity, getId(), msg));
     }
 };
 

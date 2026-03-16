@@ -146,7 +146,7 @@ private:
             getId(),
             readChannelValue(selected_channel_),
         };
-        (void)telemetry_out.send(Serializer::pack(p));
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(p));
     }
 
     static auto readParam(const char* name, float def) -> float {
@@ -186,7 +186,7 @@ private:
             getId(),
             static_cast<float>(value & 0x00FFFFFFU),
         };
-        (void)telemetry_out.send(Serializer::pack(p));
+        (void)sendOrRecordError(telemetry_out, Serializer::pack(p));
 
         char msg[28]{};
         (void)std::snprintf(
@@ -196,7 +196,7 @@ private:
             static_cast<uint32_t>(addr),
             static_cast<uint32_t>(value)
         );
-        (void)event_out.send(EventPacket::create(Severity::INFO, getId(), msg));
+        (void)sendOrRecordError(event_out, EventPacket::create(Severity::INFO, getId(), msg));
     }
 
     auto patchAddress() -> void {
@@ -218,7 +218,7 @@ private:
             static_cast<uint32_t>(addr),
             static_cast<uint32_t>(value)
         );
-        (void)event_out.send(EventPacket::create(Severity::INFO, getId(), msg));
+        (void)sendOrRecordError(event_out, EventPacket::create(Severity::INFO, getId(), msg));
     }
 
     [[nodiscard]] auto composeAddress() const -> uint32_t {
@@ -257,7 +257,7 @@ private:
     }
 
     auto publishEvent(uint32_t severity, const char* msg) -> void {
-        (void)event_out.send(EventPacket::create(severity, getId(), msg));
+        (void)sendOrRecordError(event_out, EventPacket::create(severity, getId(), msg));
     }
 };
 

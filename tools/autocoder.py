@@ -284,9 +284,14 @@ def render_topo(topo: dict, quiet: bool) -> str:
     event_staging: list[str] = []
     event_wiring:  list[str] = []
     verify_checks: list[str] = []
+    telem_verify_checks: list[str] = []
+    event_verify_checks: list[str] = []
+    route_verify_checks: list[str] = []
     tmr_members:   list[str] = []
     telem_input_count = 0
     route_count = 0
+    telem_listener_count = 2
+    event_listener_count = 2
 
     # System-level hardcoded wires
     cmd_wiring.append(
@@ -338,21 +343,33 @@ def render_topo(topo: dict, quiet: bool) -> str:
                     "        watchdog.event_out.connect(&e_watchdog_);",
                     "        event_hub.registerEventSource(&e_watchdog_);",
                 ]
+                event_verify_checks.append(
+                    '        check(watchdog.event_out.isConnectedTo(&e_watchdog_), '
+                    '"watchdog.event_out → event_hub");')
             elif inst == "cmd_hub":
                 event_staging.append("    InputPort<EventPacket> e_cmd_hub_{};")
                 event_wiring += [
                     "        cmd_hub.ack_out.connect(&e_cmd_hub_);",
                     "        event_hub.registerEventSource(&e_cmd_hub_);",
                 ]
+                event_verify_checks.append(
+                    '        check(cmd_hub.ack_out.isConnectedTo(&e_cmd_hub_), '
+                    '"cmd_hub.ack_out → event_hub");')
         else:
             telem_wiring.append(
                 f'        telem_hub.connectInput({inst}.telemetry_out);')
+            telem_verify_checks.append(
+                f'        check(telem_hub.isInputConnected({telem_input_count}, {inst}.telemetry_out), '
+                f'"{inst}.telemetry_out → telem_hub");')
             telem_input_count += 1
             event_staging.append(f'    InputPort<EventPacket> e_{inst}_{{}};')
             event_wiring += [
                 f'        {inst}.event_out.connect(&e_{inst}_);',
                 f'        event_hub.registerEventSource(&e_{inst}_);',
             ]
+            event_verify_checks.append(
+                f'        check({inst}.event_out.isConnectedTo(&e_{inst}_), '
+                f'"{inst}.event_out → event_hub");')
             comp_cmds = [c for c in commands if c["target_id"] == cid]
             if comp_cmds:
                 cmd_routes.append(
@@ -362,9 +379,9 @@ def render_topo(topo: dict, quiet: bool) -> str:
                     f'        {inst}_route_.connect(&{inst}.cmd_in);',
                     f'        cmd_hub.registerRoute({cid}, &{inst}_route_);',
                 ]
-            verify_checks.append(
-                f'        check({inst}.telemetry_out.isConnected(), '
-                f'"{inst}.telemetry_out → telem_hub");')
+                route_verify_checks.append(
+                    f'        check({inst}_route_.isConnectedTo(&{inst}.cmd_in), '
+                    f'"{inst}_route_ → {inst}.cmd_in");')
 
     for cmd in commands:
         op_class = str(cmd.get("op_class", "OPERATIONAL")).upper()
@@ -372,23 +389,27 @@ def render_topo(topo: dict, quiet: bool) -> str:
             f'        cmd_hub.registerCommandPolicy({cmd["target_id"]}, {cmd["opcode"]}, OpClass::{op_class});'
         )
 
+    for wire in custom:
+        stripped = str(wire).strip()
+        if "telem_hub.registerListener(" in stripped:
+            telem_listener_count += 1
+        if "event_hub.registerListener(" in stripped:
+            event_listener_count += 1
+
     verify_checks.insert(0,
-        '        check(radio.command_out.isConnected(),'
+        '        check(radio.command_out.isConnectedTo(&cmd_hub.cmd_input),'
         ' "radio.command_out → cmd_hub");')
     verify_checks.insert(1,
-        '        check(cmd_hub.ack_out.isConnected(),'
-        '   "cmd_hub.ack_out → event_hub");')
-    verify_checks.insert(2,
         f'        check(telem_hub.getInputCount() >= {telem_input_count},'
         f' "telem_hub: expected >={telem_input_count} inputs");')
+    verify_checks.insert(2,
+        f'        check(telem_hub.getListenerCount() >= {telem_listener_count},'
+        f' "telem_hub: need >={telem_listener_count} listeners");')
     verify_checks.insert(3,
-        '        check(telem_hub.getListenerCount() >= 2,'
-        ' "telem_hub: need >=2 listeners");')
-    verify_checks.insert(4,
         f'        check(cmd_hub.routeCount() >= {route_count},'
         f' "cmd_hub: expected >={route_count} routes");')
     if "cmd_hub" in instances_set and "watchdog" in instances_set:
-        verify_checks.insert(5,
+        verify_checks.insert(4,
             '        check(cmd_hub.hasMissionStateSource(),'
             ' "cmd_hub mission state source");')
     if (
@@ -396,7 +417,7 @@ def render_topo(topo: dict, quiet: bool) -> str:
         {"emergency_battery_pct", "safe_mode_battery_pct", "degraded_battery_pct"}
         .issubset(tmr_param_names)
     ):
-        verify_checks.insert(6,
+        verify_checks.insert(5,
             '        check(watchdog.hasBatteryThresholdSources(),'
             ' "watchdog battery threshold sources");')
 
@@ -479,9 +500,9 @@ public:
                 ok = false;
             }}
         }};
-{chr(10).join(verify_checks)}
+{chr(10).join(verify_checks + telem_verify_checks + route_verify_checks + event_verify_checks)}
         check(event_hub.getSourceCount()   >= {expected_event_sources}, "event_hub: expected event sources");
-        check(event_hub.getListenerCount() >= 2, "event_hub: need >=2 listeners");
+        check(event_hub.getListenerCount() >= {event_listener_count}, "event_hub: need >={event_listener_count} listeners");
         if (!ok) std::cerr << "[Topology] FATAL: wiring incomplete.\\n";
         return ok;
     }}
