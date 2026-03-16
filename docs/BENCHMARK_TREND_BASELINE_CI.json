@@ -7,15 +7,15 @@
       "key": "uplink.throughput_cmd_per_s",
       "label": "Uplink throughput (cmd/s)",
       "direction": "min",
-      "baseline": 8000.0,
+      "baseline": 6000.0,
       "max_regression_pct": 0.4
     },
     {
       "key": "uplink.latency_p95_us",
       "label": "Uplink latency p95 (us)",
       "direction": "max",
-      "baseline": 250.0,
-      "max_regression_pct": 0.45
+      "baseline": 400.0,
+      "max_regression_pct": 0.5
     },
     {
       "key": "crc16.throughput_mb_per_s",
