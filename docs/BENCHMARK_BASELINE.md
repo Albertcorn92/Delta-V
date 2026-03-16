@@ -1,7 +1,7 @@
 # DELTA-V Benchmark Baseline
 
-- Generated (UTC): `2026-03-14T22:53:13.788393+00:00`
-- Git commit: `b7d2386fd715ceb1822d5e67227a821c6ebce264`
+- Generated (UTC): `2026-03-16T23:12:21.583978+00:00`
+- Git commit: `8f44015cf3676b1a9cfe825d3e304d93fc900e74`
 - Git branch: `main`
 - Dirty worktree: `True`
 - Host: `macOS-26.2-arm64-arm-64bit-Mach-O`
@@ -13,14 +13,14 @@
 
 | Metric | Value |
 |---|---|
-| Uplink throughput (cmd/s) | `18953.864` |
-| Uplink latency p50 (us) | `49.375` |
-| Uplink latency p95 (us) | `72.417` |
-| CRC-16 throughput (MB/s) | `113.414` |
-| COBS roundtrip throughput (MB/s) | `813.601` |
-| Command router throughput (cmd/s) | `7786770.200` |
+| Uplink throughput (cmd/s) | `24330.430` |
+| Uplink latency p50 (us) | `35.916` |
+| Uplink latency p95 (us) | `53.042` |
+| CRC-16 throughput (MB/s) | `117.112` |
+| COBS roundtrip throughput (MB/s) | `839.383` |
+| Command router throughput (cmd/s) | `8104410.745` |
 | Command router latency p95 (us) | `0.125` |
-| Telem fanout throughput (pkt/s) | `18247492.566` |
+| Telem fanout throughput (pkt/s) | `18908059.560` |
 | Telem fanout latency p95 (us) | `0.042` |
 | Startup time to ready (s) | `3.000` |
 | Runtime sampling supported | `False` |
@@ -32,13 +32,13 @@
 
 | Metric | Median | p95 | Min | Max |
 |---|---|---|---|---|
-| Uplink throughput (cmd/s) | `18953.864` | `18953.864` | `15348.110` | `19175.203` |
-| Uplink latency p95 (us) | `72.417` | `72.417` | `66.583` | `98.417` |
-| CRC-16 throughput (MB/s) | `113.414` | `113.414` | `113.251` | `113.863` |
-| COBS roundtrip throughput (MB/s) | `813.601` | `813.601` | `787.570` | `818.326` |
-| Command router throughput (cmd/s) | `7786770.200` | `7786770.200` | `7519622.455` | `7946362.056` |
+| Uplink throughput (cmd/s) | `24330.430` | `24330.430` | `22514.939` | `27310.245` |
+| Uplink latency p95 (us) | `53.042` | `53.042` | `44.959` | `59.625` |
+| CRC-16 throughput (MB/s) | `117.112` | `117.112` | `116.558` | `117.294` |
+| COBS roundtrip throughput (MB/s) | `839.383` | `839.383` | `827.578` | `846.326` |
+| Command router throughput (cmd/s) | `8104410.745` | `8104410.745` | `8092526.713` | `8209621.183` |
 | Command router latency p95 (us) | `0.125` | `0.125` | `0.125` | `0.125` |
-| Telem fanout throughput (pkt/s) | `18247492.566` | `18247492.566` | `18026820.303` | `18774212.868` |
+| Telem fanout throughput (pkt/s) | `18908059.560` | `18908059.560` | `18866447.250` | `18919238.501` |
 | Telem fanout latency p95 (us) | `0.042` | `0.042` | `0.042` | `0.042` |
 | Startup time to ready (s) | `3.000` | `3.000` | `3.000` | `3.000` |
 | Runtime CPU p95 (%) | `0.000` | `0.000` | `0.000` | `0.000` |
@@ -48,13 +48,13 @@
 
 | Metric | DELTA-V | F Prime (external data) |
 |---|---|---|
-| Uplink throughput (cmd/s) | `18953.864` | `N/A` |
-| Uplink latency p95 (us) | `72.417` | `N/A` |
-| CRC-16 throughput (MB/s) | `113.414` | `N/A` |
-| COBS roundtrip throughput (MB/s) | `813.601` | `N/A` |
-| Command router throughput (cmd/s) | `7786770.200` | `N/A` |
+| Uplink throughput (cmd/s) | `24330.430` | `N/A` |
+| Uplink latency p95 (us) | `53.042` | `N/A` |
+| CRC-16 throughput (MB/s) | `117.112` | `N/A` |
+| COBS roundtrip throughput (MB/s) | `839.383` | `N/A` |
+| Command router throughput (cmd/s) | `8104410.745` | `N/A` |
 | Command router latency p95 (us) | `0.125` | `N/A` |
-| Telem fanout throughput (pkt/s) | `18247492.566` | `N/A` |
+| Telem fanout throughput (pkt/s) | `18908059.560` | `N/A` |
 | Telem fanout latency p95 (us) | `0.042` | `N/A` |
 | Startup time to ready (s) | `3.000` | `N/A` |
 | Runtime CPU p95 (%) | `0.000` | `N/A` |

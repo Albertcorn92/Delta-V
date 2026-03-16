@@ -21,6 +21,7 @@ flowchart TB
     GDS["GDS (Streamlit UI)"]
     LINK["UDP or Serial KISS"]
     BR["TelemetryBridge"]
+    LOG["LoggerComponent"]
     CMD["CommandHub + MissionFsm"]
     APPS["Mission Components"]
     TH["TelemHub"]
@@ -32,6 +33,8 @@ flowchart TB
     BR --> CMD --> APPS
     APPS --> TH --> BR
     APPS --> EH --> BR
+    TH --> LOG
+    EH --> LOG
     WD --> APPS
     WD --> PDB
     BR --> LINK --> GDS
@@ -43,11 +46,11 @@ Command path:
 
 Telemetry path:
 
-`component -> TelemHub -> TelemetryBridge -> downlink`
+`component -> TelemHub -> {TelemetryBridge, LoggerComponent, optional internal listeners}`
 
 Event path:
 
-`component -> EventHub -> TelemetryBridge -> downlink`
+`component -> EventHub -> {TelemetryBridge, LoggerComponent, optional internal listeners}`
 
 ## Generation Flow
 
@@ -112,14 +115,15 @@ Core rules:
 - port payload types must satisfy the `FlightData` concept
 - command, telemetry, and event flows use explicit packet types
 - routing errors are surfaced instead of being ignored
+- generated verification checks exact command, telemetry, and event wiring
 
 Key hubs:
 
 | Hub | Purpose |
 |---|---|
 | `CommandHub` | command routing by component ID and mission-state policy |
-| `TelemHub` | telemetry fan-out |
-| `EventHub` | event fan-out |
+| `TelemHub` | telemetry fan-out to bridge, recorder, and internal listeners |
+| `EventHub` | event fan-out to bridge, recorder, and internal listeners |
 
 Additional baseline apps include:
 

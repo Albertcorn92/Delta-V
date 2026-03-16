@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-03-14T22:53:13.788393+00:00",
+  "generated_utc": "2026-03-16T23:12:21.583978+00:00",
   "workspace": "DELTA-V Framework",
   "host": {
     "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
@@ -8,7 +8,7 @@
   },
   "git": {
     "branch": "main",
-    "commit": "b7d2386fd715ceb1822d5e67227a821c6ebce264",
+    "commit": "8f44015cf3676b1a9cfe825d3e304d93fc900e74",
     "dirty_worktree": true
   },
   "benchmark_runs": 3,
@@ -18,23 +18,23 @@
       "frames": 20000,
       "accepted": 20000,
       "consumed": 20000,
-      "duration_s": 1.055194,
-      "throughput_cmd_per_s": 18953.864,
-      "latency_p50_us": 49.375,
-      "latency_p95_us": 72.417
+      "duration_s": 0.822016,
+      "throughput_cmd_per_s": 24330.43,
+      "latency_p50_us": 35.916,
+      "latency_p95_us": 53.042
     },
     "crc16": {
       "iterations": 300000,
       "bytes_per_iteration": 256,
-      "duration_s": 0.677168,
-      "throughput_mb_per_s": 113.414,
+      "duration_s": 0.65578,
+      "throughput_mb_per_s": 117.112,
       "accumulator": 0
     },
     "cobs_roundtrip": {
       "iterations": 300000,
       "bytes_per_iteration": 22,
-      "duration_s": 0.008112,
-      "throughput_mb_per_s": 813.601,
+      "duration_s": 0.007863,
+      "throughput_mb_per_s": 839.383,
       "accumulator": 38246416
     },
     "command_router": {
@@ -42,8 +42,8 @@
       "injected": 20000,
       "routed": 20000,
       "ack_events": 20000,
-      "duration_s": 0.002568,
-      "throughput_cmd_per_s": 7786770.2,
+      "duration_s": 0.002468,
+      "throughput_cmd_per_s": 8104410.745,
       "latency_p50_us": 0.084,
       "latency_p95_us": 0.125
     },
@@ -52,9 +52,9 @@
       "injected": 20000,
       "delivered_listener_a": 20000,
       "delivered_listener_b": 20000,
-      "duration_s": 0.001096,
-      "throughput_pkt_per_s": 18247492.566,
-      "latency_p50_us": 0.042,
+      "duration_s": 0.001058,
+      "throughput_pkt_per_s": 18908059.56,
+      "latency_p50_us": 0.041,
       "latency_p95_us": 0.042
     },
     "startup_runtime": {
@@ -80,42 +80,42 @@
     {
       "label": "Uplink throughput (cmd/s)",
       "key": "uplink.throughput_cmd_per_s",
-      "median": 18953.864,
-      "p95": 18953.864,
-      "min": 15348.11,
-      "max": 19175.203
+      "median": 24330.43,
+      "p95": 24330.43,
+      "min": 22514.939,
+      "max": 27310.245
     },
     {
       "label": "Uplink latency p95 (us)",
       "key": "uplink.latency_p95_us",
-      "median": 72.417,
-      "p95": 72.417,
-      "min": 66.583,
-      "max": 98.417
+      "median": 53.042,
+      "p95": 53.042,
+      "min": 44.959,
+      "max": 59.625
     },
     {
       "label": "CRC-16 throughput (MB/s)",
       "key": "crc16.throughput_mb_per_s",
-      "median": 113.414,
-      "p95": 113.414,
-      "min": 113.251,
-      "max": 113.863
+      "median": 117.112,
+      "p95": 117.112,
+      "min": 116.558,
+      "max": 117.294
     },
     {
       "label": "COBS roundtrip throughput (MB/s)",
       "key": "cobs_roundtrip.throughput_mb_per_s",
-      "median": 813.601,
-      "p95": 813.601,
-      "min": 787.57,
-      "max": 818.326
+      "median": 839.383,
+      "p95": 839.383,
+      "min": 827.578,
+      "max": 846.326
     },
     {
       "label": "Command router throughput (cmd/s)",
       "key": "command_router.throughput_cmd_per_s",
-      "median": 7786770.2,
-      "p95": 7786770.2,
-      "min": 7519622.455,
-      "max": 7946362.056
+      "median": 8104410.745,
+      "p95": 8104410.745,
+      "min": 8092526.713,
+      "max": 8209621.183
     },
     {
       "label": "Command router latency p95 (us)",
@@ -128,10 +128,10 @@
     {
       "label": "Telem fanout throughput (pkt/s)",
       "key": "telem_fanout.throughput_pkt_per_s",
-      "median": 18247492.566,
-      "p95": 18247492.566,
-      "min": 18026820.303,
-      "max": 18774212.868
+      "median": 18908059.56,
+      "p95": 18908059.56,
+      "min": 18866447.25,
+      "max": 18919238.501
     },
     {
       "label": "Telem fanout latency p95 (us)",

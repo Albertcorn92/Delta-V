@@ -83,8 +83,11 @@ The command path enforces:
 - command-rate limiting
 - explicit NACK/error handling for invalid or unroutable commands
 
-Telemetry and events move through `TelemHub` and `EventHub` based on the routes
-declared in `topology.yaml`.
+Telemetry and events move through `TelemHub` and `EventHub` to both the radio
+path and recorder path based on the routes declared in `topology.yaml`.
+
+`TopologyManager::verify()` also checks the expected command, telemetry, and
+event wiring before the runtime is treated as healthy.
 
 ## 6. Exercise The Runtime
 

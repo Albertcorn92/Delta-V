@@ -14,9 +14,12 @@ Read these first:
 
 1. `README.md`
 2. `docs/QUICKSTART_10_MIN.md`
-3. `docs/DEVELOPER_GUIDE.md`
+3. `examples/cubesat_attitude_control/README.md`
 4. `docs/ARCHITECTURE.md`
-5. `docs/ICD.md`
+5. `docs/COMPONENT_MODEL.md`
+6. `docs/PORTS_AND_MESSAGES.md`
+7. `docs/SCHEDULER_AND_EXECUTION.md`
+8. `docs/ICD.md`
 
 ## First-Time User Path
 
@@ -24,13 +27,19 @@ Use this order for the first successful local run:
 
 1. `README.md`: repository overview and basic commands
 2. `docs/QUICKSTART_10_MIN.md`: first validation run
-3. `docs/DEVELOPER_GUIDE.md`: normal edit and build loop
+3. `examples/cubesat_attitude_control/README.md`: one concrete mission-shaped entry point
 4. `docs/ARCHITECTURE.md`: runtime structure and generated topology flow
+5. `docs/COMPONENT_MODEL.md`: passive vs active runtime blocks
+6. `docs/PORTS_AND_MESSAGES.md`: packet and queue model
+7. `docs/SCHEDULER_AND_EXECUTION.md`: rate groups and execution ownership
 
 ## Daily Development
 
 - `docs/DEVELOPER_GUIDE.md`: setup, component work, topology updates, and build targets
 - `docs/ICD.md`: packet layout, command IDs, and interface rules
+- `docs/COMPONENT_MODEL.md`: how components expose inputs, outputs, and health
+- `docs/PORTS_AND_MESSAGES.md`: transport semantics and terminology
+- `docs/SCHEDULER_AND_EXECUTION.md`: scheduling and active-component behavior
 - `docs/SAFETY_ASSURANCE.md`: enforced gates and generated outputs
 - `docs/COVERAGE_POLICY.md`: coverage build and thresholds
 - `docs/SOFTWARE_PORTABILITY_MATRIX.md`: host portability results
@@ -39,6 +48,10 @@ Use this order for the first successful local run:
 ## Runtime And System Understanding
 
 - `docs/ARCHITECTURE.md`: runtime model and major components
+- `docs/COMPONENT_MODEL.md`: component responsibilities and health behavior
+- `docs/PORTS_AND_MESSAGES.md`: command, telemetry, and event transport model
+- `docs/SCHEDULER_AND_EXECUTION.md`: rate groups and execution strategy
+- `examples/cubesat_attitude_control/README.md`: concrete example mission path
 - `docs/REFERENCE_MISSION_WALKTHROUGH.md`: one end-to-end path through the repo
 - `docs/ASSESS_DELTA_V.md`: review-oriented reading order
 
@@ -95,7 +108,10 @@ For a normal local clone, this is enough:
 
 1. `README.md`
 2. `docs/QUICKSTART_10_MIN.md`
-3. `docs/DEVELOPER_GUIDE.md`
+3. `examples/cubesat_attitude_control/README.md`
 4. `docs/ARCHITECTURE.md`
-5. `docs/ICD.md`
-6. `docs/CIVILIAN_USE_POLICY.md`
+5. `docs/COMPONENT_MODEL.md`
+6. `docs/PORTS_AND_MESSAGES.md`
+7. `docs/SCHEDULER_AND_EXECUTION.md`
+8. `docs/ICD.md`
+9. `docs/CIVILIAN_USE_POLICY.md`

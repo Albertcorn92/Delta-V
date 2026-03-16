@@ -5,22 +5,51 @@
 [![Latest Tag](https://img.shields.io/github/v/tag/Albertcorn92/Delta-V)](https://github.com/Albertcorn92/Delta-V/tags)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue)](https://en.cppreference.com/w/cpp/20)
 
-DELTA-V is a C++20 flight software framework for civilian aerospace, robotics,
-and research systems. The repository contains the host/SITL runtime, ESP32
-port, topology generator, ground tools, tests, and release tooling in one tree.
+DELTA-V is a deterministic C++20 flight software framework for civilian
+spacecraft, robotics, and research systems. It combines typed ports, generated
+topology wiring, fixed-size bounded-copy message paths, and explicit fault
+handling in a public baseline that runs on host/SITL and ESP32-class targets.
 
-## What Is Here
+## Why DELTA-V Exists
 
-- `src/`: runtime components, hubs, FDIR, and generated topology wiring
-- `topology.yaml`: source of truth for components, commands, and routing
-- `tools/`: generator, validation scripts, release tooling, and utilities
-- `gds/`: Streamlit-based ground station
-- `ports/esp32/`: ESP32 port and board-specific support
-- `docs/`: user guides, architecture notes, release records, and process docs
+Many flight and robotics stacks are strong in one direction but expensive in
+another:
 
-## First Run
+- larger flight frameworks can bring substantial process and generation weight
+- robotics middleware often prioritizes flexibility over bounded execution
+- embedded teams still need a small, testable baseline with clear system wiring
 
-Set up Python, configure the build, and run the local validation target:
+DELTA-V aims at the middle ground: a compact flight-software baseline with
+generated topology checks, deterministic message paths, and civilian scope
+controls already built into the repository.
+
+## Architecture At A Glance
+
+```mermaid
+flowchart LR
+    G["Ground / GDS"] --> B["TelemetryBridge"]
+    B --> C["CommandHub"]
+    C --> A["Flight Components"]
+    A --> T["TelemHub"]
+    A --> E["EventHub"]
+    T --> B
+    E --> B
+    T --> L["LoggerComponent"]
+    E --> L
+    W["Watchdog + FDIR"] --> A
+    W --> P["ParamDb + TmrStore"]
+```
+
+Core runtime ideas:
+
+- `topology.yaml` is the source of truth for components, IDs, and routes
+- `tools/autocoder.py` generates `src/TopologyManager.hpp`, `src/Types.hpp`,
+  and `dictionary.json`
+- command, telemetry, and event paths use fixed-size packet types over typed
+  ports
+- backpressure and routing faults are surfaced into component health counters
+
+## 60-Second Quickstart
 
 ```bash
 python3 -m venv .venv
@@ -31,26 +60,106 @@ cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --target quickstart_10min
 ```
 
-For a scaffolded mission project:
+`quickstart_10min` runs the public local validation path:
+
+- generated-file freshness check
+- legal and civilian-scope checks
+- unit tests
+- system tests
+- benchmark guards
+- SITL smoke run
+
+If you want the runtime and GDS after that:
 
 ```bash
-./bootstrap.sh my_spacecraft
-cd my_spacecraft
+cmake --build build --target flight_software
+./build/flight_software
 
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-cmake -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build --target quickstart_10min
+streamlit run gds/gds_dash.py
 ```
 
-Read next:
+## Reference Mission Example
 
-- [Quickstart](docs/QUICKSTART_10_MIN.md)
-- [Documentation guide](docs/README.md)
-- [Developer guide](docs/DEVELOPER_GUIDE.md)
-- [Architecture reference](docs/ARCHITECTURE.md)
+The repository baseline already includes a civilian CubeSat-style reference
+mission profile. Start here:
+
+- [examples/README.md](examples/README.md)
+- [examples/cubesat_attitude_control/README.md](examples/cubesat_attitude_control/README.md)
+- [docs/REFERENCE_MISSION_WALKTHROUGH.md](docs/REFERENCE_MISSION_WALKTHROUGH.md)
+
+The current example is documentation-backed and uses the main repository
+topology rather than a separate example-only binary.
+
+## Design Traits
+
+| Trait | DELTA-V baseline |
+|---|---|
+| Topology model | generated from `topology.yaml` |
+| Message transport | typed ports with fixed-size bounded-copy queues |
+| Allocation model | no uncontrolled runtime growth in the core message path |
+| Fault handling | explicit `recordError()` and watchdog-visible health counters |
+| Link layer | UDP or serial KISS with CCSDS framing |
+| Public scope | civilian, research, industrial, educational |
+
+Important wording: DELTA-V is not a true zero-copy framework today. The core
+transport is fixed-size, zero-allocation, and bounded-copy.
+
+## How DELTA-V Compares
+
+This is the intended positioning, not a claim that other frameworks are worse
+overall:
+
+| Question | DELTA-V | F´ | ROS 2 |
+|---|---|---|---|
+| Primary focus | compact civilian FSW baseline | large flight-software framework | robotics middleware |
+| Generated topology artifacts | yes | yes | no |
+| Core public message path | fixed-size bounded-copy ports | deployment-dependent | middleware transport/serialization |
+| Public repository scope controls | explicit civilian baseline | project-dependent | general-purpose |
+
+DELTA-V is best read as a smaller, explicit framework baseline for teams that
+want a deterministic component graph and visible fault-handling behavior without
+turning the repo into a full mission program.
+
+## Current Baseline
+
+The current public baseline passes the main local gates:
+
+- `autocoder_check`
+- `quickstart_10min`
+- `DeltaV_Unit_Tests`
+- `DeltaV_System_Tests`
+- `traceability`
+- `legal_compliance`
+
+The repository contains a functional framework baseline, not a mission-qualified
+flight load. Target timing evidence, long-duration hardware runs, environmental
+qualification, and mission-owned uplink/security controls remain outside this
+public baseline. It is not certified for operational or safety-critical
+deployment.
+
+## Civilian Scope And Contribution Boundary
+
+DELTA-V is published as a civilian public-source framework.
+
+In scope:
+
+- software architecture and runtime behavior
+- simulation, tests, and release evidence
+- educational, research, and civilian adaptation
+
+Out of scope for the public baseline:
+
+- weapons, targeting, or military mission logic
+- command-path crypto/auth additions in the baseline framework
+- hardware qualification claims
+- direct operational support commitments
+
+Repository changes remain maintainer-controlled. External contribution scope is
+intentionally limited; see [CONTRIBUTING.md](CONTRIBUTING.md),
+[docs/CIVILIAN_USE_POLICY.md](docs/CIVILIAN_USE_POLICY.md), and
+[docs/EXPORT_CONTROL_NOTE.md](docs/EXPORT_CONTROL_NOTE.md), and
+[docs/LEGAL_FAQ.md](docs/LEGAL_FAQ.md).
+Maintainer does not provide direct operational support to non-U.S. users.
 
 ## Common Commands
 
@@ -61,129 +170,22 @@ Read next:
 | Build the host runtime | `cmake --build build --target flight_software` |
 | Run unit tests | `cmake --build build --target run_tests` |
 | Run system tests | `cmake --build build --target run_system_tests` |
+| Refresh benchmark artifacts | `cmake --build build --target benchmark_baseline` |
+| Run SITL smoke | `cmake --build build --target sitl_smoke` |
 | Run the local validation path | `cmake --build build --target quickstart_10min` |
-| Run the software closeout gate | `cmake --build build --target software_final` |
-| Check release blockers | `cmake --build build --target release_preflight` |
-| Generate tagged release artifacts | `cmake --build build --target release_candidate` |
+| Generate release artifacts | `cmake --build build --target release_candidate` |
 | Build the reviewer bundle | `cmake --build build --target review_bundle` |
 
-## Current Baseline
+## Read Next
 
-The current generated status documents report:
-
-- `software_final`: `PASS`
-- direct test evidence: `37/37` requirements
-- framework release readiness: `True`
-- CubeSat flight readiness: `False`
-
-The software baseline is released. Sensor-attached HIL and mission-specific
-qualification remain outside the public baseline.
-This repository is not certified for operational or safety-critical deployment.
-
-Reference documents:
-
-- [Software final status](docs/SOFTWARE_FINAL_STATUS.md)
-- [Qualification report](docs/qualification_report.md)
-- [Requirements trace matrix](docs/REQUIREMENTS_TRACE_MATRIX.md)
-- [CubeSat readiness status](docs/CUBESAT_READINESS_STATUS.md)
-- [Release preflight](docs/process/RELEASE_PREFLIGHT_CURRENT.md)
-
-## Build And Run
-
-Requirements:
-
-- C++20 compiler (`clang++` 14+ or `g++` 11+)
-- CMake 3.15+
-- Python 3.9+
-
-Build the host runtime:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-cmake -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build --target flight_software
-```
-
-Run the host runtime and GDS:
-
-```bash
-# Terminal 1
-./build/flight_software
-
-# Terminal 2
-streamlit run gds/gds_dash.py
-```
-
-## Development Workflow
-
-Typical edit loop:
-
-1. Update `src/` or `topology.yaml`.
-2. Run `python3 tools/autocoder.py` after topology changes.
-3. Rebuild the affected target.
-4. Run `run_tests`, `run_system_tests`, or `quickstart_10min`.
-
-Component scaffolding:
-
-```bash
-python3 tools/dv-util.py boot-menu
-python3 tools/dv-util.py quickstart-component ThermalControl --build
-```
-
-For more detail, see [Developer guide](docs/DEVELOPER_GUIDE.md).
-
-## Runtime Summary
-
-- Ground link: UDP or serial KISS
-- Protocol layer: CCSDS framing with CRC and anti-replay checks
-- Runtime core: `TelemetryBridge`, `CommandHub`, `TelemHub`, `EventHub`, `RateGroupExecutive`
-- Fault management: `WatchdogComponent`, `MissionFsm`, `ParamDb`, `TmrStore`
-- Reference payload profile: `PayloadMonitorComponent` (`ID 400`)
-- Generated artifacts: `src/TopologyManager.hpp`, `src/Types.hpp`, `dictionary.json`
-
-See [Architecture reference](docs/ARCHITECTURE.md) and [ICD](docs/ICD.md).
-
-## Scope
-
-DELTA-V is published as a civilian public-source framework.
-
-In scope:
-
-- software architecture and runtime behavior
-- simulation, tests, and release evidence
-- educational, research, and civilian adaptation
-
-Out of scope for this public baseline:
-
-- weapons, targeting, or military mission logic
-- command-path crypto/auth additions
-- hardware qualification claims
-- operational support commitments
-
-Maintainer boundary: maintainer does not provide direct operational support to
-non-U.S. users.
-
-Legal references:
-
-- [Civilian use policy](docs/CIVILIAN_USE_POLICY.md)
-- [Export control note](docs/EXPORT_CONTROL_NOTE.md)
-- [Legal FAQ](docs/LEGAL_FAQ.md)
-- [Maintainer boundary policy](docs/MAINTAINER_BOUNDARY_POLICY.md)
-- [Public security posture baseline](docs/process/PUBLIC_SECURITY_POSTURE_BASELINE.md)
-
-## More Documentation
-
-- [Documentation guide](docs/README.md)
-- [Quickstart](docs/QUICKSTART_10_MIN.md)
-- [Developer guide](docs/DEVELOPER_GUIDE.md)
-- [Architecture reference](docs/ARCHITECTURE.md)
-- [Safety assurance](docs/SAFETY_ASSURANCE.md)
-- [Reference mission walkthrough](docs/REFERENCE_MISSION_WALKTHROUGH.md)
-- [Assessment guide](docs/ASSESS_DELTA_V.md)
-- [ESP32 bring-up](docs/ESP32_BRINGUP.md)
+- [docs/QUICKSTART_10_MIN.md](docs/QUICKSTART_10_MIN.md)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/COMPONENT_MODEL.md](docs/COMPONENT_MODEL.md)
+- [docs/PORTS_AND_MESSAGES.md](docs/PORTS_AND_MESSAGES.md)
+- [docs/SCHEDULER_AND_EXECUTION.md](docs/SCHEDULER_AND_EXECUTION.md)
+- [docs/ICD.md](docs/ICD.md)
+- [docs/SAFETY_ASSURANCE.md](docs/SAFETY_ASSURANCE.md)
+- [docs/README.md](docs/README.md)
 
 ## Project Files
 

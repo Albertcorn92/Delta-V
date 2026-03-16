@@ -1,18 +1,18 @@
 {
-  "generated_utc": "2026-03-14T23:00:53.394581+00:00",
+  "generated_utc": "2026-03-16T23:06:11.869844+00:00",
   "workspace": "DELTA-V Framework",
   "git": {
     "branch": "main",
-    "commit": "1750d3d012fa616913692eb89713beb78939b52f",
+    "commit": "8f44015cf3676b1a9cfe825d3e304d93fc900e74",
     "exact_tag": "untagged",
-    "dirty_worktree": false
+    "dirty_worktree": true
   },
   "host": {
-    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
-    "python": "3.14.3",
+    "platform": "macOS-26.2-arm64-arm-64bit",
+    "python": "3.12.12",
     "cmake": "cmake version 4.2.3"
   },
-  "unit_test_count": 174,
+  "unit_test_count": 184,
   "trace": {
     "summary": {
       "total_requirements": 37,
@@ -63,18 +63,18 @@
     },
     {
       "path": "tests/unit_tests.cpp",
-      "crc32": "f00eace4",
-      "digest256": "e5c488d54d63c796b96ab86911eaa040b646bd1a42080d937628740b798dce14"
+      "crc32": "db6caa4e",
+      "digest256": "5a9dfa5183df7a20562b7cf3c0566b176fc7658471496e6b32d7fcb9687520e4"
     },
     {
       "path": "build/flight_software",
-      "crc32": "b532917b",
-      "digest256": "ee2cf707a70e072e743327654edfd69cadfac67c04a8fc5b1561f1f173001491"
+      "crc32": "cca1b614",
+      "digest256": "57bf277db3660320436e9d5ac1a652e1a9655e88453eedcf56e52191e1fbaef9"
     },
     {
       "path": "build/run_tests",
-      "crc32": "adad57ac",
-      "digest256": "86edbe145c6bc7843ac75deecdab6a7db3909f13571c7d30c311f4ebbc54470a"
+      "crc32": "df58075f",
+      "digest256": "84cec5073c77e54f955ec8875841b53965338cc1237aa2982e1a423862e5ecff"
     }
   ],
   "manual_remaining": []

@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- Runtime fault visibility was hardened across producer components, `EventHub`,
+  and `TelemHub` so queue backpressure and disconnected paths are surfaced into
+  component health accounting instead of being dropped silently.
+- `LoggerComponent` now reports degraded startup/write conditions instead of
+  appearing healthy while discarding data.
+- `ParamDb` integrity checks were synchronized with writes to remove false
+  corruption detections during normal concurrent operation.
+- `TelemetryBridge` now treats UDP bind failure as explicit ingress
+  unavailability instead of leaving command ingress falsely healthy.
+- Generated topology verification now checks exact command, telemetry, and
+  event wiring rather than relying on aggregate counts alone.
+- Top-level and architecture docs were aligned with the real bounded-copy
+  transport model, recorder fan-out path, and current civilian/maintainer
+  boundary.
+
+### Verification Snapshot
+- `flight_readiness`: passing
+- `python3 tools/qualification_report.py --workspace . --trace-json build/requirements_trace_matrix.json --trace-md build/requirements_trace_matrix.md --tests-file tests/unit_tests.cpp --flight-bin build/flight_software --tests-bin build/run_tests --output-dir build/qualification`: passing
+- `python3 tools/software_final_check.py --workspace . --build-dir build --python-exe python3`: passing
+- `python3 tools/cubesat_readiness_report.py --workspace . --build-dir build --python-exe python3`: refreshed (`framework_release_ready=True`, `cubesat_flight_ready=False`)
+
 ## v4.0.1-rc (2026-03-08)
 
 ### Changed

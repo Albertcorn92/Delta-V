@@ -39,7 +39,7 @@ Ground responsibilities:
 
 | Direction | Data / Command | Contract |
 |---|---|---|
-| Flight -> ground | Battery telemetry from component `ID 200` | Routed through `TelemHub` and downlinked through `TelemetryBridge` |
+| Flight -> ground | Battery telemetry from component `ID 200` | Routed through `TelemHub`, downlinked through `TelemetryBridge`, and recorded by `LoggerComponent` |
 | Ground -> flight | `RESET_BATTERY` (`target_id=200`, `opcode=1`) | Restores reference SOC in simulation/lab baseline |
 | Ground -> flight | `SET_DRAIN_RATE` (`target_id=200`, `opcode=2`) | Sets simulated battery drain for rehearsal/fault campaigns |
 
@@ -56,7 +56,7 @@ Mission-owned closure items:
 |---|---|---|
 | `SensorComponent` (`ID 100`) | Uplink command | `SET_STAR_AMPLITUDE` (`opcode=1`) adjusts simulated star-tracker amplitude |
 | `ImuComponent` (`ID 300`) | Uplink command | `IMU_RECALIBRATE` (`opcode=1`) triggers recalibration |
-| Both | Telemetry | Routed through `TelemHub`; payload format follows `docs/ICD.md` telemetry contract |
+| Both | Telemetry | Routed through `TelemHub`, delivered to radio/recorder listeners, and formatted per `docs/ICD.md` |
 
 Mission-owned closure items:
 
@@ -90,7 +90,7 @@ The public baseline does not close:
 
 | Direction | Data / Command | Contract |
 |---|---|---|
-| Flight -> ground | Payload telemetry from component `ID 400` | `data_payload` carries the current reference payload sample or `0.0` when disabled |
+| Flight -> ground | Payload telemetry from component `ID 400` | `data_payload` carries the current reference payload sample or `0.0` when disabled; the packet is fanned out through `TelemHub` to radio and recorder listeners |
 | Ground -> flight | `PAYLOAD_SET_ENABLE` (`target_id=400`, `opcode=1`) | Enables or disables the reference payload profile |
 | Ground -> flight | `PAYLOAD_CAPTURE_SAMPLE` (`target_id=400`, `opcode=2`) | Captures one bounded payload sample during nominal operations windows |
 | Ground -> flight | `PAYLOAD_SET_GAIN` (`target_id=400`, `opcode=3`) | Adjusts bounded payload gain for the reference profile |

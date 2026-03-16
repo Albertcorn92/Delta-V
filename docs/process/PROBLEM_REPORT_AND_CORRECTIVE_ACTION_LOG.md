@@ -1,6 +1,6 @@
 # Problem Report And Corrective Action Log
 
-Date: 2026-03-14
+Date: 2026-03-16
 Scope: DELTA-V framework baseline
 
 This log records baseline process defects, their corrective actions, and the
@@ -28,6 +28,7 @@ Each entry must include:
 | PRCA-003 | Telemetry hub capacity/registration failures were silent, weakening fault visibility. | Runtime fault observability | Made capacity failures explicit and tightened topology verification. | `docs/qualification_report.md`, `src/TelemHub.hpp`, `src/TopologyManager.hpp` | CLOSED |
 | PRCA-004 | Live SITL fault injection was unreliable because the bridge used fixed default UDP ports and the campaign depended on buffered live stdout markers. | Operations rehearsal and fault-injection evidence | Added controlled SITL port overrides and changed the campaign to use isolated ports with post-run log validation. | `cmake --build build --target sitl_fault_campaign`, `build/sitl/sitl_fault_campaign_result.json` | CLOSED |
 | PRCA-005 | The assurance package was still framework-generic and lacked a mission-shaped allocation, risk, audit, and rehearsal baseline. | Process evidence completeness | Added the reference-mission allocation, risk, assumptions, audit, interface, and rehearsal records. | `python3 tools/software_final_check.py`, `docs/process/*_BASELINE.md`, `docs/process/OPERATIONS_REHEARSAL_20260314.md` | CLOSED |
+| PRCA-006 | Several runtime paths could still lose visibility or misreport health during normal operation, including unchecked producer backpressure, logger-open failures, a parameter-integrity race, misleading UDP ingress readiness, and incomplete exact-wiring verification. | Runtime fault observability and topology assurance | Hardened producer and hub send-failure accounting, degraded logger startup/write handling, serialized `ParamDb` integrity checks with writes, made UDP bind readiness explicit, and upgraded topology verification to exact command/telemetry/event connection checks. | `docs/qualification_report.md`, `src/Component.hpp`, `src/EventHub.hpp`, `src/TelemHub.hpp`, `src/LoggerComponent.hpp`, `src/ParamDb.hpp`, `src/TelemetryBridge.hpp`, `src/TopologyManager.hpp`, `tests/unit_tests.cpp` | CLOSED |
 
 ## Entry Rules
 
