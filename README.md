@@ -9,12 +9,6 @@ DELTA-V is a deterministic C++20 flight software framework for civilian
 spacecraft, robotics, and research systems. It combines typed ports, generated
 topology wiring, fixed-size bounded-copy message paths, and explicit fault
 handling in a public baseline that runs on host/SITL and ESP32-class targets.
-
-## Demo Video
-
-
-[![DELTA-V narrated demo](docs/media/demo/deltav_reference_demo.png)](docs/media/demo/deltav_reference_demo_with_audio.mp4)
-
 ## Why DELTA-V Exists
 
 Many flight and robotics stacks are strong in one direction but expensive in
