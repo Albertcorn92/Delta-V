@@ -1,16 +1,16 @@
 {
   "version": 1,
   "metrics": {
-    "uplink_throughput_cmd_per_s_min": 7000.0,
-    "uplink_latency_p95_us_max": 450.0,
-    "crc16_throughput_mb_per_s_min": 20.0,
-    "cobs_roundtrip_throughput_mb_per_s_min": 100.0,
-    "command_router_throughput_cmd_per_s_min": 500000.0,
-    "command_router_latency_p95_us_max": 20.0,
-    "telem_fanout_throughput_pkt_per_s_min": 500000.0,
-    "telem_fanout_latency_p95_us_max": 20.0,
+    "uplink_throughput_cmd_per_s_min": 15000.0,
+    "uplink_latency_p95_us_max": 100.0,
+    "crc16_throughput_mb_per_s_min": 80.0,
+    "cobs_roundtrip_throughput_mb_per_s_min": 600.0,
+    "command_router_throughput_cmd_per_s_min": 5000000.0,
+    "command_router_latency_p95_us_max": 1.0,
+    "telem_fanout_throughput_pkt_per_s_min": 10000000.0,
+    "telem_fanout_latency_p95_us_max": 1.0,
     "startup_runtime_sample_count_min": 8,
-    "startup_runtime_startup_time_to_ready_s_max": 4.0,
+    "startup_runtime_startup_time_to_ready_s_max": 2.0,
     "startup_runtime_cpu_p95_pct_max": 150.0,
     "startup_runtime_rss_p95_mb_max": 150.0
   }

@@ -2762,6 +2762,53 @@ TEST(TimeSyncComponent, OutputBackpressureIncrementsErrorCount) {
     EXPECT_GE(sync.getErrorCount(), before + 2u);
 }
 
+TEST(TimeSyncComponent, PublishStatusReflectsSyncStateAndBadOpcode) {
+    TimeService::initEpoch();
+    TimeSyncComponent sync{"TimeSync", 43};
+    InputPort<EventPacket, 16> events{};
+    sync.event_out.connect(&events);
+    sync.init();
+
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{43u, TimeSyncComponent::OP_PUBLISH_STATUS, 0.0f}));
+    const uint32_t before = sync.getErrorCount();
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{43u, 999u, 0.0f}));
+    sync.step();
+
+    bool saw_unsynced = false;
+    bool saw_bad_opcode = false;
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {
+        const std::string_view msg(evt.message.data());
+        if (msg == "TIME_UNSYNCED") {
+            saw_unsynced = true;
+        } else if (msg == "TIME_BAD_OPCODE") {
+            saw_bad_opcode = true;
+        }
+    }
+    EXPECT_TRUE(saw_unsynced);
+    EXPECT_TRUE(saw_bad_opcode);
+    EXPECT_GE(sync.getErrorCount(), before + 1u);
+
+    constexpr uint64_t utc_ms = 0x0000000000ABCDEFULL;
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{
+        43u, TimeSyncComponent::OP_SET_UTC_MIDLO16,
+        static_cast<float>((utc_ms >> 16U) & 0xFFFFU)}));
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{
+        43u, TimeSyncComponent::OP_SET_UTC_LO16,
+        static_cast<float>(utc_ms & 0xFFFFU)}));
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{43u, TimeSyncComponent::OP_APPLY_SYNC, 0.0f}));
+    ASSERT_TRUE(sync.cmd_in.receive(CommandPacket{43u, TimeSyncComponent::OP_PUBLISH_STATUS, 0.0f}));
+    sync.step();
+
+    bool saw_synced = false;
+    while (events.tryConsume(evt)) {
+        if (std::string_view(evt.message.data()) == "TIME_SYNCED") {
+            saw_synced = true;
+        }
+    }
+    EXPECT_TRUE(saw_synced);
+}
+
 TEST(PlaybackComponent, LoadsAndReplaysHistoricalSamples) {
     const char* log_path = "flight_log.csv";
     std::string backup{};
@@ -2796,6 +2843,74 @@ TEST(PlaybackComponent, LoadsAndReplaysHistoricalSamples) {
     const TelemetryPacket telem = Serializer::unpackTelem(sample);
     EXPECT_EQ(telem.timestamp_ms, 101u);
     EXPECT_EQ(telem.component_id, 200u);
+
+    if (had_backup) {
+        std::ofstream restore(log_path, std::ios::binary | std::ios::trunc);
+        restore << backup;
+    } else {
+        (void)std::remove(log_path);
+    }
+}
+
+TEST(PlaybackComponent, MissingLogAndSendFailureAreVisible) {
+    const char* log_path = "flight_log.csv";
+    std::string backup{};
+    bool had_backup = false;
+    {
+        std::ifstream in(log_path, std::ios::binary);
+        if (in.is_open()) {
+            backup.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+            had_backup = true;
+        }
+    }
+    (void)std::remove(log_path);
+
+    TimeService::initEpoch();
+    PlaybackComponent playback{"Playback", 44};
+    InputPort<EventPacket, 16> events{};
+    playback.event_out.connect(&events);
+    playback.init();
+
+    const uint32_t before_missing = playback.getErrorCount();
+    ASSERT_TRUE(playback.cmd_in.receive(CommandPacket{44u, PlaybackComponent::OP_LOAD_LOG, 0.0f}));
+    playback.step();
+
+    bool saw_load_fail = false;
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {
+        if (std::string_view(evt.message.data()) == "PLAYBACK_LOAD_FAIL") {
+            saw_load_fail = true;
+        }
+    }
+    EXPECT_TRUE(saw_load_fail);
+    EXPECT_GE(playback.getErrorCount(), before_missing + 1u);
+
+    {
+        std::ofstream out(log_path, std::ios::trunc);
+        ASSERT_TRUE(out.is_open());
+        out << "timestamp_ms,component_id,data_payload\n";
+        out << "101,200,99.5\n";
+    }
+
+    InputPort<Serializer::ByteArray, 1> sink{};
+    OutputPort<Serializer::ByteArray> prefill{};
+    playback.telemetry_out.connect(&sink);
+    prefill.connect(&sink);
+    ASSERT_TRUE(prefill.send(Serializer::pack(TelemetryPacket{1u, 99u, 1.0f})));
+
+    const uint32_t before_send_fail = playback.getErrorCount();
+    ASSERT_TRUE(playback.cmd_in.receive(CommandPacket{44u, PlaybackComponent::OP_LOAD_LOG, 0.0f}));
+    ASSERT_TRUE(playback.cmd_in.receive(CommandPacket{44u, PlaybackComponent::OP_STEP_ONCE, 0.0f}));
+    playback.step();
+
+    bool saw_send_fail = false;
+    while (events.tryConsume(evt)) {
+        if (std::string_view(evt.message.data()) == "PLAYBACK_SEND_FAIL") {
+            saw_send_fail = true;
+        }
+    }
+    EXPECT_TRUE(saw_send_fail);
+    EXPECT_GE(playback.getErrorCount(), before_send_fail + 1u);
 
     if (had_backup) {
         std::ofstream restore(log_path, std::ios::binary | std::ios::trunc);
@@ -3039,6 +3154,53 @@ TEST(AtsRtsSequencerComponent, DisarmPreventsImmediateDispatch) {
     EXPECT_FALSE(cmd_sink.tryConsume(out));
 }
 
+TEST(AtsRtsSequencerComponent, FullTableAndSendFailureSurfaceFaults) {
+    TimeService::initEpoch();
+    AtsRtsSequencerComponent seq{"AtsRtsSequencer", 46};
+    InputPort<CommandPacket, 1> cmd_sink{};
+    InputPort<EventPacket, 64> events{};
+    OutputPort<CommandPacket> prefill{};
+    seq.command_out.connect(&cmd_sink);
+    seq.event_out.connect(&events);
+    prefill.connect(&cmd_sink);
+    seq.init();
+
+    for (size_t i = 0; i < AtsRtsSequencerComponent::MAX_SEQUENCE_ENTRIES; ++i) {
+        ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{
+            46u, AtsRtsSequencerComponent::OP_SET_TARGET, static_cast<float>(200u + static_cast<uint32_t>(i))}));
+        ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_COMMIT_ENTRY, 0.0f}));
+        seq.step();
+    }
+
+    const uint32_t before = seq.getErrorCount();
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_COMMIT_ENTRY, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_CLEAR, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TARGET, 200.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_OPCODE, 1.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TRIGGER_TYPE, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TIME_HI16, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_SET_TIME_LO16, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_COMMIT_ENTRY, 0.0f}));
+    ASSERT_TRUE(seq.cmd_in.receive(CommandPacket{46u, AtsRtsSequencerComponent::OP_ARM, 0.0f}));
+    ASSERT_TRUE(prefill.send(CommandPacket{999u, 1u, 0.0f}));
+    seq.step();
+
+    bool saw_full = false;
+    bool saw_send_fail = false;
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {
+        const std::string_view msg(evt.message.data());
+        if (msg == "ATSRTS_FULL") {
+            saw_full = true;
+        } else if (msg == "ATSRTS_SEND_FAIL") {
+            saw_send_fail = true;
+        }
+    }
+    EXPECT_TRUE(saw_full);
+    EXPECT_TRUE(saw_send_fail);
+    EXPECT_GE(seq.getErrorCount(), before + 2u);
+}
+
 TEST(LimitCheckerComponent, DisableSuppressesAlarmEmission) {
     TimeService::initEpoch();
     LimitCheckerComponent limits{"LimitChecker", 47};
@@ -3105,6 +3267,52 @@ TEST(LimitCheckerComponent, ClearTargetStopsFutureAlarms) {
     EXPECT_FALSE(saw_alarm);
 }
 
+TEST(LimitCheckerComponent, InvalidConfigurationsAndWarnTransitionsAreVisible) {
+    TimeService::initEpoch();
+    LimitCheckerComponent limits{"LimitChecker", 47};
+    InputPort<EventPacket, 64> events{};
+    limits.event_out.connect(&events);
+    limits.init();
+
+    const uint32_t before = limits.getErrorCount();
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_APPLY_LIMITS, 0.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_TARGET_ID, 200.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_WARN_LOW, 80.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_WARN_HIGH, 20.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_CRIT_LOW, 10.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_CRIT_HIGH, 90.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_APPLY_LIMITS, 0.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_WARN_LOW, 20.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_SET_WARN_HIGH, 80.0f}));
+    ASSERT_TRUE(limits.cmd_in.receive(CommandPacket{47u, LimitCheckerComponent::OP_APPLY_LIMITS, 0.0f}));
+    limits.step();
+
+    const TelemetryPacket warn_sample{TimeService::getMET(), 200u, 85.0f};
+    ASSERT_TRUE(limits.telem_in.receive(Serializer::pack(warn_sample)));
+    limits.step();
+    ASSERT_TRUE(limits.telem_in.receive(Serializer::pack(warn_sample)));
+    limits.step();
+
+    size_t warn_count = 0U;
+    bool saw_no_target = false;
+    bool saw_bad_range = false;
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {
+        const std::string_view msg(evt.message.data());
+        if (msg == "LIM_NO_TARGET") {
+            saw_no_target = true;
+        } else if (msg == "LIM_BAD_RANGE") {
+            saw_bad_range = true;
+        } else if (msg == "LIM_WARN") {
+            ++warn_count;
+        }
+    }
+    EXPECT_TRUE(saw_no_target);
+    EXPECT_TRUE(saw_bad_range);
+    EXPECT_EQ(warn_count, 1u);
+    EXPECT_GE(limits.getErrorCount(), before + 2u);
+}
+
 TEST(CfdpComponent, CompleteSessionEmitsMissingAndDoneStates) {
     CfdpComponent cfdp{"CfdpManager", 48};
     InputPort<EventPacket, 32> events{};
@@ -3144,6 +3352,63 @@ TEST(CfdpComponent, CompleteSessionEmitsMissingAndDoneStates) {
     EXPECT_TRUE(saw_done);
 }
 
+TEST(CfdpComponent, InvalidCommandsAndReportsAreVisible) {
+    CfdpComponent cfdp{"CfdpManager", 48};
+    InputPort<EventPacket, 32> events{};
+    InputPort<Serializer::ByteArray, 16> telem{};
+    cfdp.event_out.connect(&events);
+    cfdp.telemetry_out.connect(&telem);
+    cfdp.init();
+
+    const uint32_t before = cfdp.getErrorCount();
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_BEGIN_SESSION, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_COMMIT_CHUNK, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, 999u, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_BEGIN_SESSION, 3.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_SET_CHUNK_INDEX, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_PUSH_TEST_BYTE, 10.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_COMMIT_CHUNK, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_REPORT_MISSING_COUNT, 0.0f}));
+    ASSERT_TRUE(cfdp.cmd_in.receive(CommandPacket{48u, CfdpComponent::OP_REPORT_NEXT_MISSING, 0.0f}));
+    cfdp.step();
+
+    bool saw_bad_size = false;
+    bool saw_idx_fail = false;
+    bool saw_bad_op = false;
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {
+        const std::string_view msg(evt.message.data());
+        if (msg == "CFDP_BAD_SIZE") {
+            saw_bad_size = true;
+        } else if (msg == "CFDP_IDX_FAIL") {
+            saw_idx_fail = true;
+        } else if (msg == "CFDP_BAD_OP") {
+            saw_bad_op = true;
+        }
+    }
+    EXPECT_TRUE(saw_bad_size);
+    EXPECT_TRUE(saw_idx_fail);
+    EXPECT_TRUE(saw_bad_op);
+    EXPECT_GE(cfdp.getErrorCount(), before + 3u);
+
+    bool saw_missing_count = false;
+    bool saw_next_missing = false;
+    Serializer::ByteArray raw{};
+    while (telem.tryConsume(raw)) {
+        const TelemetryPacket tlm = Serializer::unpackTelem(raw);
+        if (tlm.component_id != 48u) {
+            continue;
+        }
+        if (tlm.data_payload == 2.0f) {
+            saw_missing_count = true;
+        } else if (tlm.data_payload == 1.0f) {
+            saw_next_missing = true;
+        }
+    }
+    EXPECT_TRUE(saw_missing_count);
+    EXPECT_TRUE(saw_next_missing);
+}
+
 TEST(ModeManagerComponent, AppliesDisablePathOutsideModeMask) {
     TimeService::initEpoch();
     ModeManagerComponent mode_mgr{"ModeManager", 49};
@@ -3169,6 +3434,62 @@ TEST(ModeManagerComponent, AppliesDisablePathOutsideModeMask) {
     EXPECT_EQ(out.target_id, 200u);
     EXPECT_EQ(out.opcode, 2u);
     EXPECT_FLOAT_EQ(out.argument, 0.0f);
+}
+
+TEST(ModeManagerComponent, CommitValidationSendFailureAndStatusAreVisible) {
+    TimeService::initEpoch();
+    ModeManagerComponent mode_mgr{"ModeManager", 49};
+    InputPort<CommandPacket, 1> cmd_sink{};
+    InputPort<EventPacket, 32> events{};
+    InputPort<Serializer::ByteArray, 16> telemetry{};
+    OutputPort<CommandPacket> prefill{};
+    mode_mgr.command_out.connect(&cmd_sink);
+    mode_mgr.event_out.connect(&events);
+    mode_mgr.telemetry_out.connect(&telemetry);
+    prefill.connect(&cmd_sink);
+    mode_mgr.init();
+
+    const uint32_t before = mode_mgr.getErrorCount();
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_COMMIT_RULE, 0.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_TARGET_ID, 200.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_ENABLE_OPCODE, 2.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_STAGE_DISABLE_OPCODE, 2.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_COMMIT_RULE, 0.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_REPORT_STATUS, 0.0f}));
+    ASSERT_TRUE(mode_mgr.cmd_in.receive(CommandPacket{49u, ModeManagerComponent::OP_APPLY_MODE, 0.0f}));
+    ASSERT_TRUE(prefill.send(CommandPacket{999u, 1u, 0.0f}));
+    mode_mgr.step();
+
+    bool saw_no_target = false;
+    bool saw_send_fail = false;
+    EventPacket evt{};
+    while (events.tryConsume(evt)) {
+        const std::string_view msg(evt.message.data());
+        if (msg == "MODE_NO_TARGET") {
+            saw_no_target = true;
+        } else if (msg == "MODE_SEND_FAIL") {
+            saw_send_fail = true;
+        }
+    }
+    EXPECT_TRUE(saw_no_target);
+    EXPECT_TRUE(saw_send_fail);
+    EXPECT_GE(mode_mgr.getErrorCount(), before + 2u);
+
+    size_t status_packets = 0U;
+    bool saw_mode_value = false;
+    Serializer::ByteArray raw{};
+    while (telemetry.tryConsume(raw)) {
+        const TelemetryPacket tlm = Serializer::unpackTelem(raw);
+        if (tlm.component_id != 49u) {
+            continue;
+        }
+        ++status_packets;
+        if (tlm.data_payload == 2.0f) {
+            saw_mode_value = true;
+        }
+    }
+    EXPECT_GE(status_packets, 3u);
+    EXPECT_TRUE(saw_mode_value);
 }
 
 // =============================================================================
