@@ -44,7 +44,7 @@ public:
         for (size_t i = 0; i < component_count; ++i) {
             schedule.at(i)->init();
         }
-        std::cout << "[Scheduler] All systems nominal.\n";
+        std::cout << "[Scheduler] All systems nominal." << std::endl;
     }
 
     auto executeLoop(uint32_t target_hz) -> void {

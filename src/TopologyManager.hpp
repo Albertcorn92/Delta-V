@@ -74,7 +74,7 @@ public:
         wireCommands();
         wireEvents();
         wireCustom();
-        std::cout << "[Topology] All ports connected.\n";
+        std::cout << "[Topology] All ports connected." << std::endl;
     }
 
     auto registerAll(RateGroupExecutive& rge) -> void {
