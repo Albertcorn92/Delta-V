@@ -10,6 +10,13 @@ spacecraft, robotics, and research systems. It combines typed ports, generated
 topology wiring, fixed-size bounded-copy message paths, and explicit fault
 handling in a public baseline that runs on host/SITL and ESP32-class targets.
 
+## Demo Video
+
+GitHub repository READMEs do not reliably support inline MP4 playback, so the
+poster below links to the narrated demo video.
+
+[![DELTA-V narrated demo](docs/media/demo/deltav_reference_demo.png)](docs/media/demo/deltav_reference_demo_with_audio.mp4)
+
 ## Why DELTA-V Exists
 
 Many flight and robotics stacks are strong in one direction but expensive in
