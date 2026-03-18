@@ -31,3 +31,19 @@ an operational flight safety approval package.
 3. Do not claim legal/certification clearance from these templates alone.
 4. Extend the baseline records with mission-specific hazards, interfaces, and
    reviews when moving beyond the reference mission.
+
+## Automated Consistency Check
+
+The repository enforces a structural check over these records:
+
+```bash
+cmake --build build --target safety_case_check
+```
+
+That gate verifies:
+
+- hazard IDs are unique
+- mitigation and verification links only reference defined hazards
+- mitigation requirement IDs exist in `src/Requirements.hpp`
+- each hazard has at least one mitigation and one verification link
+- repository-local evidence paths in the verification table still resolve

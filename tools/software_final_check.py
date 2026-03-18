@@ -33,6 +33,18 @@ def run_legal_check(workspace: Path, python_exe: str) -> None:
     subprocess.run(cmd, cwd=str(workspace), check=True)
 
 
+def run_safety_case_check(workspace: Path, python_exe: str) -> None:
+    cmd = [
+        python_exe,
+        str(workspace / "tools" / "safety_case_check.py"),
+        "--workspace",
+        str(workspace),
+        "--requirements",
+        str(workspace / "src" / "Requirements.hpp"),
+    ]
+    subprocess.run(cmd, cwd=str(workspace), check=True)
+
+
 def validate_traceability(trace_payload: dict[str, Any]) -> tuple[int, int]:
     summary = trace_payload.get("summary", {})
     total = int(summary.get("total_requirements", 0))
@@ -336,6 +348,7 @@ def main() -> int:
     validate_readme_legal_links(workspace / "README.md")
     validate_architecture_doc(workspace / "docs" / "ARCHITECTURE.md")
     validate_safety_case_templates(workspace)
+    run_safety_case_check(workspace, args.python_exe)
     validate_process_evidence_baseline(workspace)
 
     trace_payload = load_json(trace_json)

@@ -448,17 +448,26 @@ if(PYTHON3)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Generating and validating requirements traceability matrix"
     )
+    add_custom_target(safety_case_check
+        COMMAND ${PYTHON3} ${CMAKE_SOURCE_DIR}/tools/safety_case_check.py
+            --workspace ${CMAKE_SOURCE_DIR}
+            --requirements ${CMAKE_SOURCE_DIR}/src/Requirements.hpp
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Validating safety-case hazard, mitigation, and evidence links"
+    )
 
     message(STATUS "Autocoder: ENABLED  (cmake --build build --target gen)")
     message(STATUS "AutoChk  : ENABLED  (cmake --build build --target autocoder_check)")
     message(STATUS "Legal    : ENABLED  (cmake --build build --target legal_compliance)")
     message(STATUS "Trace    : ENABLED  (cmake --build build --target traceability)")
+    message(STATUS "SafetyCs : ENABLED  (cmake --build build --target safety_case_check)")
 endif()
 
-if(TARGET run_tests AND TARGET run_system_tests AND TARGET vnv_stress AND TARGET tidy_safety AND TARGET traceability AND TARGET legal_compliance AND TARGET autocoder_check)
+if(TARGET run_tests AND TARGET run_system_tests AND TARGET vnv_stress AND TARGET tidy_safety AND TARGET traceability AND TARGET safety_case_check AND TARGET legal_compliance AND TARGET autocoder_check)
     add_custom_target(flight_readiness
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target autocoder_check
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target legal_compliance
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target safety_case_check
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_tests
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_system_tests
         COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure
@@ -775,10 +784,11 @@ else()
         "reports) will be disabled.")
 endif()
 
-if(TARGET autocoder_check AND TARGET legal_compliance AND TARGET run_tests AND TARGET run_system_tests AND TARGET benchmark_guard AND TARGET benchmark_trend_guard AND TARGET sitl_smoke)
+if(TARGET autocoder_check AND TARGET legal_compliance AND TARGET safety_case_check AND TARGET run_tests AND TARGET run_system_tests AND TARGET benchmark_guard AND TARGET benchmark_trend_guard AND TARGET sitl_smoke)
     add_custom_target(quickstart_10min
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target autocoder_check
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target legal_compliance
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target safety_case_check
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_tests
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target run_system_tests
         COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure --timeout 90

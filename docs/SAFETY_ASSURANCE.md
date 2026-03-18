@@ -29,27 +29,32 @@ These targets are part of the enforced software path.
    Checks alignment between `src/Requirements.hpp`,
    `docs/REQUIREMENTS_TRACE.yaml`, and the mapped tests.
 
-5. `flight_readiness`
+5. `safety_case_check`
+   Confirms the hazard, mitigation, and verification-link records in
+   `docs/safety_case/` stay internally consistent and reference valid
+   repository requirements.
+
+6. `flight_readiness`
    Runs generated-file checks, legal checks, unit tests, system tests, static
    analysis, traceability validation, and the final host build.
 
-6. `qualification_bundle`
+7. `qualification_bundle`
    Builds the qualification report artifacts in `build/qualification/`.
 
-7. `software_final`
+8. `software_final`
    Synchronizes the generated software evidence files in `docs/`.
 
-8. `release_preflight`
+9. `release_preflight`
    Generates the current release-preparation report. This records blockers but
    does not require a clean tag.
 
-9. `release_candidate`
+10. `release_candidate`
    Release-only gate. Requires a clean worktree and an exact git tag, then
    writes the current release pedigree and release manifest.
 
-10. `review_bundle`
-    Stages the current review package and zip from the synced docs and build
-    artifacts.
+11. `review_bundle`
+   Stages the current review package and zip from the synced docs and build
+   artifacts.
 
 ## Supporting Targets
 
@@ -79,6 +84,7 @@ cmake --build build --target autocoder_check
 cmake --build build --target run_system_tests
 cmake --build build --target tidy_safety
 cmake --build build --target traceability
+cmake --build build --target safety_case_check
 cmake --build build --target vnv_stress
 cmake --build build --target flight_readiness
 cmake --build build --target qualification_bundle

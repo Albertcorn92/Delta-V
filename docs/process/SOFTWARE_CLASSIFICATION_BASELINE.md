@@ -8,6 +8,19 @@ classification work under a stricter external assurance model. It is not an
 official program classification and does not replace mission-level
 classification by project technical authority.
 
+## External-Alignment References
+
+This planning baseline is intended to stay readable against stricter external
+frameworks such as:
+
+- NASA `NPR 7150.2` software engineering requirements
+- NASA software classification and safety-criticality guidance (`SWE-020`,
+  `SWE-205`)
+- comparable mission-assurance flows where software class and criticality drive
+  the required level of review, verification, and independent assurance
+
+The repository does not claim those authorities have classified DELTA-V.
+
 ## Reference Mission Assumptions
 
 - Uncrewed civilian 3U CubeSat in LEO.
@@ -37,6 +50,20 @@ classification by project technical authority.
   this public baseline approximates independence with gates and records.
 - Mission-specific classification, hazard severity, and tailoring must still be
   done by the adopting project.
+
+## Provisional Planning Posture
+
+For external-assurance planning only, the public baseline assumes:
+
+- the flight runtime core would be treated as safety-significant software in a
+  real mission context
+- configuration-generation tooling would be treated as configuration-critical
+  support software
+- verification/reporting tooling would require mission-owned review before its
+  outputs were accepted as release evidence
+
+These statements are intentionally planning assumptions, not official assigned
+software classes.
 
 ## Explicit Non-Claims
 
