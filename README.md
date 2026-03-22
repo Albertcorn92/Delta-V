@@ -98,6 +98,11 @@ mission profile. Start here:
 The current example is documentation-backed and uses the main repository
 topology rather than a separate example-only binary.
 
+The bundled mission profile, operations helpers, and process records should be
+read as reference baseline material. They demonstrate deterministic hooks and
+repo-integrated workflows, not complete mission-ready subsystems or
+independent assurance.
+
 ## Design Traits
 
 | Trait | DELTA-V baseline |
@@ -127,6 +132,10 @@ overall:
 DELTA-V is best read as a smaller, explicit framework baseline for teams that
 want a deterministic component graph and visible fault-handling behavior without
 turning the repo into a full mission program.
+
+Names such as OTA, CFDP, and reference-mission readiness should be read in that
+same baseline sense: implemented and testable in-repo, but not a claim of full
+protocol closure, mission qualification, or independent review.
 
 ## Current Baseline
 

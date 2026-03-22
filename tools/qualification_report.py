@@ -2,7 +2,7 @@
 """
 qualification_report.py
 
-Generate a qualification evidence bundle from DELTA-V flight readiness artifacts.
+Generate a repository evidence bundle from DELTA-V flight readiness artifacts.
 This script is intended to run after the `flight_readiness` gate succeeds.
 """
 
@@ -198,6 +198,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines.append("")
     lines.append(f"- Generated (UTC): `{report['generated_utc']}`")
     lines.append(f"- Workspace: `{report['workspace']}`")
+    lines.append("- Scope: `Repository-generated evidence summary` (aggregates local gates and archived artifacts; not independent certification evidence)")
     lines.append("")
     lines.append("## Build Provenance")
     lines.append("")
@@ -254,7 +255,7 @@ def write_markdown(path: Path, report: dict[str, Any]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate a DELTA-V qualification evidence bundle."
+        description="Generate a DELTA-V repository evidence bundle."
     )
     parser.add_argument("--workspace", required=True, type=Path)
     parser.add_argument("--trace-json", required=True, type=Path)

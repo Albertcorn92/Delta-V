@@ -2,6 +2,7 @@
 
 - Generated (UTC): `2026-03-16T23:06:11.869844+00:00`
 - Workspace: `DELTA-V Framework`
+- Scope: `Repository-generated evidence summary` (aggregates local gates and archived artifacts; not independent certification evidence)
 
 ## Build Provenance
 
@@ -45,4 +46,3 @@
 ## Manual Evidence Remaining
 
 - None for baseline release profile.
-

@@ -1,8 +1,8 @@
 #pragma once
 // =============================================================================
-// TelemetryBridge.hpp — DELTA-V Ground Link (CCSDS-compliant UDP bridge)
+// TelemetryBridge.hpp — DELTA-V Ground Link (CCSDS-framed UDP/serial bridge)
 // =============================================================================
-// DO-178C Compliant:
+// DO-178C-informed coding style:
 // - Copy/Move constructors deleted (Rule of 5 for ActiveComponent)
 // - Loop conditions fixed to prevent infinite-loop evaluation
 // =============================================================================

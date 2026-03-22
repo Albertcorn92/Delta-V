@@ -2,7 +2,7 @@
 // =============================================================================
 // Port.hpp — DELTA-V Typesafe Messaging (Lock-free RingBuffer)  v3.0
 // =============================================================================
-// DO-178C Compliant:
+// DO-178C-informed coding style:
 // - std::array replaces C-style buffer
 // - Rule of 5 enforced on interfaces
 // - Auto return types used throughout

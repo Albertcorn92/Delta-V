@@ -23,6 +23,10 @@ The repository provides evidence for:
 - stress, benchmark, and SITL validation
 - a controlled public release process
 
+Generated readiness and qualification reports in this repository are best read
+as summaries of those local artifacts and gates. They are not independent
+certification or mission-assurance findings.
+
 ## What The Repository Does Not Prove
 
 The repository does not claim:

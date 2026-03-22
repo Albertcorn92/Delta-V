@@ -299,12 +299,12 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
     lines.append("")
     lines.append(f"- Generated (UTC): `{payload['generated_utc']}`")
     if waived_checks:
-        lines.append("- Readiness profile: `Scope-limited (waivers applied)`")
+        lines.append("- Readiness profile: `Baseline evidence set (scope waivers applied)`")
         lines.append(f"- Waived checks: `{', '.join(waived_checks)}`")
     else:
-        lines.append("- Readiness profile: `Full evidence (no waivers)`")
-    lines.append(f"- Framework release readiness: `{payload['framework_release_ready']}`")
-    lines.append(f"- CubeSat flight readiness: `{payload['cubesat_flight_ready']}`")
+        lines.append("- Readiness profile: `Baseline evidence set (no waivers within repo scope)`")
+    lines.append(f"- Framework release readiness (repo scope): `{payload['framework_release_ready']}`")
+    lines.append(f"- CubeSat flight readiness (repo scope): `{payload['cubesat_flight_ready']}`")
     lines.append("")
     lines.append("## Automated and Program Checks")
     lines.append("")
@@ -330,6 +330,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
 
     lines.append("## Notes")
     lines.append("")
+    lines.append("- PASS and WAIVED rows indicate that the repository contains the referenced baseline evidence; they do not by themselves close mission-program reviews.")
     lines.append("- Framework automation can reduce software risk, but mission qualification still requires hardware and operations evidence.")
     lines.append("- This report is an engineering status snapshot, not legal advice or certification approval.")
     lines.append("")

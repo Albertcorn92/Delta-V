@@ -2,7 +2,7 @@
 // =============================================================================
 // Hal.hpp — DELTA-V Hardware Abstraction Layer
 // =============================================================================
-// DO-178C compliant pure virtual interfaces for physical hardware buses.
+// DO-178C-informed pure virtual interfaces for physical hardware buses.
 // =============================================================================
 #include <array>
 #include <algorithm>

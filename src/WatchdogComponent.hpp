@@ -2,7 +2,7 @@
 // =============================================================================
 // WatchdogComponent.hpp — DELTA-V FDIR Supervisor  v3.0
 // =============================================================================
-// DO-178C Compliant:
+// DO-178C-informed coding style:
 // - Explicit memory initialization for all pointers
 // - std::array bounds-checking for all strings/arrays
 // - constexpr definitions for all magic numbers

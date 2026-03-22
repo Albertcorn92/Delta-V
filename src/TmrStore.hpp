@@ -2,7 +2,7 @@
 // =============================================================================
 // TmrStore.hpp — Triple Modular Redundancy (TMR) wrapper  v3.0
 // =============================================================================
-// DO-178C Compliant:
+// DO-178C-informed coding style:
 // - std::array replaces C-style arrays
 // - [[nodiscard]] and auto -> return types
 // - Zero-initialized members

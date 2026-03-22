@@ -1,9 +1,9 @@
 # DELTA-V CubeSat Readiness Status
 
 - Generated (UTC): `2026-03-16T23:06:12.445327+00:00`
-- Readiness profile: `Full evidence (no waivers)`
-- Framework release readiness: `True`
-- CubeSat flight readiness: `False`
+- Readiness profile: `Baseline evidence set (no waivers within repo scope)`
+- Framework release readiness (repo scope): `True`
+- CubeSat flight readiness (repo scope): `False`
 
 ## Automated and Program Checks
 
@@ -33,5 +33,7 @@
 
 ## Notes
 
+- PASS rows indicate that the repository contains the referenced baseline
+  evidence; they do not by themselves close mission-program reviews.
 - Framework automation can reduce software risk, but mission qualification still requires hardware and operations evidence.
 - This report is an engineering status snapshot, not legal advice or certification approval.

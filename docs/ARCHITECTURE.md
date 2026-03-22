@@ -138,6 +138,11 @@ Additional baseline apps include:
 - `CfdpComponent`
 - `ModeManagerComponent`
 
+These are deterministic baseline helpers, not claims of complete operational
+subsystems. In particular, names such as file transfer, OTA, CFDP, and time
+sync refer to bounded reference implementations that a mission team would still
+need to extend, qualify, and integrate with mission-owned procedures.
+
 ## Mission State And Command Policy
 
 `CommandHub` uses a generated policy map from `topology.yaml` to decide whether

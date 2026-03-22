@@ -19,9 +19,10 @@
 // Tested against FreeRTOS kernel v10.5.1 (LTS).
 // Maps cleanly to Cortex-M4 / M7 (STM32H7, STM32F4, NXP RT1060).
 //
-// DO-178C Note: FreeRTOS itself is DO-178C certifiable via WHIS SafeRTOS
-// derivative. This file uses only the core task and queue APIs that are
-// present in both FreeRTOS and SafeRTOS.
+// DO-178C Note: Some programs replace FreeRTOS with qualified or certified
+// derivatives such as SafeRTOS. This backend sticks to common task and queue
+// APIs, but the repository does not claim certification evidence from that fact
+// alone.
 // =============================================================================
 
 // Guard — this file is only compiled when FreeRTOS is the target OS
